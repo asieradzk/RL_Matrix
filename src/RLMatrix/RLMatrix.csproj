@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	  <TargetFramework>net6.0</TargetFramework>
+	  <ImplicitUsings>enable</ImplicitUsings>
+	  <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+	<PropertyGroup>
+		<PackageId>RLMatrix</PackageId>
+		<Version>0.1.0</Version>
+		<Authors>Adrian Sieradzki</Authors>
+		<Company>Adrian Sieradzki</Company>
+		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageDescription>Deep Reinforcement Learning in .NET</PackageDescription>
+		<PackageProjectUrl>https://github.com/asieradzk/RL_Matrix</PackageProjectUrl>
+		<PackageTags>Reinforcement Learning, RL, Agent, Policy, DQN, PPO, DDPG, MCTS, ML, Machine Learning, Deep Reinforcement Learning</PackageTags>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Memories\Variants\" />
+	 <None Include="..\..\icon.png" Pack="true" PackagePath="" />
+	  <None Include="..\..\README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+	  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+	  <PackageReference Include="OneOf" Version="3.0.243" />
+	  <PackageReference Include="TorchSharp-cuda-windows" Version="0.100.1" />
+	  <PackageReference Include="TorchVision" Version="0.100.0" />
+  </ItemGroup>
+
+</Project>

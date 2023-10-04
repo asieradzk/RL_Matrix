@@ -35,8 +35,8 @@ for (int i = 0; i < 400; i++)
 
 //DQN
 var opts = new DQNAgentOptions(batchSize: 64, memorySize: 10000, gamma: 0.99f, epsStart: 1f, epsEnd: 0.05f, epsDecay: 50f, tau: 0.005f, lr: 1e-4f, displayPlot: myChart);
-var env = new CartPole2d();
-var myAgent = new D2QNAgent<float[,]>(opts, env);
+var env = new CartPole();
+var myAgent = new D2QNAgent<float[]>(opts, env);
 
 
 

@@ -34,13 +34,14 @@ namespace RLMatrix
         /// <param name="netProvider">The network provider for the agent.</param>
         public DQNAgent(DQNAgentOptions opts, IEnvironment<T> env, IDQNNetProvider<T> netProvider = null)
         {
-            netProvider ??= new DQNNetProvider<T>(1024);
+            
 
             //check if T is either float[] or float[,]
             if (typeof(T) != typeof(float[]) && typeof(T) != typeof(float[,]))
             {
                 throw new System.ArgumentException("T must be either float[] or float[,]");
             }
+            netProvider ??= new DQNNetProvider<T>(1024, 2);
             myDevice = torch.cuda.is_available() ? torch.CUDA : torch.CPU;
             Console.WriteLine($"Running DQN on {myDevice.type.ToString()}");
             myOptions = opts;
@@ -109,6 +110,7 @@ namespace RLMatrix
                 {
                     // Select the action with the highest expected reward.
                     var result = (int)myPolicyNet.forward(stateTensor).argmax(1).item<long>();
+                    myPolicyNet.forward(stateTensor).print();
                     return result;
                 }
                 else

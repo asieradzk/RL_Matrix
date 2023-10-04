@@ -15,14 +15,16 @@ namespace RLMatrix
     public class PPONetProviderBase<T> : IPPONetProvider<T>
     {
         int neuronsPerLayer;
+        int depth = 2;
 
         /// <summary>
         /// Default constructor for simple PPO NNs - crtic and actor.
         /// </summary>
         /// <param name="neuronsPerLayer">Number of neurons in hidden layers, default 256 x 3</param>
-        public PPONetProviderBase(int neuronsPerLayer = 256)
+        public PPONetProviderBase(int neuronsPerLayer = 256, int depth = 2)
         {
             this.neuronsPerLayer = neuronsPerLayer;
+            this.depth = depth;
         }
 
 
@@ -35,13 +37,13 @@ namespace RLMatrix
                         intSize => intSize,
                         tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
                     var actionSize = env.actionSize;
-                    return new PPOActorNet1D("1DDQN", obsSize, actionSize, neuronsPerLayer);
+                    return new PPOActorNet1D("1DDQN", obsSize, actionSize, neuronsPerLayer, depth);
                 case Type t when t == typeof(float[,]):
                     var obsSize2D = env.stateSize.Match<(int, int)>(
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
                         tupleSize => tupleSize);
                     var actionSize2 = env.actionSize;
-                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer);
+                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer , depth);
                 default:
                     throw new Exception("Unexpected type");
             }

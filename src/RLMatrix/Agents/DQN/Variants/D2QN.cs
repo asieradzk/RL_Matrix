@@ -24,7 +24,7 @@ namespace RLMatrix
             List<Transition<T>> transitions = myReplayBuffer.Sample();
 
             List<T> batchStates = transitions.Select(t => t.state).ToList();
-            List<int> batchActions = transitions.Select(t => t.action).ToList();
+            List<int[]> batchActions = transitions.Select(t => t.discreteActions).ToList();
             List<float> batchRewards = transitions.Select(t => t.reward).ToList();
             List<T> batchNextStates = transitions.Select(t => t.nextState).ToList();
 
@@ -42,27 +42,41 @@ namespace RLMatrix
                 return;
             }
 
-            Tensor actionBatch = stack(batchActions.Select(a => tensor(new int[] { a }).to(torch.int64)).ToArray()).to(myDevice);
+            Tensor actionBatch = stack(batchActions.Select(a => tensor(a).to(torch.int64)).ToArray()).to(myDevice);
+   
             Tensor rewardBatch = stack(batchRewards.Select(r => tensor(r)).ToArray()).to(myDevice);
 
-            Tensor stateActionValues = myPolicyNet.forward(stateBatch).gather(1, actionBatch).to(myDevice);
+            Tensor qValuesAllHeads = myPolicyNet.forward(stateBatch); // [batchSize, numHeads, numActions]
+            Tensor expandedActionBatch = actionBatch.unsqueeze(2); // Expand to [batchSize, numHeads, 1]
 
-            Tensor nextStateValues = zeros(new long[] { myOptions.BatchSize }).to(myDevice);
+            Tensor stateActionValues = qValuesAllHeads.gather(2, expandedActionBatch).squeeze(2).to(myDevice);  // [batchSize, numHeads]
+
+            Tensor targetNextStateValues;
+
             using (no_grad())
             {
-                var nextActions = myPolicyNet.forward(nonFinalNextStates).argmax(1);
-                nextStateValues.masked_scatter_(nonFinalMask, myTargetNet.forward(nonFinalNextStates).gather(1, nextActions.unsqueeze(-1)).squeeze(-1));
-            }
+                Tensor nextQValuesAllHeads = myPolicyNet.forward(nonFinalNextStates);  // [batchSize, numHeads, numActions]
+                var nextActions = nextQValuesAllHeads.argmax(2);  // [batchSize, numHeads]
 
-            Tensor expectedStateActionValues = (nextStateValues.detach() * myOptions.GAMMA) + rewardBatch;
+                Tensor targetNextQValuesAllHeads = myTargetNet.forward(nonFinalNextStates);  // [batchSize, numHeads, numActions]
+                Tensor expandedNextActions = nextActions.unsqueeze(2);  // [batchSize, numHeads, 1]
+                targetNextStateValues = targetNextQValuesAllHeads.gather(2, expandedNextActions).squeeze(2);  // [batchSize, numHeads]
+            }
+            //TODO: Check why
+            Tensor maskedTargetNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironment.actionSize.Count() }).to(myDevice);
+            maskedTargetNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), targetNextStateValues);
+
+
+            Tensor expectedStateActionValues = (maskedTargetNextStateValues * myOptions.GAMMA) + rewardBatch.unsqueeze(1);
 
             SmoothL1Loss criterion = torch.nn.SmoothL1Loss();
-            Tensor loss = criterion.forward(stateActionValues, expectedStateActionValues.unsqueeze(1));
+            Tensor loss = criterion.forward(stateActionValues, expectedStateActionValues);
 
             myOptimizer.zero_grad();
             loss.backward();
             torch.nn.utils.clip_grad_value_(myPolicyNet.parameters(), 100);
             myOptimizer.step();
+
         }
     }
 }

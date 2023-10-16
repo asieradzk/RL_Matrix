@@ -15,7 +15,7 @@ namespace RLMatrix
     {
         protected torch.Device myDevice;
         protected PPOAgentOptions myOptions;
-        protected IEnvironment<T> myEnvironment;
+        protected IContinuousEnvironment<T> myEnvironment;
         protected PPOActorNet myActorNet;
         protected PPOCriticNet myCriticNet;
         protected OptimizerHelper myActorOptimizer;
@@ -39,7 +39,8 @@ namespace RLMatrix
             myDevice = torch.cuda.is_available() ? torch.CUDA : torch.CPU;
             Console.WriteLine($"Running PPO on {myDevice.type.ToString()}");
             myOptions = opts;
-            myEnvironment = env;
+            
+            myEnvironment = ContinuousEnvironmentFactory.Create<T>(env);
 
             myActorNet = netProvider.CreateActorNet(env).to(myDevice);
             myCriticNet = netProvider.CreateCriticNet(env).to(myDevice);
@@ -75,37 +76,113 @@ namespace RLMatrix
             myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR * 100f, amsgrad: true);
         }
 
-        public int SelectAction(T state, bool isTraining = true)
+        public (int[], float[]) SelectAction(T state, bool isTraining = true)
         {
-            double sample = new Random().NextDouble();
-
             using (torch.no_grad())
             {
                 Tensor stateTensor = StateToTensor(state);
+                var result = myActorNet.forward(stateTensor);
+
+                int[] discreteActions;
+                float[] continuousActions;
+
                 if (isTraining)
                 {
-                    var result = myActorNet.forward(stateTensor);
+                    // Discrete Actions
+                    discreteActions = SelectDiscreteActionsFromProbs(result);
 
-                    // Action is sampled from the probability distribution returned by the policy network
-                    var action = SelectActionFromProbs(result);
-                    return action;
+                    // Continuous Actions
+                    continuousActions = SampleContinuousActions(result);
                 }
                 else
                 {
-                    var result = myActorNet.forward(stateTensor);
-                    // Select the action with the highest probability
-                    var action = result.argmax(1);
-                    return (int)action.item<long>();
+                    // Discrete Actions
+                    discreteActions = SelectGreedyDiscreteActions(result);
+
+                    // Continuous Actions
+                    continuousActions = SelectMeanContinuousActions(result);
                 }
+
+                return (discreteActions, continuousActions);
             }
+
+            #region helpers
+            int[] SelectDiscreteActionsFromProbs(Tensor result)
+            {
+                // Assuming discrete action heads come first
+                List<int> actions = new List<int>();
+                for (int i = 0; i < myEnvironment.actionSize.Count(); i++)
+                {
+                    var actionProbs = result.select(1, i);
+                    var action = torch.multinomial(actionProbs, 1);
+                    actions.Add((int)action.item<long>());
+                }
+                return actions.ToArray();
+            }
+            static double SampleFromStandardNormal(Random random)
+            {
+                double u1 = 1.0 - random.NextDouble(); //uniform(0,1] random doubles
+                double u2 = 1.0 - random.NextDouble();
+                double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) *
+                                       Math.Sin(2.0 * Math.PI * u2); //random normal(0,1)
+                return randStdNormal;
+            }
+
+            float[] SampleContinuousActions(Tensor result)
+            {
+                List<float> actions = new List<float>();
+                int offset = myEnvironment.actionSize.Count(); // Assuming discrete action heads come first
+                for (int i = 0; i < myEnvironment.continuousActionBounds.Count(); i++)
+                {
+                    var mean = result.select(1, offset + i * 2).item<float>();
+                    var logStd = result.select(1, offset + i * 2 + 1).item<float>();
+                    var std = (float)Math.Exp(logStd);
+                    var actionValue = mean + std * (float)SampleFromStandardNormal(new Random());
+
+                    // Ensuring that action value stays within given bounds (assuming you have min and max values for each action)
+                    actionValue = Math.Clamp(actionValue, myEnvironment.continuousActionBounds[i].Item1, myEnvironment.continuousActionBounds[i].Item2);
+
+                    actions.Add(actionValue);
+                }
+                return actions.ToArray();
+            }
+
+            int[] SelectGreedyDiscreteActions(Tensor result)
+            {
+                List<int> actions = new List<int>();
+                for (int i = 0; i < myEnvironment.actionSize.Count(); i++)
+                {
+                    var actionProbs = result.select(1, i);
+                    var action = actionProbs.argmax();
+                    actions.Add((int)action.item<long>());
+                }
+                return actions.ToArray();
+            }
+
+            float[] SelectMeanContinuousActions(Tensor result)
+            {
+                List<float> actions = new List<float>();
+                int offset = myEnvironment.actionSize.Count();
+                for (int i = 0; i < myEnvironment.continuousActionBounds.Count(); i++)
+                {
+                    var mean = result.select(1, offset + i * 2).item<float>();
+                    actions.Add(mean);
+                }
+                return actions.ToArray();
+            }
+
+
+            static int SelectActionFromProbs(Tensor probabilities)
+            {
+                // Sample an action from the probability distribution
+                var action = torch.multinomial(probabilities, 1);
+                return (int)action.item<long>();
+            }
+
+            #endregion
         }
 
-        private static int SelectActionFromProbs(Tensor probabilities)
-        {
-            // Sample an action from the probability distribution
-            var action = torch.multinomial(probabilities, 1);
-            return (int)action.item<long>();
-        }
+ 
 
         float averageCumulativeReward = 0;
         int addedCount = 0;
@@ -122,9 +199,9 @@ namespace RLMatrix
             for (int t = 0; ; t++)
             {
                 // Select an action based on the policy
-                var action = SelectAction(state);
+                (int[], float[]) action = SelectAction(state);
                 // Take a step using the selected action
-                float reward = myEnvironment.Step(action);
+                float reward = myEnvironment.Step(action.Item1, action.Item2);
                 // Check if the episode is done
                 var done = myEnvironment.isDone;
 
@@ -144,7 +221,7 @@ namespace RLMatrix
                     Console.WriteLine("state is null");
 
                 // Store the transition in temporary memory
-                transitionsInEpisode.Add(new Transition<T>(state, action, reward, nextState));
+                transitionsInEpisode.Add(new Transition<T>(state, action.Item1, action.Item2, reward, nextState));
 
                 cumulativeReward += reward;
                 // If not done, move to the next state
@@ -182,25 +259,27 @@ namespace RLMatrix
                 return;
             }
 
-
             List<Transition<T>> transitions = myReplayBuffer.SampleEntireMemory();
 
             // Convert to tensors
             Tensor stateBatch = stack(transitions.Select(t => StateToTensor(t.state)).ToArray()).to(myDevice);
-            Tensor actionBatch = stack(transitions.Select(t => tensor(new int[] { t.action })).ToArray()).to(myDevice);
+            Tensor discreteActionBatch = stack(transitions.Select(t => tensor(t.discreteActions)).ToArray()).to(myDevice);
+            Tensor continuousActionBatch = stack(transitions.Select(t => tensor(t.continuousActions)).ToArray()).to(myDevice);
             Tensor rewardBatch = stack(transitions.Select(t => tensor(t.reward)).ToArray()).to(myDevice);
             Tensor doneBatch = stack(transitions.Select(t => tensor(t.nextState == null ? 1 : 0)).ToArray()).to(myDevice);
 
-            Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch).squeeze().detach();
-            Tensor valueOld = myCriticNet.forward(stateBatch).detach();
+            // Concatenate discrete and continuous action batches
+            Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
 
+            Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironment.actionSize.Count(), myEnvironment.continuousActionBounds.Count()).squeeze().detach();
+            Tensor valueOld = myCriticNet.forward(stateBatch).detach();
 
             var discountedRewards = RewardDiscount(rewardBatch, valueOld, doneBatch);
             var advantages = AdvantageDiscount(rewardBatch, valueOld, doneBatch);
 
             for (int i = 0; i < myOptions.PPOEpochs; i++)
             {
-                Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch).squeeze();
+                Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironment.actionSize.Count(), myEnvironment.continuousActionBounds.Count()).squeeze();
                 Tensor values = myCriticNet.forward(stateBatch).squeeze();
 
                 Tensor ratios = torch.exp(policy - policyOld);

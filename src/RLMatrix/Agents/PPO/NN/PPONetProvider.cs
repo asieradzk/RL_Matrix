@@ -37,13 +37,36 @@ namespace RLMatrix
                         intSize => intSize,
                         tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
                     var actionSize = env.actionSize;
-                    return new PPOActorNet1D("1DDQN", obsSize, actionSize, neuronsPerLayer, depth);
+                    return new PPOActorNet1D("1DDQN", obsSize, neuronsPerLayer, actionSize, new (float, float)[0], depth);
                 case Type t when t == typeof(float[,]):
                     var obsSize2D = env.stateSize.Match<(int, int)>(
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
                         tupleSize => tupleSize);
                     var actionSize2 = env.actionSize;
-                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer , depth);
+                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, new (float, float)[0], neuronsPerLayer , depth);
+                default:
+                    throw new Exception("Unexpected type");
+            }
+        }
+
+        public PPOActorNet CreateActorNet(IContinuousEnvironment<T> env)
+        {
+            switch (typeof(T))
+            {
+                case Type t when t == typeof(float[]):
+                    var obsSize = env.stateSize.Match<int>(
+                        intSize => intSize,
+                        tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
+                    var actionSize = env.actionSize;
+                    var continuousActionBounds = env.continuousActionBounds;
+                    return new PPOActorNet1D("1DDQN", obsSize, neuronsPerLayer, actionSize, continuousActionBounds, depth);
+                case Type t when t == typeof(float[,]):
+                    var obsSize2D = env.stateSize.Match<(int, int)>(
+                        intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
+                        tupleSize => tupleSize);
+                    var actionSize2 = env.actionSize;
+                    var continuousActionBounds2 = env.continuousActionBounds;
+                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, continuousActionBounds2, neuronsPerLayer, depth);
                 default:
                     throw new Exception("Unexpected type");
             }
@@ -67,11 +90,19 @@ namespace RLMatrix
                     throw new Exception("Unexpected type");
             }
         }
+
+        public PPOCriticNet CreateCriticNet(IContinuousEnvironment<T> env)
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public interface IPPONetProvider<T>
     {
         public PPOActorNet CreateActorNet(IEnvironment<T> env);
+        public PPOActorNet CreateActorNet(IContinuousEnvironment<T> env);
         public PPOCriticNet CreateCriticNet(IEnvironment<T> env);
+        public PPOCriticNet CreateCriticNet(IContinuousEnvironment<T> env);
+
     }
 }

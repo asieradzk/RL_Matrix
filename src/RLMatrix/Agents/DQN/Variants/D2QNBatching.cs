@@ -30,63 +30,60 @@ namespace RLMatrix.Agents.DQN.Variants
             if (myReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-
-            //TODO: Transition/s is a ridiculous name from pytorch DQN example, should this be changed?
             List<Transition<T>> transitions = myReplayBuffer.Sample();
 
-            
-
-            // Transpose the batch (convert batch of Transitions to Transition of batches)
             List<T> batchStates = transitions.Select(t => t.state).ToList();
-
-            List<int> batchActions = transitions.Select(t => t.action).ToList();
+            List<int[]> batchActions = transitions.Select(t => t.discreteActions).ToList();
             List<float> batchRewards = transitions.Select(t => t.reward).ToList();
             List<T> batchNextStates = transitions.Select(t => t.nextState).ToList();
-            // Compute a mask of non-final states and concatenate the batch elements
+
             Tensor nonFinalMask = tensor(batchNextStates.Select(s => s != null).ToArray()).to(myDevice);
             Tensor stateBatch = stack(batchStates.Select(s => StateToTensor(s)).ToArray()).to(myDevice);
 
-            //This clumsy part is to account for situation where batch is picked where each episode has only 1 step
-            //Why 1 step episode is a problem anyway? It should still have Q value for the action taken
             Tensor[] nonFinalNextStatesArray = batchNextStates.Where(s => s != null).Select(s => StateToTensor(s)).ToArray();
             Tensor nonFinalNextStates;
             if (nonFinalNextStatesArray.Length > 0)
             {
                 nonFinalNextStates = stack(nonFinalNextStatesArray).to(myDevice);
-                // Continue with the rest of your code
             }
             else
             {
                 return;
-                // Handle the case when all states are terminal
             }
 
-            Tensor actionBatch = stack(batchActions.Select(a => tensor(new int[] { a }).to(torch.int64)).ToArray()).to(myDevice);
+            Tensor actionBatch = stack(batchActions.Select(a => tensor(a).to(torch.int64)).ToArray()).to(myDevice);
+
             Tensor rewardBatch = stack(batchRewards.Select(r => tensor(r)).ToArray()).to(myDevice);
-            // Compute Q(s_t, a)
-            Tensor stateActionValues = myPolicyNet.forward(stateBatch).gather(1, actionBatch).to(myDevice);
 
+            Tensor qValuesAllHeads = myPolicyNet.forward(stateBatch); // [batchSize, numHeads, numActions]
+            Tensor expandedActionBatch = actionBatch.unsqueeze(2); // Expand to [batchSize, numHeads, 1]
 
-            // Compute V(s_{t+1}) for all next states.
-            Tensor nextStateValues = zeros(new long[] { myOptions.BatchSize }).to(myDevice);
+            Tensor stateActionValues = qValuesAllHeads.gather(2, expandedActionBatch).squeeze(2).to(myDevice);  // [batchSize, numHeads]
+
+            Tensor targetNextStateValues;
+
             using (no_grad())
             {
-                nextStateValues.masked_scatter_(nonFinalMask, myTargetNet.forward(nonFinalNextStates).max(1).values);
+                Tensor nextQValuesAllHeads = myPolicyNet.forward(nonFinalNextStates);  // [batchSize, numHeads, numActions]
+                var nextActions = nextQValuesAllHeads.argmax(2);  // [batchSize, numHeads]
 
+                Tensor targetNextQValuesAllHeads = myTargetNet.forward(nonFinalNextStates);  // [batchSize, numHeads, numActions]
+                Tensor expandedNextActions = nextActions.unsqueeze(2);  // [batchSize, numHeads, 1]
+                targetNextStateValues = targetNextQValuesAllHeads.gather(2, expandedNextActions).squeeze(2);  // [batchSize, numHeads]
             }
-            // Compute the expected Q values
-            Tensor expectedStateActionValues = (nextStateValues.detach() * myOptions.GAMMA) + rewardBatch;
+            Tensor maskedTargetNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironment.actionSize.Count() }).to(myDevice);
+            maskedTargetNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), targetNextStateValues);
 
-            // Compute Huber loss
+
+            Tensor expectedStateActionValues = (maskedTargetNextStateValues * myOptions.GAMMA) + rewardBatch.unsqueeze(1);
+
             SmoothL1Loss criterion = torch.nn.SmoothL1Loss();
-            Tensor loss = criterion.forward(stateActionValues, expectedStateActionValues.unsqueeze(1));
+            Tensor loss = criterion.forward(stateActionValues, expectedStateActionValues);
 
-            // Optimize the model
             myOptimizer.zero_grad();
             loss.backward();
             torch.nn.utils.clip_grad_value_(myPolicyNet.parameters(), 100);
             myOptimizer.step();
-
             loss.print();
         }
     }

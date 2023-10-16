@@ -8,7 +8,7 @@
 
 	<PropertyGroup>
 		<PackageId>RLMatrix</PackageId>
-		<Version>0.1.0</Version>
+		<Version>0.1.2</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
@@ -21,7 +21,6 @@
 	</PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Memories\Variants\" />
 	 <None Include="..\..\icon.png" Pack="true" PackagePath="" />
 	  <None Include="..\..\README.md" Pack="true" PackagePath="" />
   </ItemGroup>

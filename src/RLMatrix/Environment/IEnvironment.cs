@@ -36,8 +36,10 @@ namespace RLMatrix
 
         /// <summary>
         /// Represents the dimensionality of the environment's action space.
+        /// For instance if action size is set to 4, the network will learn to output an integer between 0 and 3.
+        /// The length of array is number of possible actions so if you input [2, 4] the agent will otput int[2] where first int is between 0 and 1 and second between 0 and 3.
         /// </summary>
-        public int actionSize { get; set; }
+        public int[] actionSize { get; set; }
 
         /// <summary>
         /// Initializes the environment for a new episode.
@@ -58,8 +60,8 @@ namespace RLMatrix
         /// <summary>
         /// Advances the state of the environment by one step based on the action provided.
         /// </summary>
-        /// <param name="actionId">The action to be taken in the current state.</param>
+        /// <param name="actionsIds">The action to be taken in the current state.</param>
         /// <returns>The reward associated with the taken action.</returns>
-        public float Step(int actionId);
+        public float Step(int[] actionsIds);
     }
 }

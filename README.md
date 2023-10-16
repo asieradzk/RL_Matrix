@@ -10,6 +10,9 @@ Dive into the future of type-safe Reinforcement Learning with RL Matrix, powered
 
  - PPO 
  - DQN
+ - Both have 1D (Feed forward) and 2D (CNN) variants
+ - 0.1.2 Adds multi-head continous (PPO) discrete (PPO, DQN) and mixed (PPO) actions. See IEnvironment and IContinousEnvironment...
+ - Only tested single-head discrete output so please open issue if it doesnt work.
 
 ## 🎯 What Sparks RL Matrix?
 

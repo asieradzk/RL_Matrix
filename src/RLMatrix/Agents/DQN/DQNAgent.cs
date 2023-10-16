@@ -93,34 +93,39 @@ namespace RLMatrix
         /// <param name="state">The current state.</param>
         /// <param name="isTraining">A flag indicating whether the agent is in training mode.</param>
         /// <returns>The selected action.</returns>
-        public int SelectAction(T state, bool isTraining = true)
+        public int[] SelectAction(T state, bool isTraining = true)
         {
             double sample = new Random().NextDouble();
             double epsThreshold = myOptions.EPS_END + (myOptions.EPS_START - myOptions.EPS_END) *
                                   Math.Exp(-1.0 * episodeCounter / myOptions.EPS_DECAY);
 
-
             using (torch.no_grad())
             {
-                // Get the expected rewards for each action.
                 Tensor stateTensor = StateToTensor(state);
+                int[] selectedActions = new int[myEnvironment.actionSize.Length];
 
+                // Get action predictions from policy network only once
+                Tensor predictedActions = myPolicyNet.forward(stateTensor);
 
-                if ((sample > epsThreshold || !isTraining))
+                for (int i = 0; i < myEnvironment.actionSize.Length; i++)
                 {
-                    // Select the action with the highest expected reward.
-                    var result = (int)myPolicyNet.forward(stateTensor).argmax(1).item<long>();
-                    myPolicyNet.forward(stateTensor).print();
-                    return result;
+                    if (sample > epsThreshold || !isTraining)
+                    {
+                        // Select the action with the highest expected reward for each action dimension.
+                        selectedActions[i] = (int)predictedActions.select(1, i).argmax().item<long>();
+                    }
+                    else
+                    {
+                        // For exploration, select a random action within the range of the action dimension.
+                        selectedActions[i] = new Random().Next(0, myEnvironment.actionSize[i]);
+                    }
                 }
-                else
-                {
-                    // If the maximum expected reward is not high enough, or we are still
-                    // in the exploration phase, select a random action.
-                    return new Random().Next(0, myEnvironment.actionSize);
-                }
+
+                return selectedActions;
             }
         }
+
+
 
 
         /// <summary>
@@ -131,55 +136,50 @@ namespace RLMatrix
             if (myReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-
-            //TODO: Transition/s is a ridiculous name from pytorch DQN example, should this be changed?
             List<Transition<T>> transitions = myReplayBuffer.Sample();
 
-            // Transpose the batch (convert batch of Transitions to Transition of batches)
             List<T> batchStates = transitions.Select(t => t.state).ToList();
-
-            List<int> batchActions = transitions.Select(t => t.action).ToList();
+            List<int[]> batchMultiActions = transitions.Select(t => t.discreteActions).ToList();
             List<float> batchRewards = transitions.Select(t => t.reward).ToList();
             List<T> batchNextStates = transitions.Select(t => t.nextState).ToList();
-            // Compute a mask of non-final states and concatenate the batch elements
+
             Tensor nonFinalMask = tensor(batchNextStates.Select(s => s != null).ToArray()).to(myDevice);
             Tensor stateBatch = stack(batchStates.Select(s => StateToTensor(s)).ToArray()).to(myDevice);
 
-            //This clumsy part is to account for situation where batch is picked where each episode has only 1 step
-            //Why 1 step episode is a problem anyway? It should still have Q value for the action taken
             Tensor[] nonFinalNextStatesArray = batchNextStates.Where(s => s != null).Select(s => StateToTensor(s)).ToArray();
             Tensor nonFinalNextStates;
             if (nonFinalNextStatesArray.Length > 0)
             {
                 nonFinalNextStates = stack(nonFinalNextStatesArray).to(myDevice);
-                // Continue with the rest of your code
             }
             else
             {
-                return;
-                // Handle the case when all states are terminal
+                return; // All states are terminal
             }
 
-            Tensor actionBatch = stack(batchActions.Select(a => tensor(new int[] { a }).to(torch.int64)).ToArray()).to(myDevice);
+            Tensor actionBatch = stack(batchMultiActions.Select(a => tensor(a).to(torch.int64)).ToArray()).to(myDevice);
             Tensor rewardBatch = stack(batchRewards.Select(r => tensor(r)).ToArray()).to(myDevice);
 
-            // Compute Q(s_t, a)
-            Tensor stateActionValues = myPolicyNet.forward(stateBatch).gather(1, actionBatch).to(myDevice);
+            Tensor qValuesAllHeads = myPolicyNet.forward(stateBatch);
+            Tensor expandedActionBatch = actionBatch.unsqueeze(2); // Expand to [batchSize, numHeads, 1]
 
+            Tensor stateActionValues = qValuesAllHeads.gather(2, expandedActionBatch).squeeze(2).to(myDevice); // [batchSize, numHeads]
 
-            // Compute V(s_{t+1}) for all next states.
-            Tensor nextStateValues = zeros(new long[] { myOptions.BatchSize }).to(myDevice);
+            Tensor nextStateValues;
             using (no_grad())
             {
-                nextStateValues.masked_scatter_(nonFinalMask, myTargetNet.forward(nonFinalNextStates).max(1).values);
-
+                nextStateValues = myTargetNet.forward(nonFinalNextStates).max(2).values;  // [batchSize, numHeads]
             }
-            // Compute the expected Q values
-            Tensor expectedStateActionValues = (nextStateValues.detach() * myOptions.GAMMA) + rewardBatch;
+            Tensor maskedNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironment.actionSize.Count() }).to(myDevice);
+
+
+            maskedNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), nextStateValues);
+
+            Tensor expectedStateActionValues = (maskedNextStateValues * myOptions.GAMMA) + rewardBatch.unsqueeze(1);
 
             // Compute Huber loss
             SmoothL1Loss criterion = torch.nn.SmoothL1Loss();
-            Tensor loss = criterion.forward(stateActionValues, expectedStateActionValues.unsqueeze(1));
+            Tensor loss = criterion.forward(stateActionValues, expectedStateActionValues);
 
             // Optimize the model
             myOptimizer.zero_grad();
@@ -187,6 +187,8 @@ namespace RLMatrix
             torch.nn.utils.clip_grad_value_(myPolicyNet.parameters(), 100);
             myOptimizer.step();
         }
+
+
 
         //this makes sure arrays are passed by value not by reference to prevent old memories being overwritten
         public T DeepCopy(T input)
@@ -253,7 +255,7 @@ namespace RLMatrix
                     Console.WriteLine("state is null");
 
                 // Store the transition in temporary memory
-                myReplayBuffer.Push(new Transition<T>(state, action, reward, nextState));
+                myReplayBuffer.Push(new Transition<T>(state, action, null, reward, nextState));
 
 
 
@@ -329,95 +331,6 @@ namespace RLMatrix
 
                     // Optionally, you can still update your chart with the cumulative reward
                     return cumulativeReward;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Reward shaping alternative to Train - here final cumulative reward is backpropagated to all steps taken during episode.
-        /// </summary>
-        public void TrainEpisodeBackpropg()
-        {
-            // Initialize the environment and get its state
-            myEnvironment.Reset();
-            episodeCounter++;
-            var tempTransitionList = new List<Transition<T>>();
-            var state = DeepCopy(myEnvironment.GetCurrentState());
-            int maxSteps = 0;
-            for (int t = 0; ; t++)
-            {
-
-
-                // Select an action based on the policy
-                var action = SelectAction(state);
-                // Take a step using the selected action
-                var reward = myEnvironment.Step(action);
-                // Check if the episode is done
-                var done = myEnvironment.isDone;
-
-                T nextState;
-                if (done)
-                {
-                    // If done, there is no next state
-                    nextState = default;
-                    maxSteps = t + 1; // record the max steps
-                }
-                else
-                {
-                    // If not done, get the next state
-                    nextState = DeepCopy(myEnvironment.GetCurrentState());
-                }
-
-                if (state == null)
-                    Console.WriteLine("state is null");
-
-                // Store the transition in temporary memory
-                tempTransitionList.Add(new Transition<T>(state, action, reward, nextState));
-
-                // If not done, move to the next state
-                if (!done)
-                {
-                    state = nextState;
-                }
-                else
-                {
-                    // If done, modify the rewards and store the transitions in memory
-                    for (int i = 0; i < tempTransitionList.Count; i++)
-                    {
-                        var transition = tempTransitionList[i];
-                        var modifiedReward = reward / maxSteps; 
-                        var modifiedTransition = new Transition<T>(transition.state, transition.action, modifiedReward, transition.nextState);
-                        myReplayBuffer.Push(modifiedTransition);
-                    }
-
-                    tempTransitionList.Clear();
-                    //TODO: hardcoded 3 epochs?
-                    for (int i = 0; i < 3; i++)
-                    {
-                        // Perform one step of the optimization (on the policy network)
-                        OptimizeModel();
-                    }
-
-                    // Soft update of the target network's weights
-                    // θ′ ← τ θ + (1 −τ )θ′
-                    SoftUpdateTargetNetwork();
-
-                }
-
-
-
-                if (done)
-                {
-
-                    //TODO: hardcoded chart
-                    episodeRewards.Add(reward);
-                    if(myOptions.DisplayPlot != null)
-                    {
-                        myOptions.DisplayPlot.CreateOrUpdateChart(episodeRewards);
-                    }
-
-
-                    break;
                 }
             }
         }

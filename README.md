@@ -92,8 +92,9 @@ for (int i = 0; i < 400; i++)
 }
 ```
 ## 📌 Current Roadmap:
-Adapting data to 1D (feed-forward networks) and 2D (convolutional networks) without source modifications.
-Support for discrete actions only.
+-Add RNN support for PPO and DQN
+-Add variations for multi-head output for PPO and DQN
+-Create Godot plugin
 As we innovate, anticipate breaking changes. We'll keep you in the loop!
 ## 💌 Get in Touch:
 Questions? Ideas? Collaborations? Drop a line at:

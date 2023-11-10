@@ -8,6 +8,7 @@ using TorchSharp.Modules;
 using TorchSharp;
 using static TorchSharp.torch.optim;
 using RLMatrix;
+using OneOf;
 
 namespace RLMatrix
 {
@@ -15,7 +16,7 @@ namespace RLMatrix
     {
         protected torch.Device myDevice;
         protected PPOAgentOptions myOptions;
-        protected IContinuousEnvironment<T> myEnvironment;
+        protected List<IContinuousEnvironment<T>> myEnvironments;
         protected PPOActorNet myActorNet;
         protected PPOCriticNet myCriticNet;
         protected OptimizerHelper myActorOptimizer;
@@ -27,7 +28,7 @@ namespace RLMatrix
         public List<double> episodeRewards = new();
 
 
-        public PPOAgent(PPOAgentOptions opts, IEnvironment<T> env, IPPONetProvider<T> netProvider = null)
+        public PPOAgent(PPOAgentOptions opts, OneOf<List<IContinuousEnvironment<T>>, List<IEnvironment<T>>> env, IPPONetProvider<T> netProvider = null)
         {
             netProvider = netProvider ?? new PPONetProviderBase<T>(1024);
 
@@ -39,16 +40,37 @@ namespace RLMatrix
             myDevice = torch.cuda.is_available() ? torch.CUDA : torch.CPU;
             Console.WriteLine($"Running PPO on {myDevice.type.ToString()}");
             myOptions = opts;
-            
-            myEnvironment = ContinuousEnvironmentFactory.Create<T>(env);
+            //TODO: Implement multi env
+            //we need correct cast
+            if (env.IsT0)
+            {
+                myEnvironments = env.AsT0;
+            }
+            else
+            {
+                //lets convert every IEnvironment 
+                myEnvironments = new List<IContinuousEnvironment<T>>();
+                foreach(IEnvironment<T> dicreteEnv in env.AsT1)
+                {
+                    myEnvironments.Add(ContinuousEnvironmentFactory.Create(dicreteEnv));
+                }
 
-            myActorNet = netProvider.CreateActorNet(env).to(myDevice);
-            myCriticNet = netProvider.CreateCriticNet(env).to(myDevice);
+            }
+            //TODO: this should be checked before assigment to global var
+            if (myEnvironments == null || myEnvironments.Count == 0 || myEnvironments[0] == null)
+            {
+                throw new System.ArgumentException("Envs must contain at least one environment");
+            }
+
+
+
+            myActorNet = netProvider.CreateActorNet(myEnvironments[0]).to(myDevice);
+            myCriticNet = netProvider.CreateCriticNet(myEnvironments[0]).to(myDevice);
 
             myActorOptimizer = optim.Adam(myActorNet.parameters(), myOptions.LR, amsgrad: true);
             myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR * 100f, amsgrad: true);
 
-
+            //TODO: I think I forgot to make PPO specific memory.
             myReplayBuffer = new ReplayMemory<T>(myOptions.MemorySize, myOptions.BatchSize);
 
             if (myOptions.DisplayPlot != null)
@@ -102,96 +124,189 @@ namespace RLMatrix
                     // Continuous Actions
                     continuousActions = SelectMeanContinuousActions(result);
                 }
-
+                Console.WriteLine(discreteActions[0]);
                 return (discreteActions, continuousActions);
             }
 
-            #region helpers
-            int[] SelectDiscreteActionsFromProbs(Tensor result)
-            {
-                // Assuming discrete action heads come first
-                List<int> actions = new List<int>();
-                for (int i = 0; i < myEnvironment.actionSize.Count(); i++)
-                {
-                    var actionProbs = result.select(1, i);
-                    var action = torch.multinomial(actionProbs, 1);
-                    actions.Add((int)action.item<long>());
-                }
-                return actions.ToArray();
-            }
-            static double SampleFromStandardNormal(Random random)
-            {
-                double u1 = 1.0 - random.NextDouble(); //uniform(0,1] random doubles
-                double u2 = 1.0 - random.NextDouble();
-                double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) *
-                                       Math.Sin(2.0 * Math.PI * u2); //random normal(0,1)
-                return randStdNormal;
-            }
-
-            float[] SampleContinuousActions(Tensor result)
-            {
-                List<float> actions = new List<float>();
-                int offset = myEnvironment.actionSize.Count(); // Assuming discrete action heads come first
-                for (int i = 0; i < myEnvironment.continuousActionBounds.Count(); i++)
-                {
-                    var mean = result.select(1, offset + i * 2).item<float>();
-                    var logStd = result.select(1, offset + i * 2 + 1).item<float>();
-                    var std = (float)Math.Exp(logStd);
-                    var actionValue = mean + std * (float)SampleFromStandardNormal(new Random());
-
-                    // Ensuring that action value stays within given bounds (assuming you have min and max values for each action)
-                    actionValue = Math.Clamp(actionValue, myEnvironment.continuousActionBounds[i].Item1, myEnvironment.continuousActionBounds[i].Item2);
-
-                    actions.Add(actionValue);
-                }
-                return actions.ToArray();
-            }
-
-            int[] SelectGreedyDiscreteActions(Tensor result)
-            {
-                List<int> actions = new List<int>();
-                for (int i = 0; i < myEnvironment.actionSize.Count(); i++)
-                {
-                    var actionProbs = result.select(1, i);
-                    var action = actionProbs.argmax();
-                    actions.Add((int)action.item<long>());
-                }
-                return actions.ToArray();
-            }
-
-            float[] SelectMeanContinuousActions(Tensor result)
-            {
-                List<float> actions = new List<float>();
-                int offset = myEnvironment.actionSize.Count();
-                for (int i = 0; i < myEnvironment.continuousActionBounds.Count(); i++)
-                {
-                    var mean = result.select(1, offset + i * 2).item<float>();
-                    actions.Add(mean);
-                }
-                return actions.ToArray();
-            }
-
-
-            static int SelectActionFromProbs(Tensor probabilities)
-            {
-                // Sample an action from the probability distribution
-                var action = torch.multinomial(probabilities, 1);
-                return (int)action.item<long>();
-            }
-
-            #endregion
         }
 
- 
+        #region helpers
+        int[] SelectDiscreteActionsFromProbs(Tensor result)
+        {
+            // Assuming discrete action heads come first
+            List<int> actions = new List<int>();
+            for (int i = 0; i < myEnvironments[0].actionSize.Count(); i++)
+            {
+                var actionProbs = result.select(1, i);
+                var action = torch.multinomial(actionProbs, 1);
+                actions.Add((int)action.item<long>());
+            }
+            return actions.ToArray();
+        }
+        static double SampleFromStandardNormal(Random random)
+        {
+            double u1 = 1.0 - random.NextDouble(); //uniform(0,1] random doubles
+            double u2 = 1.0 - random.NextDouble();
+            double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) *
+                                   Math.Sin(2.0 * Math.PI * u2); //random normal(0,1)
+            return randStdNormal;
+        }
 
-        float averageCumulativeReward = 0;
-        int addedCount = 0;
+        float[] SampleContinuousActions(Tensor result)
+        {
+            List<float> actions = new List<float>();
+            int offset = myEnvironments[0].actionSize.Count(); // Assuming discrete action heads come first
+            for (int i = 0; i < myEnvironments[0].continuousActionBounds.Count(); i++)
+            {
+                var mean = result.select(1, offset + i * 2).item<float>();
+                var logStd = result.select(1, offset + i * 2 + 1).item<float>();
+                var std = (float)Math.Exp(logStd);
+                var actionValue = mean + std * (float)SampleFromStandardNormal(new Random());
+
+                // Ensuring that action value stays within given bounds (assuming you have min and max values for each action)
+                actionValue = Math.Clamp(actionValue, myEnvironments[0].continuousActionBounds[i].Item1, myEnvironments[0].continuousActionBounds[i].Item2);
+
+                actions.Add(actionValue);
+            }
+            return actions.ToArray();
+        }
+
+       public int[] SelectGreedyDiscreteActions(Tensor result)
+        {
+            List<int> actions = new List<int>();
+            for (int i = 0; i < myEnvironments[0].actionSize.Count(); i++)
+            {
+                var actionProbs = result.select(1, i);
+                var action = actionProbs.argmax();
+                actions.Add((int)action.item<long>());
+            }
+            return actions.ToArray();
+        }
+
+        public float[] SelectMeanContinuousActions(Tensor result)
+        {
+            List<float> actions = new List<float>();
+            int offset = myEnvironments[0].actionSize.Count();
+            for (int i = 0; i < myEnvironments[0].continuousActionBounds.Count(); i++)
+            {
+                var mean = result.select(1, offset + i * 2).item<float>();
+                actions.Add(mean);
+            }
+            return actions.ToArray();
+        }
+
+
+        #endregion
+
+        #region training
+
+        List<Episode> episodes;
+
+        bool initialisetrainingonce = false;
+        void InitialiseTraining()
+        {
+            if (initialisetrainingonce)
+                return;
+
+            episodes = new List<Episode>();
+            foreach (var env in myEnvironments)
+            {
+                episodes.Add(new Episode(env, this));
+            }
+
+            initialisetrainingonce = true;
+
+        }
+        int stepHorizon = 400;
+        int stepCounter = 0;
+        public void Step()
+        {
+            if (!initialisetrainingonce)
+            {
+                InitialiseTraining();
+            }
+
+            foreach (var episode in episodes)
+            {
+                episode.Step();
+                stepCounter++;
+            }
+
+            episodeCounter++;
+            if (stepCounter > stepHorizon)
+            {
+                OptimizeModel();
+                stepCounter = 0;
+            }
+
+
+            //TODO: Update chart (maybe with the first agent?)
+        }
+
+        internal class Episode
+        {
+            T currentState;
+            float cumulativeReward = 0;
+
+            IContinuousEnvironment<T> myEnv;
+            PPOAgent<T> myAgent;
+            List<Transition<T>> episodeBuffer;
+
+            public Episode(IContinuousEnvironment<T> myEnv, PPOAgent<T> agent)
+            {
+                this.myEnv = myEnv;
+                myAgent = agent;
+                myEnv.Reset();
+                currentState = myAgent.DeepCopy(myEnv.GetCurrentState());
+                episodeBuffer = new List<Transition<T>>();
+            }
+
+
+            public void Step()
+            {
+                if (!myEnv.isDone)
+                {
+                    var action = myAgent.SelectAction(currentState);
+                    var reward = myEnv.Step(action.Item1, action.Item2);
+                    var done = myEnv.isDone;
+
+                    T nextState;
+                    if (done)
+                    {
+                        nextState = default;
+                    }
+                    else
+                    {
+                        nextState = myAgent.DeepCopy(myEnv.GetCurrentState());
+                    }
+                    cumulativeReward += reward;
+                    episodeBuffer.Add(new Transition<T>(currentState, action.Item1, action.Item2, reward, nextState));
+                    currentState = nextState;
+                    return;
+                }
+                
+                foreach (var item in episodeBuffer)
+                {
+                    myAgent.myReplayBuffer.Push(item);
+                }
+                episodeBuffer = new();
+                Console.WriteLine($"Episode finished with reward {cumulativeReward}");
+                cumulativeReward = 0;
+                myEnv.Reset();
+                currentState = myAgent.DeepCopy(myEnv.GetCurrentState());
+
+            }
+
+        }
+        #endregion
+
+
         public void TrainEpisode()
         {
             episodeCounter++;
             // Initialize the environment and get its state
-            myEnvironment.Reset();
-            T state = DeepCopy(myEnvironment.GetCurrentState());
+            myEnvironments[0].Reset();
+            T state = DeepCopy(myEnvironments[0].GetCurrentState());
             float cumulativeReward = 0;
 
             List<Transition<T>> transitionsInEpisode = new List<Transition<T>>();
@@ -201,9 +316,9 @@ namespace RLMatrix
                 // Select an action based on the policy
                 (int[], float[]) action = SelectAction(state);
                 // Take a step using the selected action
-                float reward = myEnvironment.Step(action.Item1, action.Item2);
+                float reward = myEnvironments[0].Step(action.Item1, action.Item2);
                 // Check if the episode is done
-                var done = myEnvironment.isDone;
+                var done = myEnvironments[0].isDone;
 
                 T nextState;
                 if (done)
@@ -214,7 +329,7 @@ namespace RLMatrix
                 else
                 {
                     // If not done, get the next state
-                    nextState = DeepCopy(myEnvironment.GetCurrentState());
+                    nextState = DeepCopy(myEnvironments[0].GetCurrentState());
                 }
 
                 if (state == null)
@@ -231,6 +346,7 @@ namespace RLMatrix
                 }
                 else
                 {
+                    //this ensures all the transitions are pushed together exactly when episode ends, so they are in order in the replay buffer
                     foreach (var item in transitionsInEpisode)
                     {
                         myReplayBuffer.Push(item);
@@ -252,7 +368,7 @@ namespace RLMatrix
                 }
             }
         }
-        public void OptimizeModel()
+        public virtual void OptimizeModel()
         {
             if (myReplayBuffer.Length < myOptions.BatchSize)
             {
@@ -271,7 +387,7 @@ namespace RLMatrix
             // Concatenate discrete and continuous action batches
             Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
 
-            Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironment.actionSize.Count(), myEnvironment.continuousActionBounds.Count()).squeeze().detach();
+            Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze().detach();
             Tensor valueOld = myCriticNet.forward(stateBatch).detach();
 
             var discountedRewards = RewardDiscount(rewardBatch, valueOld, doneBatch);
@@ -279,7 +395,7 @@ namespace RLMatrix
 
             for (int i = 0; i < myOptions.PPOEpochs; i++)
             {
-                Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironment.actionSize.Count(), myEnvironment.continuousActionBounds.Count()).squeeze();
+                Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze();
                 Tensor values = myCriticNet.forward(stateBatch).squeeze();
 
                 Tensor ratios = torch.exp(policy - policyOld);

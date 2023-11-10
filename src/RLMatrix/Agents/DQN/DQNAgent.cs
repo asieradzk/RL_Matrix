@@ -1,4 +1,5 @@
 ﻿using OneOf;
+using System.Security.Cryptography.X509Certificates;
 using TorchSharp;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
@@ -16,7 +17,7 @@ namespace RLMatrix
     {
         protected torch.Device myDevice;
         protected DQNAgentOptions myOptions;
-        protected IEnvironment<T> myEnvironment;
+        protected List<IEnvironment<T>> myEnvironments;
         protected DQNNET myPolicyNet;
         protected DQNNET myTargetNet;
         protected OptimizerHelper myOptimizer;
@@ -32,9 +33,12 @@ namespace RLMatrix
         /// <param name="opts">The options for the agent.</param>
         /// <param name="env">The environment in which the agent operates.</param>
         /// <param name="netProvider">The network provider for the agent.</param>
-        public DQNAgent(DQNAgentOptions opts, IEnvironment<T> env, IDQNNetProvider<T> netProvider = null)
+        public DQNAgent(DQNAgentOptions opts, List<IEnvironment<T>> envs, IDQNNetProvider<T> netProvider = null)
         {
-            
+            if (envs == null || envs.Count == 0 || envs[0] == null)
+            {
+                throw new System.ArgumentException("Envs must contain at least one environment");
+            }
 
             //check if T is either float[] or float[,]
             if (typeof(T) != typeof(float[]) && typeof(T) != typeof(float[,]))
@@ -45,10 +49,10 @@ namespace RLMatrix
             myDevice = torch.cuda.is_available() ? torch.CUDA : torch.CPU;
             Console.WriteLine($"Running DQN on {myDevice.type.ToString()}");
             myOptions = opts;
-            myEnvironment = env;
+            myEnvironments = envs;
 
-            myPolicyNet = netProvider.CreateCriticNet(env).to(myDevice);
-            myTargetNet = netProvider.CreateCriticNet(env).to(myDevice);
+            myPolicyNet = netProvider.CreateCriticNet(envs[0]).to(myDevice);
+            myTargetNet = netProvider.CreateCriticNet(envs[0]).to(myDevice);
             myOptimizer = optim.Adam(myPolicyNet.parameters(), opts.LR);
 
             myReplayBuffer = new ReplayMemory<T>(myOptions.MemorySize, myOptions.BatchSize);
@@ -102,12 +106,12 @@ namespace RLMatrix
             using (torch.no_grad())
             {
                 Tensor stateTensor = StateToTensor(state);
-                int[] selectedActions = new int[myEnvironment.actionSize.Length];
+                int[] selectedActions = new int[myEnvironments[0].actionSize.Length];
 
                 // Get action predictions from policy network only once
                 Tensor predictedActions = myPolicyNet.forward(stateTensor);
 
-                for (int i = 0; i < myEnvironment.actionSize.Length; i++)
+                for (int i = 0; i < myEnvironments[0].actionSize.Length; i++)
                 {
                     if (sample > epsThreshold || !isTraining)
                     {
@@ -117,7 +121,7 @@ namespace RLMatrix
                     else
                     {
                         // For exploration, select a random action within the range of the action dimension.
-                        selectedActions[i] = new Random().Next(0, myEnvironment.actionSize[i]);
+                        selectedActions[i] = new Random().Next(0, myEnvironments[0].actionSize[i]);
                     }
                 }
 
@@ -170,7 +174,7 @@ namespace RLMatrix
             {
                 nextStateValues = myTargetNet.forward(nonFinalNextStates).max(2).values;  // [batchSize, numHeads]
             }
-            Tensor maskedNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironment.actionSize.Count() }).to(myDevice);
+            Tensor maskedNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }).to(myDevice);
 
 
             maskedNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), nextStateValues);
@@ -216,124 +220,106 @@ namespace RLMatrix
             return (T)(object)clone;
         }
 
-        /// <summary>
-        /// Trains the agent for one episode. This will reset environment and run it untill done flag is set to true. After that it will optimize the model.
-        /// </summary>
-        public void TrainEpisode()
+        #region training
+
+
+        List<Episode> episodes;
+
+        bool initialisetrainingonce = false;
+        void InitialiseTraining()
         {
+            if (initialisetrainingonce)
+                return;
+
+            episodes = new List<Episode>();
+            foreach (var env in myEnvironments)
+            {
+                episodes.Add(new Episode(env, this));
+            }
+
+            initialisetrainingonce = true;
+
+        }
+        int stepHorizon = 1;
+        int stepCounter = 0;
+        public void Step()
+        {
+            if (!initialisetrainingonce)
+            {
+                InitialiseTraining();
+            }
+
+            foreach (var episode in episodes)
+            {
+                episode.Step();
+                stepCounter++;
+            }
+
             episodeCounter++;
-            // Initialize the environment and get its state
-            myEnvironment.Reset();
-            T state = DeepCopy(myEnvironment.GetCurrentState());
-            float cumulativeReward = 0;
-            for (int t = 0; ; t++)
+            if(stepCounter > stepHorizon)
             {
-
-
-
-                // Select an action based on the policy
-                var action = SelectAction(state);
-                // Take a step using the selected action
-                var reward = myEnvironment.Step(action);
-                // Check if the episode is done
-                var done = myEnvironment.isDone;
-
-
-                T nextState;
-                if (done)
-                {
-                    // If done, there is no next state
-                    nextState = default;
-                }
-                else
-                {
-                    // If not done, get the next state
-                    nextState = DeepCopy(myEnvironment.GetCurrentState());
-                }
-
-                if (state == null)
-                    Console.WriteLine("state is null");
-
-                // Store the transition in temporary memory
-                myReplayBuffer.Push(new Transition<T>(state, action, null, reward, nextState));
-
-
-
-                cumulativeReward += reward;
-                // If not done, move to the next state
-                if (!done)
-                {
-                    state = nextState;
-                }
-                // Perform one step of the optimization (on the policy network)
                 OptimizeModel();
-
-                // Soft update of the target network's weights
-                // θ′ ← τ θ + (1 −τ )θ′
                 SoftUpdateTargetNetwork();
-
-
-                if (done)
-                {
-                    episodeRewards.Add(cumulativeReward);
-                    if(myOptions.DisplayPlot != null)
-                    {
-                        myOptions.DisplayPlot.CreateOrUpdateChart(episodeRewards);
-                    }
-                    break;
-                }
+                stepCounter = 0;
             }
+
+
+            //TODO: Update chart (maybe with the first agent?)
         }
 
-        /// <summary>
-        /// Predicts the cumulative reward for one episode using the currently loaded model.
-        /// </summary>
-        /// <returns>The predicted cumulative reward.</returns>
-        public float PredictEpisode()
+        internal class Episode
         {
-            // Initialize the environment and get its state
-            myEnvironment.Reset();
-            var state = myEnvironment.GetCurrentState();
+            T currentState;
             float cumulativeReward = 0;
-            for (int t = 0; ; t++)
+
+            IEnvironment<T> myEnv;
+            DQNAgent<T> myAgent;
+
+            public Episode(IEnvironment<T> myEnv, DQNAgent<T> agent)
             {
-                // Select an action based on the policy
-                var action = SelectAction(state, isTraining: false);
-                // Take a step using the selected action
-                var reward = myEnvironment.Step(action);
-                // Check if the episode is done
-                var done = myEnvironment.isDone;
-
-                T nextState;
-                if (done)
-                {
-                    // If done, there is no next state
-                    nextState = default;
-                }
-                else
-                {
-                    // If not done, get the next state
-                    nextState = myEnvironment.GetCurrentState();
-                }
-
-                if (state == null)
-                    Console.WriteLine("state is null");
-
-                cumulativeReward += reward;
-                // If not done, move to the next state
-                if (!done)
-                {
-                    state = nextState;
-                }
-
-                if (done)
-                {
-
-                    // Optionally, you can still update your chart with the cumulative reward
-                    return cumulativeReward;
-                }
+                this.myEnv = myEnv;
+                myAgent = agent;
+                myEnv.Reset();
+                currentState = myAgent.DeepCopy(myEnv.GetCurrentState());
             }
+
+
+            public void Step()
+            {
+                if(!myEnv.isDone)
+                {
+
+                    var action = myAgent.SelectAction(currentState);
+                    var reward = myEnv.Step(action);
+                    var done = myEnv.isDone;
+
+                    T nextState;
+                    if (done)
+                    {
+                        nextState = default;
+                    }
+                    else
+                    {
+                        nextState = myAgent.DeepCopy(myEnv.GetCurrentState());
+                    }
+                    cumulativeReward += reward;
+                    myAgent.myReplayBuffer.Push(new Transition<T>(currentState, action, null, reward, nextState));
+                    currentState = nextState;
+                    return;
+                }
+                Console.WriteLine($"Episode finished with reward {cumulativeReward}");
+                cumulativeReward = 0;
+                myEnv.Reset();
+                currentState = myAgent.DeepCopy(myEnv.GetCurrentState());
+
+            }
+
         }
+
+
+        #endregion
+
+        //TODO: Removed method for inference, need a new one
 
         /// <summary>
         /// Updates the target network weights based on the policy network weights.
@@ -373,6 +359,8 @@ namespace RLMatrix
                     throw new InvalidCastException("State must be either float[] or float[,]");
             }
         }
+
+
 
 
     }

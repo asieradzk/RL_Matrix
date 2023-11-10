@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using TorchSharp;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
@@ -8,6 +9,7 @@ using static TorchSharp.torch.nn;
 
 namespace RLMatrix
 {
+    
 
     public abstract class DQNNET : Module<Tensor, Tensor>
     {
@@ -23,9 +25,14 @@ namespace RLMatrix
     {
         private readonly ModuleList<Module<Tensor, Tensor>> modules = new();
         private readonly ModuleList<Module<Tensor, Tensor>> heads = new();
-
+        
         public DQN1D(string name, int obsSize, int width, int[] actionSizes, int depth = 4) : base(name)
         {
+            if(obsSize < 1)
+            {
+                throw new ArgumentException("Number of observations cant be less than 1");
+            }
+
             // First layer
             modules.Add(Linear(obsSize, width));
 

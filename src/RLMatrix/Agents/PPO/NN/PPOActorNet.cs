@@ -27,7 +27,7 @@ namespace RLMatrix
             var discreteLogProbs = new List<Tensor>();
             var continuousLogProbs = new List<Tensor>();
             
-            int numDiscreteActions = 1;
+            int numDiscreteActions = discreteActions;
             for (int i = 0; i < numDiscreteActions; i++)
             {
                 Tensor actionLogits = logits.select(1, i);
@@ -35,7 +35,7 @@ namespace RLMatrix
                 discreteLogProbs.Add(torch.nn.functional.log_softmax(actionLogits, dim: 1).gather(dim: 1, index: actionTaken));
             }
 
-            int numContinuousActions = 0; // assuming continuousStds and continuousMeans have the same count
+            int numContinuousActions = contActions; // assuming continuousStds and continuousMeans have the same count
             for (int i = 0; i < numContinuousActions; i++)
             {
                 Tensor mean = logits.select(1, numDiscreteActions + i);

@@ -93,8 +93,23 @@ namespace RLMatrix
 
         public PPOCriticNet CreateCriticNet(IContinuousEnvironment<T> env)
         {
-            throw new NotImplementedException();
+            switch (typeof(T))
+            {
+                case Type t when t == typeof(float[]):
+                    var obsSize = env.stateSize.Match<int>(
+                        intSize => intSize,
+                        tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
+                    return new PPOCriticNet1D("1DDQN", obsSize, neuronsPerLayer);
+                case Type t when t == typeof(float[,]):
+                    var obsSize2D = env.stateSize.Match<(int, int)>(
+                        intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
+                        tupleSize => tupleSize);
+                    return new PPOCriticNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, neuronsPerLayer);
+                default:
+                    throw new Exception("Unexpected type");
+            }
         }
+
     }
 
     public interface IPPONetProvider<T>

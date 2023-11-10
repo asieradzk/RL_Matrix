@@ -11,7 +11,7 @@ namespace RLMatrix.Agents.DQN.Variants
 {
     public class D2QNBatching<T> : DQNAgent<T>
     {
-        public D2QNBatching(DQNAgentOptions opts, IEnvironment<T> env, IDQNNetProvider<T> netProvider = null)
+        public D2QNBatching(DQNAgentOptions opts, List<IEnvironment<T>> env, IDQNNetProvider<T> netProvider = null)
            : base(opts, env, netProvider)
         {
 
@@ -71,7 +71,7 @@ namespace RLMatrix.Agents.DQN.Variants
                 Tensor expandedNextActions = nextActions.unsqueeze(2);  // [batchSize, numHeads, 1]
                 targetNextStateValues = targetNextQValuesAllHeads.gather(2, expandedNextActions).squeeze(2);  // [batchSize, numHeads]
             }
-            Tensor maskedTargetNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironment.actionSize.Count() }).to(myDevice);
+            Tensor maskedTargetNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }).to(myDevice);
             maskedTargetNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), targetNextStateValues);
 
 

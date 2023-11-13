@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using static TorchSharp.torch;
 using TorchSharp;
 using TorchSharp.Modules;
+using RLMatrix.Memories;
 
 namespace RLMatrix.Agents.PPO.Variants
 {
@@ -17,7 +18,7 @@ namespace RLMatrix.Agents.PPO.Variants
 
         }
 
-        public void ImplantMemory(ReplayMemory<T> memory)
+        public void ImplantMemory(EpisodicReplayMemory<T> memory)
         {
             myReplayBuffer = memory;
         }
@@ -72,9 +73,8 @@ namespace RLMatrix.Agents.PPO.Variants
 
 
         //TODO: Only tested for 1 head discrete
-        public void InitializeFromReplayBuffer(int initializationEpochs, double learningRate)
+        private void Retrain(int initializationEpochs, double learningRate, List<Transition<T>> transitions)
         {
-            List<Transition<T>> transitions = myReplayBuffer.SampleEntireMemory();
 
             // Convert to tensors
             Tensor stateBatch = stack(transitions.Select(t => StateToTensor(t.state)).ToArray()).to(myDevice);
@@ -102,7 +102,9 @@ namespace RLMatrix.Agents.PPO.Variants
 
                 var actorCriterion = torch.nn.MSELoss();
                 var criticCriterion = torch.nn.MSELoss();
-                
+
+                rewardBatch.print();
+
 
                 Tensor actorLoss = actorCriterion.forward(policy, actionToPolicyBatch);
                 Tensor criticLoss = criticCriterion.forward(predictedRewards, rewardBatch);
@@ -118,6 +120,27 @@ namespace RLMatrix.Agents.PPO.Variants
                 
             }
 
+        }
+
+        public void RetrainFromMemoryByAge(int initializationEpochs, double learningRate)
+        {
+            //Sweeps from earliest to latest in 5% chunks, improving the epochs and learning rate towards final values
+
+            for (int iteration = 0; iteration < 20; iteration++)
+            {
+                var transitions = myReplayBuffer.SamplePortionOfMemory((iteration) * 5, 5);
+                Retrain(initializationEpochs + ((1+ iteration)/10), learningRate * ((1+ iteration)/10), transitions);
+            }
+        }
+
+        public void RetrainFromMemoryByReward(int initializationEpochs, double learningRate, int topPercent = 25)
+        {
+               //Sweeps from lowest to highest in 5% chunks, improving the epochs and learning rate towards final values
+
+            var transitions = myReplayBuffer.SamplePortionOfMemoryByRewards(topPercent);
+            Retrain(initializationEpochs, learningRate, transitions);
+
+            
         }
 
 
@@ -158,7 +181,7 @@ namespace RLMatrix.Agents.PPO.Variants
                 Tensor surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages;
 
                 Tensor actorLoss = -torch.min(surr1, surr2).mean();
-                actorLoss.print();
+                //actorLoss.print();
 
                 Tensor criticLoss = torch.pow(values - discountedRewards, 2).mean();
                 // Optimize policy network
@@ -174,7 +197,7 @@ namespace RLMatrix.Agents.PPO.Variants
                 myCriticOptimizer.step();
             }
 
-           // myReplayBuffer.ClearMemory();
+            myReplayBuffer.ClearMemory();
 
 
             Tensor RewardDiscount(Tensor rewards, Tensor values, Tensor dones)

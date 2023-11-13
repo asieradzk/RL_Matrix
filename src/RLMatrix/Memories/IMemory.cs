@@ -29,6 +29,7 @@ namespace RLMatrix.Memories
     public interface IEpisodicMemory<TState> : IMemory<TState>
     {
         void Push(List<Transition<TState>> episode);
+        public void ClearMemory();
     }
     public interface IBatchMemory<TState> : IMemory<TState>
     {

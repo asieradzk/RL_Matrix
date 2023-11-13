@@ -9,6 +9,7 @@ using TorchSharp;
 using static TorchSharp.torch.optim;
 using RLMatrix;
 using OneOf;
+using RLMatrix.Memories;
 
 namespace RLMatrix
 {
@@ -21,7 +22,7 @@ namespace RLMatrix
         protected PPOCriticNet myCriticNet;
         protected OptimizerHelper myActorOptimizer;
         protected OptimizerHelper myCriticOptimizer;
-        protected ReplayMemory<T> myReplayBuffer;
+        protected EpisodicReplayMemory<T> myReplayBuffer;
         protected int episodeCounter = 0;
 
         //TODO: Can this be managed? Can we have some object encapsulating all progress to peek inside current agent?
@@ -71,7 +72,7 @@ namespace RLMatrix
             myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR * 100f, amsgrad: true);
 
             //TODO: I think I forgot to make PPO specific memory.
-            myReplayBuffer = new ReplayMemory<T>(myOptions.MemorySize, myOptions.BatchSize);
+            myReplayBuffer = new EpisodicReplayMemory<T>(myOptions.MemorySize);
 
             if (myOptions.DisplayPlot != null)
             {
@@ -124,7 +125,6 @@ namespace RLMatrix
                     // Continuous Actions
                     continuousActions = SelectMeanContinuousActions(result);
                 }
-                Console.WriteLine(discreteActions[0]);
                 return (discreteActions, continuousActions);
             }
 
@@ -285,10 +285,8 @@ namespace RLMatrix
                     return;
                 }
                 
-                foreach (var item in episodeBuffer)
-                {
-                    myAgent.myReplayBuffer.Push(item);
-                }
+                myAgent.myReplayBuffer.Push(episodeBuffer);
+                
                 episodeBuffer = new();
                 Console.WriteLine($"Episode finished with reward {cumulativeReward}");
                 cumulativeReward = 0;
@@ -347,10 +345,7 @@ namespace RLMatrix
                 else
                 {
                     //this ensures all the transitions are pushed together exactly when episode ends, so they are in order in the replay buffer
-                    foreach (var item in transitionsInEpisode)
-                    {
-                        myReplayBuffer.Push(item);
-                    }
+                    myReplayBuffer.Push(transitionsInEpisode);
 
 
                     OptimizeModel();

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.IO;
+using Tensorboard;
 
 namespace RLMatrix.Memories
 {
@@ -54,6 +55,14 @@ namespace RLMatrix.Memories
         }
 
         /// <summary>
+        /// Clears all transitions from the memory.
+        /// </summary>
+        public void ClearMemory()
+        {
+            episodes.Clear();
+        }
+
+        /// <summary>
         /// Samples a single episode randomly from the memory.
         /// </summary>
         /// <returns>A list of transitions representing a single episode.</returns>
@@ -62,6 +71,107 @@ namespace RLMatrix.Memories
             int index = random.Next(episodes.Count);
             return episodes[index];
         }
+
+        /// <summary>
+        /// Samples all episodes from the memory
+        /// </summary>
+        /// <returns> A List of transitions (in order) of TState type where TState is the observation shape 1d/2d</returns>
+        public List<Transition<TState>> SampleEntireMemory()
+        {
+            var result = new List<Transition<TState>>();
+            //This is done this way because policy optimization works on Episode (transition) batches not batches of episodes
+            foreach(var episode in episodes)
+            {
+                result.AddRange(episode);
+            }
+            return result;
+        }
+        /// <summary>
+        /// Samples % of experiences upwards starting at startPercentage
+        /// For instance, arguments of 50, 9 will return 9% of total experiences between 50% and 59% (oldest to most recent)
+        /// </summary>
+        /// <returns> A List of transitions (in order) of TState type where TState is the observation shape 1d/2d</returns>
+        /// <param name="startPercentage">The starting percentage of experiences to sample</param>
+        /// <param name="howManyPercent">The percentage of experiences to sample</param>
+        public List<Transition<TState>> SamplePortionOfMemory(int startPercentage, int howManyPercent)
+        {
+            if (startPercentage < 0 || howManyPercent <= 0 || startPercentage + howManyPercent > 100)
+                throw new Exception("invalid argument");
+
+
+            var result = new List<Transition<TState>>();
+            int totalTransitions = episodes.Sum(episode => episode.Count);
+            int startIndex = (int)(totalTransitions * (startPercentage / 100.0));
+            int endIndex = (int)(totalTransitions * ((startPercentage + howManyPercent) / 100.0));
+
+            int currentCount = 0;
+            foreach (var episode in episodes)
+            {
+                foreach (var transition in episode)
+                {
+                    if (currentCount >= startIndex && currentCount < endIndex)
+                    {
+                        result.Add(transition);
+                    }
+                    if (currentCount >= endIndex)
+                    {
+                        break;
+                    }
+                    currentCount++;
+                }
+                if (currentCount >= endIndex)
+                {
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Samples a portion of memory based on the cumulative rewards of episodes.
+        /// The method ranks episodes by their total reward and selects the top-performing ones.
+        /// </summary>
+        /// <param name="topPercentage">The top percentage of episodes to sample based on cumulative rewards.</param>
+        /// <returns>A List of transitions from the top-performing episodes.</returns>
+        public List<Transition<TState>> SamplePortionOfMemoryByRewards(int topPercentage)
+        {
+            var result = new List<Transition<TState>>();
+
+            // Dictionary to hold cumulative rewards for each episode
+            var episodeRewards = new Dictionary<List<Transition<TState>>, float>();
+
+            // Calculate cumulative rewards for each episode
+            foreach (var episode in episodes)
+            {
+                // Sum up the rewards for each transition in the episode
+                float cumulativeReward = episode.Sum(transition => transition.reward);
+                episodeRewards.Add(episode, cumulativeReward);
+            }
+
+            // Sort episodes by their cumulative rewards in descending order
+            var sortedEpisodes = episodeRewards.OrderByDescending(pair => pair.Value)
+                                                .Select(pair => pair.Key)
+                                                .ToList();
+
+
+            // Calculate the number of episodes to sample based on the top percentage
+            // Ceiling is used to always round up to ensure at least one episode is selected when topPercentage is > 0
+            int episodesToSample = (int)Math.Ceiling(sortedEpisodes.Count * (topPercentage / 100.0));
+
+            // Select transitions from the top-performing episodes based on cumulative rewards
+            for (int i = 0; i < episodesToSample; i++)
+            {
+                result.AddRange(sortedEpisodes[i]);
+        
+            }
+            Console.WriteLine(result.Count);
+
+            return result;
+        }
+
+
+
 
         /// <summary>
         /// Serializes the EpisodicReplayMemory and saves it to a file.

@@ -10,8 +10,9 @@ namespace RLMatrix
     {
         private readonly int capacity;
         private readonly int batchSize;
-        private List<Transition<TState>> memory;
+        public List<Transition<TState>> memory;
         private readonly Random random = new Random();
+        public int myCount => memory.Count;
 
         /// <summary>
         /// Initializes a new instance of the DQNReplayMemory class.
@@ -57,6 +58,17 @@ namespace RLMatrix
             }
 
             return Enumerable.Range(0, batchSize)
+                             .Select(_ => memory[random.Next(memory.Count)])
+                             .ToList();
+        }
+        public List<Transition<TState>> Sample(int sampleSize)
+        {
+            if (sampleSize > memory.Count)
+            {
+                throw new InvalidOperationException("Batch size cannot be greater than current memory size.");
+            }
+
+            return Enumerable.Range(0, sampleSize)
                              .Select(_ => memory[random.Next(memory.Count)])
                              .ToList();
         }

@@ -16,6 +16,7 @@ namespace RLMatrix.Memories
         private readonly int capacity; // Maximum number of episodes
         private List<List<Transition<TState>>> episodes;
         private readonly Random random = new Random();
+        public int myCount => episodes.Aggregate(0, (acc, episode) => acc + episode.Count);
 
         /// <summary>
         /// Gets the number of episodes currently stored in the memory.
@@ -71,6 +72,23 @@ namespace RLMatrix.Memories
             int index = random.Next(episodes.Count);
             return episodes[index];
         }
+        public List<Transition<TState>> Sample(int sampleSize)
+        {
+            // Flatten the list of episodes into a single list of transitions
+            var allTransitions = episodes.SelectMany(e => e).ToList();
+
+            // Check if the sample size is larger than the number of available transitions
+            if (sampleSize > allTransitions.Count)
+            {
+                throw new InvalidOperationException("Batch size cannot be greater than the total number of transitions in memory.");
+            }
+
+            // Randomly sample transitions
+            return Enumerable.Range(0, sampleSize)
+                             .Select(_ => allTransitions[random.Next(allTransitions.Count)])
+                             .ToList();
+        }
+
 
         /// <summary>
         /// Samples all episodes from the memory

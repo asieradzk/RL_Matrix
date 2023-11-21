@@ -24,12 +24,13 @@ namespace RLMatrix
         protected OptimizerHelper myCriticOptimizer;
         protected EpisodicReplayMemory<T> myReplayBuffer;
         protected int episodeCounter = 0;
+        protected GAIL<T> myGAIL;
 
         //TODO: Can this be managed? Can we have some object encapsulating all progress to peek inside current agent?
         public List<double> episodeRewards = new();
 
 
-        public PPOAgent(PPOAgentOptions opts, OneOf<List<IContinuousEnvironment<T>>, List<IEnvironment<T>>> env, IPPONetProvider<T> netProvider = null)
+        public PPOAgent(PPOAgentOptions opts, OneOf<List<IContinuousEnvironment<T>>, List<IEnvironment<T>>> env, IPPONetProvider<T> netProvider = null, GAIL<T> GAILInstance = null)
         {
             netProvider = netProvider ?? new PPONetProviderBase<T>(1024);
 
@@ -41,8 +42,10 @@ namespace RLMatrix
             myDevice = torch.cuda.is_available() ? torch.CUDA : torch.CPU;
             Console.WriteLine($"Running PPO on {myDevice.type.ToString()}");
             myOptions = opts;
-            //TODO: Implement multi env
-            //we need correct cast
+
+
+
+
             if (env.IsT0)
             {
                 myEnvironments = env.AsT0;
@@ -63,6 +66,11 @@ namespace RLMatrix
                 throw new System.ArgumentException("Envs must contain at least one environment");
             }
 
+            myGAIL = GAILInstance;
+            if (myGAIL != null)
+            {
+                myGAIL.Initialise(myEnvironments[0].stateSize, myEnvironments[0].actionSize, myEnvironments[0].continuousActionBounds, myDevice);
+            }
 
 
             myActorNet = netProvider.CreateActorNet(myEnvironments[0]).to(myDevice);
@@ -217,6 +225,7 @@ namespace RLMatrix
             initialisetrainingonce = true;
 
         }
+        //TODO: wtf step horizon
         int stepHorizon = 400;
         int stepCounter = 0;
         public void Step()
@@ -233,7 +242,7 @@ namespace RLMatrix
             }
 
             episodeCounter++;
-            if (stepCounter > stepHorizon)
+            if (true)
             {
                 OptimizeModel();
                 stepCounter = 0;
@@ -288,7 +297,6 @@ namespace RLMatrix
                 myAgent.myReplayBuffer.Push(episodeBuffer);
                 
                 episodeBuffer = new();
-                Console.WriteLine($"Episode finished with reward {cumulativeReward}");
                 cumulativeReward = 0;
                 myEnv.Reset();
                 currentState = myAgent.DeepCopy(myEnv.GetCurrentState());

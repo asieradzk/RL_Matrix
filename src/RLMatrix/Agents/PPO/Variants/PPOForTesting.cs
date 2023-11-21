@@ -13,7 +13,7 @@ namespace RLMatrix.Agents.PPO.Variants
 {
     public class PPOForTesting<T> : PPOAgent<T>
     {
-        public PPOForTesting(PPOAgentOptions opts, OneOf<List<IContinuousEnvironment<T>>, List<IEnvironment<T>>> env, IPPONetProvider<T> netProvider = null) : base(opts, env, netProvider)
+        public PPOForTesting(PPOAgentOptions opts, OneOf<List<IContinuousEnvironment<T>>, List<IEnvironment<T>>> env, IPPONetProvider<T> netProvider = null, GAIL<T> GAILInstance = null) : base(opts, env, netProvider, GAILInstance)
         {
 
         }
@@ -65,7 +65,6 @@ namespace RLMatrix.Agents.PPO.Variants
             // Stack all batches together
             return torch.stack(policyActions, dim: 0);
         }
-
 
 
 
@@ -150,10 +149,17 @@ namespace RLMatrix.Agents.PPO.Variants
         {
             if (myReplayBuffer.Length < myOptions.BatchSize)
             {
+                if(myGAIL != null && myReplayBuffer.Length > 0)
+                {
+                    myGAIL.OptimiseDiscriminator(myReplayBuffer);
+                }
+                
                 return;
             }
 
             List<Transition<T>> transitions = myReplayBuffer.SampleEntireMemory();
+
+           
 
             // Convert to tensors
             Tensor stateBatch = stack(transitions.Select(t => StateToTensor(t.state)).ToArray()).to(myDevice);
@@ -162,8 +168,16 @@ namespace RLMatrix.Agents.PPO.Variants
             Tensor rewardBatch = stack(transitions.Select(t => tensor(t.reward)).ToArray()).to(myDevice);
             Tensor doneBatch = stack(transitions.Select(t => tensor(t.nextState == null ? 1 : 0)).ToArray()).to(myDevice);
 
+
+
             // Concatenate discrete and continuous action batches
             Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
+            if (myGAIL != null)
+            {
+                myGAIL.OptimiseDiscriminator(myReplayBuffer);
+                rewardBatch = myGAIL.AugmentRewards(stateBatch, actionBatch, rewardBatch);
+                rewardBatch.print();
+            }
 
             Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze().detach();
             Tensor valueOld = myCriticNet.forward(stateBatch).detach();

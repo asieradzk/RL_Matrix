@@ -8,8 +8,12 @@ namespace RLMatrix.Memories
 {
     public interface IMemory<TState>
     {
-        void Push(Transition<TState> transition);
-        List<Transition<TState>> Sample();
+        public void Push(Transition<TState> transition);
+        public List<Transition<TState>> Sample(int sampleSize);
+        public List<Transition<TState>> Sample();
+        public void Save(string pathToFile);
+        public void Load(string pathToFile);
+        public int myCount { get; }
     }
     public interface IStorableMemory
     {

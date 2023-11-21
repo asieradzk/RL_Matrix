@@ -6,7 +6,7 @@
     public class PPOAgentOptions
     {
         /// <summary>
-        /// The number of experiences sampled from the memory buffer during each update step. Larger values may lead to more stable learning, but with increased computational cost and memory use. Defaults to 64.
+        /// The number of episodes that will be in each training batch. When number of episodes is smaller than batch size no optimization will occur and agent accumulates expierneces until this number is greater or equal. The replay buffer is deleted after each optimization step.
         /// </summary>
         public int BatchSize;
 
@@ -61,15 +61,15 @@
         public IRLChartService? DisplayPlot;
 
         public PPOAgentOptions(
-            int batchSize = 64,
+            int batchSize = 16,
             int memorySize = 10000,
             float gamma = 0.99f,
             float gaeLambda = 0.95f,
-            float lr = 0.001f,
+            float lr = 0.005f,
             float clipEpsilon = 0.2f,
             float vClipRange = 0.2f,
             float cValue = 0.5f,
-            int ppoEpochs = 4,
+            int ppoEpochs = 2,
             float clipGradNorm = 0.5f,
             IRLChartService? displayPlot = null)
         {

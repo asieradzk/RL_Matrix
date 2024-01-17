@@ -89,8 +89,15 @@ public class GAIL<T>
 
             long numSteps = rewards.shape[0];
 
+
+            //TODO: Could pick reward augmentation algorithm depending on the batch size in the agent (somehow need to capture that dependency)
+
+
+            //This works with multi-espide batches, but can bias agent towards longer episodes
             Tensor rewardModification = expertnessScore * myOptions.rewardFactor;
 
+
+            //This only works with single-episode long batches but does not bias agent towards longer episodes since the reward is always divided by n steps in the batch-episode
             /*
             // Calculate the reward modification
             // If expertnessScore > 0.5, add (expertnessScore - 0.5) * myOptions.rewardFactor

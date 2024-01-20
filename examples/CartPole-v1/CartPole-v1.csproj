@@ -12,8 +12,8 @@
     <PackageReference Include="Gym.NET" Version="0.2.0" />
     <PackageReference Include="Gym.NET.Environments" Version="0.2.0" />
     <PackageReference Include="Gym.NET.Rendering.WinForm" Version="0.2.0" />
-    <PackageReference Include="OneOf" Version="3.0.243" />
-	<PackageReference Include="RLMatrix" Version="0.1.0" />
+    <PackageReference Include="OneOf" Version="3.0.263" />
+	<PackageReference Include="RLMatrix" Version="0.2.0" />
 	<PackageReference Include="RLMatrix.WinformsChart" Version="0.1.0" />
   </ItemGroup>
 

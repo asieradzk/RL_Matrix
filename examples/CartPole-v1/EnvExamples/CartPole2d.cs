@@ -9,7 +9,7 @@ public class CartPole2d : IEnvironment<float[,]>
     public int maxSteps { get; set; }
     public bool isDone { get; set; }
     public OneOf<int, (int, int)> stateSize { get; set; }
-    public int actionSize { get; set; }
+    public int[] actionSize { get; set; }
 
     CartPoleEnv myEnv;
 
@@ -46,10 +46,10 @@ public class CartPole2d : IEnvironment<float[,]>
         stepCounter = 0;
         maxSteps = 100000;
         stateSize = (2, 2);
-        actionSize = myEnv.ActionSpace.Shape.Size;
+        actionSize = new int[] { myEnv.ActionSpace.Shape.Size };
         myEnv.Reset();
         isDone = false;
-        
+
     }
 
     public void Reset()
@@ -60,8 +60,10 @@ public class CartPole2d : IEnvironment<float[,]>
         stepCounter = 0;
     }
 
-    public float Step(int actionId)
+    public float Step(int[] actionsIds)
     {
+        var actionId = actionsIds[0];
+
         var (observation, reward, _done, information) = myEnv.Step(actionId);
 
         SixLabors.ImageSharp.Image img = myEnv.Render(); //returns the image that was rendered.
@@ -82,7 +84,7 @@ public class CartPole2d : IEnvironment<float[,]>
 
         return reward;
 
-        
+
     }
 
 

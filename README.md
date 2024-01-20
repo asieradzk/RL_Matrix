@@ -26,6 +26,7 @@ While embarking on my RL journey, I sensed a gap in the reinforcement learning w
 With RL Matrix, our vision is to offer a seamless experience. By simply incorporating the IEnvironment interface, you're equipped to rapidly craft and unleash Reinforcement Learning Agents (RL Agents). Switching between algorithms? A breeze! It’s our nod to the elegance of Matlab's toolkit methodology.
 
 ![enter image description here](https://i.imgur.com/jTKghOP.gif)
+![enter image description here](https://s13.gifyu.com/images/S0a0u.gif)
 
 ## 🚀 Getting Started:
 

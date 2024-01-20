@@ -55,12 +55,12 @@ public partial class BallBalanceEnv : GodotEnvironmentDiscrete<float[]>
 	//its also possible to use 2D float float[,] for observations and RLMatrix will use CNN as first layer for this by default
 	float[] Observations()
 	{
-		//lets observe head rotation in the z (1) axis as well as ball x and y position (2) and linear velocity (2) and angular velocity (3)
-		//this is a sum of 9 floats
+		//lets observe head rotation in the z (1) axis as well as ball x and y position (2) and linear velocity (2) 
+		//this is a sum of 5 floats
 		
 		//if you dont feel like counting you can do this roundabout way:
 		List<float> myObservations = new();
-		myObservations.Add(head.Rotation.Z/10f);
+		myObservations.Add(head.Rotation.Z/10f); //Divide by 10 to normalise a little...
 		myObservations.Add(ball.Position.X);
 		myObservations.Add(ball.Position.Y);
 		myObservations.Add(ball.LinearVelocity.X);

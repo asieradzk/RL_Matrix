@@ -1,0 +1,42 @@
+﻿<Project Sdk="Godot.NET.Sdk/4.1.1">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+	<PropertyGroup>
+		<PackageId>RLMatrix.Godot</PackageId>
+		<Version>0.1.2</Version>
+		<Authors>Adrian Sieradzki</Authors>
+		<Company>Adrian Sieradzki</Company>
+		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<PackageDescription>Deep Reinfocement Learning Library wiring RLMatrix with Godot objects for easy of use with Godot Engine</PackageDescription>
+		<PackageProjectUrl>https://github.com/asieradzk/RL_Matrix</PackageProjectUrl>
+		<PackageTags>Reinforcement Learning, RL, Agent, Policy, DQN, PPO, DDPG, MCTS, ML, Machine Learning, Deep Reinforcement Learning</PackageTags>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <None Include="..\icon.png" Link="icon.png">
+	    <PackagePath></PackagePath>
+	    <Pack>true</Pack>
+	  </None>
+	  <None Include="..\README.md" Link="README.md">
+	    <PackagePath></PackagePath>
+	    <Pack>true</Pack>
+	  </None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="RLMatrix">
+			<HintPath>D:\Documents\dotNetProjects\RLMat2\RLMatrix\src\RLMatrix\bin\Release\net6.0\RLMatrix.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+
+
+
+</Project>

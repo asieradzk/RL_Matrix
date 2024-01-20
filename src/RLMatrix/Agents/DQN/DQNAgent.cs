@@ -12,7 +12,7 @@ namespace RLMatrix
     /// Represents a Deep Q-Learning agent.
     /// </summary>
     /// <typeparam name="T">The type of the state representation, either float[] or float[,].</typeparam>
-    public class DQNAgent<T>
+    public class DQNAgent<T> : IDiscreteAgent<T>
     {
         protected torch.Device myDevice;
         protected DQNAgentOptions myOptions;
@@ -285,7 +285,7 @@ namespace RLMatrix
 
             public void Step()
             {
-                if(!myEnv.isDone)
+                if (!myEnv.isDone)
                 {
 
                     var action = myAgent.SelectAction(currentState);
@@ -306,7 +306,14 @@ namespace RLMatrix
                     currentState = nextState;
                     return;
                 }
-                Console.WriteLine($"Episode finished with reward {cumulativeReward}");
+
+                var rewardCopy = cumulativeReward;
+                myAgent.episodeRewards.Add(rewardCopy);
+                if (myAgent.myOptions.DisplayPlot != null)
+                {
+                    myAgent.myOptions.DisplayPlot.CreateOrUpdateChart(myAgent.episodeRewards);
+                }
+
                 cumulativeReward = 0;
                 myEnv.Reset();
                 currentState = myAgent.DeepCopy(myEnv.GetCurrentState());

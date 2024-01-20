@@ -53,7 +53,7 @@ namespace RLMatrix
             // Pass through base layers.
             foreach (var module in fcModules)
             {
-                x = functional.relu(module.forward(x));
+                x = functional.tanh(module.forward(x));
             }
 
             // Output the value estimate.
@@ -133,11 +133,11 @@ namespace RLMatrix
             }
 
             // Process through layers.
-            x = functional.relu(conv1.forward(x));
+            x = functional.tanh(conv1.forward(x));
             x = flatten.forward(x);
             foreach (var module in fcModules)
             {
-                x = functional.relu(module.forward(x));
+                x = functional.tanh(module.forward(x));
             }
 
             return head.forward(x);

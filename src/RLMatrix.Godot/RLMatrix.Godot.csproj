@@ -1,37 +1,36 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-	  <TargetFramework>net6.0-windows</TargetFramework>
-	  <ImplicitUsings>enable</ImplicitUsings>
-	  <UseWindowsForms>true</UseWindowsForms>
-	  <Nullable>enable</Nullable>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
 	<PropertyGroup>
-		<PackageId>RLMatrix.WinformsChart</PackageId>
-		<Version>0.2.0</Version>
+		<PackageId>RLMatrix.Godot</PackageId>
+		<Version>0.2.421</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
 		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-		<PackageDescription>Quick Winforms Chart for RL Matrix</PackageDescription>
+		<PackageDescription>Deep Reinfocement Learning Library wiring RLMatrix with Godot objects for easy of use with Godot Engine</PackageDescription>
 		<PackageProjectUrl>https://github.com/asieradzk/RL_Matrix</PackageProjectUrl>
 		<PackageTags>Reinforcement Learning, RL, Agent, Policy, DQN, PPO, DDPG, MCTS, ML, Machine Learning, Deep Reinforcement Learning</PackageTags>
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
-	
+
 	<ItemGroup>
 		<None Include="..\..\icon.png" Pack="true" PackagePath="" />
 		<None Include="..\..\README.md" Pack="true" PackagePath="" />
-		</ItemGroup>
-
+	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
-		<PackageReference Include="System.Windows.Forms.DataVisualization" Version="1.0.0-prerelease.20110.1" />
-		<PackageReference Include="RLMatrix" Version="0.1.0" />
+		<PackageReference Include="Godot.SourceGenerators" Version="4.2.1" />
+		<PackageReference Include="GodotSharp" Version="4.2.1" />
+		<PackageReference Include="GodotSharpEditor" Version="4.2.1" />
+		<PackageReference Include="OneOf" Version="3.0.263" />
+		<PackageReference Include="RLMatrix" Version="0.2.0" />
 	</ItemGroup>
-	
 
 </Project>

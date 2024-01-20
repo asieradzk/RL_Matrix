@@ -100,7 +100,7 @@ namespace RLMatrix
 
             foreach (var module in fcModules)
             {
-                x = functional.relu(module.forward(x));
+                x = functional.tanh(module.forward(x));
             }
 
             // Apply discrete heads and continuous heads
@@ -222,12 +222,12 @@ namespace RLMatrix
                 x = x.unsqueeze(1);
             }
 
-            x = functional.relu(conv1.forward(x));
+            x = functional.tanh(conv1.forward(x));
             x = flatten.forward(x);
 
             foreach (var module in fcModules)
             {
-                x = functional.relu(module.forward(x));
+                x = functional.tanh(module.forward(x));
             }
 
             var discreteOutputs = new List<Tensor>();

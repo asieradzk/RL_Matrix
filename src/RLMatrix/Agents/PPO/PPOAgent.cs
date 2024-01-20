@@ -13,7 +13,7 @@ using RLMatrix.Memories;
 
 namespace RLMatrix
 {
-    public class PPOAgent<T>
+    public class PPOAgent<T> : IDiscreteAgent<T>
     {
         protected torch.Device myDevice;
         protected PPOAgentOptions myOptions;
@@ -297,6 +297,12 @@ namespace RLMatrix
                 myAgent.myReplayBuffer.Push(episodeBuffer);
                 
                 episodeBuffer = new();
+                var rewardCopy = cumulativeReward;
+                myAgent.episodeRewards.Add(rewardCopy);
+                if (myAgent.myOptions.DisplayPlot != null)
+                {
+                    myAgent.myOptions.DisplayPlot.CreateOrUpdateChart(myAgent.episodeRewards);
+                }
                 cumulativeReward = 0;
                 myEnv.Reset();
                 currentState = myAgent.DeepCopy(myEnv.GetCurrentState());
@@ -306,7 +312,7 @@ namespace RLMatrix
         }
         #endregion
 
-
+        //TODO: Probably can be removed since Step() does the same thing but with more granularity
         public void TrainEpisode()
         {
             episodeCounter++;

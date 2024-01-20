@@ -57,7 +57,7 @@ namespace RLMatrix.GAILNET
 
             // Apply the last layer without ReLU activation, then apply sigmoid
             // No need to use squeeze() since we want the output shape to be [batchSize, 1]
-            return functional.Sigmoid(fcLayers.Last().forward(x)).squeeze(1);
+            return functional.sigmoid(fcLayers.Last().forward(x)).squeeze(1);
         }
 
         protected override void Dispose(bool disposing)
@@ -124,7 +124,7 @@ namespace RLMatrix.GAILNET
             }
 
             // Sigmoid activation for output
-            return functional.Sigmoid(fcLayers.Last().forward(x)).squeeze();
+            return functional.sigmoid(fcLayers.Last().forward(x)).squeeze();
         }
 
         private long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)

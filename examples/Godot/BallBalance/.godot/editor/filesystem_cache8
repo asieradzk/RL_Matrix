@@ -1,0 +1,10 @@
+ea4bc82a6ad023ab7ee23ee620429895
+::res://::1705764759
+ball_balance_env.tscn::PackedScene::-1::1705666181::0::1::::<><>::
+icon.svg::CompressedTexture2D::7738119466721905580::1705762741::1705762755::1::::<><>::
+qbe.glb::PackedScene::6756540331969564465::1699016196::1705763360::1::::<><>::uid://dj5llwsvg3rwx::::res://qbe_Cube_001.res
+qbe_Cube_001.res::ArrayMesh::7853581691380238375::1705763360::0::1::::<><>::
+scene.tscn::PackedScene::4947012749063327463::1705763679::0::1::::<><>::res://Scripts/BallBalanceTrainingManager.cs<>res://ball_balance_env.tscn
+::res://Scripts/::1705764341
+BallBalanceEnv.cs::CSharpScript::-1::1705764341::0::1::::<>Node<>::
+BallBalanceTrainingManager.cs::CSharpScript::-1::1705764249::0::1::::<>Node<>::

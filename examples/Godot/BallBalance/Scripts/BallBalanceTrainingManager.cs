@@ -22,11 +22,11 @@ public partial class BallBalanceTrainingManager : TrainingManagerBaseDiscrete<Ba
             memorySize: 10000,       // Size of the replay buffer
             gamma: 0.99f,          // Discount factor for rewards
             gaeLambda: 0.95f,      // Lambda factor for Generalized Advantage Estimation
-            lr: 3e-5f,            // Learning rate
+            lr: 1e-5f,            // Learning rate
             clipEpsilon: 0.2f,     // Clipping factor for PPO's objective function
             vClipRange: 0.2f,      // Clipping range for value loss
             cValue: 0.5f,          // Coefficient for value loss
-            ppoEpochs: 2,            // Number of PPO epochs
+            ppoEpochs: 1,            // Number of PPO epochs
             clipGradNorm: 0.5f,    // Maximum allowed gradient norm
             displayPlot: null
         );

@@ -20,16 +20,9 @@ namespace RLMatrix.Godot
         {
             AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
-            var children = GetChildren();
-            foreach (var child in children)
-            {
-                if (child is T)
-                {
-                    myEnvironments.Add((T)child);
-                }
-            }
+            myEnvironments = GetAllChildrenOfType<IEnvironment<TState>>(this); // Get all children of type IEnvironment<TState>
 
-            Debug.WriteLine(myEnvironments.Count);
+            Console.WriteLine($"Training with envs: {myEnvironments.Count}");
 
             /* GAIL EXAMPLE
             var recorder = new Recorder<TState>();
@@ -42,6 +35,24 @@ namespace RLMatrix.Godot
             */
 
             myAgent = CreateAgent(myEnvironments);
+        }
+        private List<T> GetAllChildrenOfType<T>(Node parentNode) where T : class
+        {
+            List<T> resultList = new List<T>();
+            AddChildrenOfType(parentNode, resultList);
+            return resultList;
+        }
+
+        private void AddChildrenOfType<T>(Node node, List<T> resultList) where T : class
+        {
+            foreach (Node child in node.GetChildren())
+            {
+                if (child is T typedChild)
+                {
+                    resultList.Add(typedChild);
+                }
+                AddChildrenOfType(child, resultList); // Recursive call to check the children of the current child
+            }
         }
 
         public override void _Process(double delta)

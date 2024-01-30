@@ -16,15 +16,17 @@ namespace RLMatrix
     {
         int neuronsPerLayer;
         int depth = 2;
+        bool useRNN;
 
         /// <summary>
         /// Default constructor for simple PPO NNs - crtic and actor.
         /// </summary>
         /// <param name="neuronsPerLayer">Number of neurons in hidden layers, default 256 x 3</param>
-        public PPONetProviderBase(int neuronsPerLayer = 256, int depth = 2)
+        public PPONetProviderBase(int neuronsPerLayer = 256, int depth = 2, bool useRNN = false)
         {
             this.neuronsPerLayer = neuronsPerLayer;
             this.depth = depth;
+            this.useRNN = useRNN;
         }
 
 
@@ -37,7 +39,7 @@ namespace RLMatrix
                         intSize => intSize,
                         tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
                     var actionSize = env.actionSize;
-                    return new PPOActorNet1D("1DDQN", obsSize, neuronsPerLayer, actionSize, new (float, float)[0], depth);
+                    return new PPOActorNet1D("1DDQN", obsSize, neuronsPerLayer, actionSize, new (float, float)[0], depth, useRNN);
                 case Type t when t == typeof(float[,]):
                     var obsSize2D = env.stateSize.Match<(int, int)>(
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
@@ -59,7 +61,7 @@ namespace RLMatrix
                         tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
                     var actionSize = env.actionSize;
                     var continuousActionBounds = env.continuousActionBounds;
-                    return new PPOActorNet1D("1DDQN", obsSize, neuronsPerLayer, actionSize, continuousActionBounds, depth);
+                    return new PPOActorNet1D("1DDQN", obsSize, neuronsPerLayer, actionSize, continuousActionBounds, depth, useRNN);
                 case Type t when t == typeof(float[,]):
                     var obsSize2D = env.stateSize.Match<(int, int)>(
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
@@ -80,7 +82,7 @@ namespace RLMatrix
                     var obsSize = env.stateSize.Match<int>(
                         intSize => intSize,
                         tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
-                    return new PPOCriticNet1D("1DDQN", obsSize, neuronsPerLayer);
+                    return new PPOCriticNet1D("1DDQN", obsSize, neuronsPerLayer, depth, useRNN);
                 case Type t when t == typeof(float[,]):
                     var obsSize2D = env.stateSize.Match<(int, int)>(
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
@@ -99,7 +101,7 @@ namespace RLMatrix
                     var obsSize = env.stateSize.Match<int>(
                         intSize => intSize,
                         tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
-                    return new PPOCriticNet1D("1DDQN", obsSize, neuronsPerLayer);
+                    return new PPOCriticNet1D("1DDQN", obsSize, neuronsPerLayer, depth, useRNN);
                 case Type t when t == typeof(float[,]):
                     var obsSize2D = env.stateSize.Match<(int, int)>(
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),

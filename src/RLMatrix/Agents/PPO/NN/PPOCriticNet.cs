@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using static TorchSharp.torch.nn;
 using static TorchSharp.torch;
 using TorchSharp.Modules;
+using TorchSharp;
 
 namespace RLMatrix
 {
@@ -16,25 +17,50 @@ namespace RLMatrix
         }
 
         public override abstract Tensor forward(Tensor x);
-
     }
 
     public class PPOCriticNet1D : PPOCriticNet
     {
         private readonly ModuleList<Module<Tensor, Tensor>> fcModules = new();
         private readonly Module<Tensor, Tensor> head;
+        private readonly GRU lstmLayer;
+        private int hiddenSize;
+        private bool useRnn;
 
-        public PPOCriticNet1D(string name, long inputs, int width, int depth = 3) : base(name)
+
+        public PPOCriticNet1D(string name, long inputs, int width, int depth = 3, bool useRNN = false) : base(name)
         {
             // Ensure depth is at least 1.
             if (depth < 1) throw new ArgumentOutOfRangeException("Depth must be 1 or greater.");
 
-            // Add base layers.
-            fcModules.Add(Linear(inputs, width));
-            for (int i = 1; i < depth; i++)
+            this.useRnn = useRNN;
+            this.hiddenSize = width;
+
+
+            if (useRnn)
+            {
+                // Initialize LSTM layer if useRnn is true
+                lstmLayer = nn.GRU(inputs, hiddenSize, depth, batchFirst: true);
+                width = hiddenSize; // The output of LSTM layer is now the input for the heads
+            }
+
+            // Base layers
+            if (useRnn)
             {
                 fcModules.Add(Linear(width, width));
             }
+            else
+            {
+                fcModules.Add(Linear(inputs, width));
+            }
+
+
+            for (int i = 1; i < depth; i++)
+            {
+                fcModules.Add(Linear(width, width));
+
+            }
+
 
             // Final layer to produce the value estimate.
             head = Linear(width, 1);
@@ -44,31 +70,48 @@ namespace RLMatrix
 
         public override Tensor forward(Tensor x)
         {
+           
             // Adjust for a single input.
             if (x.dim() == 1)
             {
                 x = x.unsqueeze(0);
             }
 
-            // Pass through base layers.
-            foreach (var module in fcModules)
+            // Apply the first fc module
+            if (useRnn)
+            {
+                x = x.unsqueeze(0);
+                // Apply LSTM layer if useRnn is true
+                x = lstmLayer.forward(x, null).Item1;
+                x = x.squeeze(0);
+                x = functional.tanh(fcModules.First().forward(x));
+            }
+            else
+            {
+                x = functional.tanh(fcModules.First().forward(x));
+            }
+
+
+            foreach (var module in fcModules.Skip(1))
             {
                 x = functional.tanh(module.forward(x));
             }
 
-            // Output the value estimate.
-            return head.forward(x);
+
+            var result = head.forward(x);
+            return result;
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                // Dispose all created modules.
+ 
                 foreach (var module in fcModules)
                 {
                     module.Dispose();
                 }
+                lstmLayer?.Dispose();
                 head.Dispose();
             }
 
@@ -76,12 +119,16 @@ namespace RLMatrix
         }
     }
 
+
     public class PPOCriticNet2D : PPOCriticNet
     {
         private Module<Tensor, Tensor> conv1, flatten, head;
         private readonly ModuleList<Module<Tensor, Tensor>> fcModules = new();
+        private GRU gruLayer; // GRU layer
         private int width;
         private long linear_input_size;
+        private bool useRnn;
+        private int hiddenSize;
 
         // Calculates the output size for convolutional layers.
         private long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
@@ -89,11 +136,13 @@ namespace RLMatrix
             return ((inputSize - kernelSize + 2 * padding) / stride) + 1;
         }
 
-        public PPOCriticNet2D(string name, long h, long w, int width, int depth = 3) : base(name)
+        public PPOCriticNet2D(string name, long h, long w, int width, int depth = 3, bool useRNN = false) : base(name)
         {
             if (depth < 1) throw new ArgumentOutOfRangeException("Depth must be 1 or greater.");
 
             this.width = width;
+            this.useRnn = useRNN;
+            this.hiddenSize = width; // Assuming hidden size to be same as width for simplicity.
 
             var smallestDim = Math.Min(h, w);
 
@@ -104,6 +153,13 @@ namespace RLMatrix
             long output_height = CalculateConvOutputSize(h, smallestDim);
             long output_width = CalculateConvOutputSize(w, smallestDim);
             linear_input_size = output_height * output_width * width;
+
+            if (useRnn)
+            {
+                // Initialize GRU layer if useRnn is true
+                gruLayer = nn.GRU(linear_input_size, hiddenSize, depth, batchFirst: true);
+                linear_input_size = hiddenSize; // The output of GRU layer is now the input for the fully connected layers.
+            }
 
             flatten = Flatten();
 
@@ -132,9 +188,19 @@ namespace RLMatrix
                 x = x.unsqueeze(1);
             }
 
-            // Process through layers.
+            // Process through convolutional layer.
             x = functional.tanh(conv1.forward(x));
             x = flatten.forward(x);
+
+            if (useRnn)
+            {
+                x = x.unsqueeze(0);
+                // Apply GRU layer if useRnn is true
+                x = gruLayer.forward(x, null).Item1;
+                x = x.squeeze(0);
+            }
+
+            // Process through fully connected layers.
             foreach (var module in fcModules)
             {
                 x = functional.tanh(module.forward(x));
@@ -150,6 +216,7 @@ namespace RLMatrix
                 // Dispose all created modules.
                 conv1.Dispose();
                 flatten.Dispose();
+                gruLayer?.Dispose();
                 foreach (var module in fcModules)
                 {
                     module.Dispose();
@@ -161,6 +228,7 @@ namespace RLMatrix
             base.Dispose(disposing);
         }
     }
+
 
 
 }

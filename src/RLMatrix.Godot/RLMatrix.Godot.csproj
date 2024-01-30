@@ -8,7 +8,7 @@
 
 	<PropertyGroup>
 		<PackageId>RLMatrix.Godot</PackageId>
-		<Version>0.2.421</Version>
+		<Version>0.2.421.2</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>

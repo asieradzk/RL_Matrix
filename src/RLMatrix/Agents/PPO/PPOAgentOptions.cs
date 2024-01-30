@@ -55,10 +55,21 @@
         /// </summary>
         public float ClipGradNorm;
 
+
+        /// <summary>
+        /// Entropy coefficient. It determines the contribution of entropy to the total loss. Defaults to 0.0001.
+        /// </summary>
+        public float EntropyCoefficient;
+
         /// <summary>
         /// Determines whether the agent's progress (i.e., reward over time) should be plotted. Defaults to null.
         /// </summary>
         public IRLChartService? DisplayPlot;
+
+        /// <summary>
+        /// Determines whether the agent should use a recurrent neural network. Defaults to false.
+        /// </summary>
+        public bool UseRNN;
 
         public PPOAgentOptions(
             int batchSize = 16,
@@ -71,7 +82,9 @@
             float cValue = 0.5f,
             int ppoEpochs = 2,
             float clipGradNorm = 0.5f,
-            IRLChartService? displayPlot = null)
+            float entropyCoefficient = 0.0001f,
+            IRLChartService? displayPlot = null,
+            bool useRNN = false)
         {
             BatchSize = batchSize;
             MemorySize = memorySize;
@@ -83,7 +96,9 @@
             CValue = cValue;
             PPOEpochs = ppoEpochs;
             ClipGradNorm = clipGradNorm;
+            EntropyCoefficient = entropyCoefficient;
             DisplayPlot = displayPlot;
+            UseRNN = useRNN;
         }
     }
 }

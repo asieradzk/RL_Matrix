@@ -14,7 +14,7 @@ namespace RLMatrix.Memories
     public class EpisodicReplayMemory<TState> : IEpisodicMemory<TState>, IStorableMemory
     {
         private readonly int capacity; // Maximum number of episodes
-        private List<List<Transition<TState>>> episodes;
+        public List<List<Transition<TState>>> episodes;
         private readonly Random random = new Random();
         public int myCount => episodes.Aggregate(0, (acc, episode) => acc + episode.Count);
 

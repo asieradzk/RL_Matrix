@@ -10,6 +10,8 @@ using static TorchSharp.torch.optim;
 using RLMatrix;
 using OneOf;
 using RLMatrix.Memories;
+using System.Security;
+using System.Net.Http.Headers;
 
 namespace RLMatrix
 {
@@ -32,7 +34,7 @@ namespace RLMatrix
 
         public PPOAgent(PPOAgentOptions opts, OneOf<List<IContinuousEnvironment<T>>, List<IEnvironment<T>>> env, IPPONetProvider<T> netProvider = null, GAIL<T> GAILInstance = null)
         {
-            netProvider = netProvider ?? new PPONetProviderBase<T>(1024);
+            netProvider = netProvider ?? new PPONetProviderBase<T>(256, 3, opts.UseRNN);
 
             //check if T is either float[] or float[,]
             if (typeof(T) != typeof(float[]) && typeof(T) != typeof(float[,]))
@@ -77,7 +79,7 @@ namespace RLMatrix
             myCriticNet = netProvider.CreateCriticNet(myEnvironments[0]).to(myDevice);
 
             myActorOptimizer = optim.Adam(myActorNet.parameters(), myOptions.LR, amsgrad: true);
-            myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR * 100f, amsgrad: true);
+            myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR * 10f, amsgrad: true);
 
             //TODO: I think I forgot to make PPO specific memory.
             myReplayBuffer = new EpisodicReplayMemory<T>(myOptions.MemorySize);
@@ -112,6 +114,7 @@ namespace RLMatrix
             using (torch.no_grad())
             {
                 Tensor stateTensor = StateToTensor(state);
+         
                 var result = myActorNet.forward(stateTensor);
 
                 int[] discreteActions;
@@ -133,7 +136,72 @@ namespace RLMatrix
                     // Continuous Actions
                     continuousActions = SelectMeanContinuousActions(result);
                 }
+
                 return (discreteActions, continuousActions);
+            }
+        }
+
+        public (int[], float[]) SelectAction(List<T> stateHistory, bool isTraining = true)
+        {
+            using (torch.no_grad())
+            {
+                Tensor stateBatch = stack(stateHistory.Select(t => StateToTensor(t)).ToArray()).to(myDevice);
+               
+                var batchResult = myActorNet.forward(stateBatch);
+                //get only last action
+                var result = batchResult.select(0, batchResult.size(0) - 1).unsqueeze(1);
+                int[] discreteActions;
+                float[] continuousActions;
+
+                if (isTraining)
+                {
+                    // Discrete Actions
+                    discreteActions = SelectDiscreteActionsFromProbs(result);
+
+                    // Continuous Actions
+                    continuousActions = SampleContinuousActions(result);
+                }
+                else
+                {
+                    // Discrete Actions
+                    discreteActions = SelectGreedyDiscreteActions(result);
+
+                    // Continuous Actions
+                    continuousActions = SelectMeanContinuousActions(result);
+                }
+
+                return (discreteActions, continuousActions);
+            }
+        }
+
+        public ((int[], float[]), Tensor) SelectAction(T state, Tensor? memoryState, bool isTraining = true)
+        {
+            using (torch.no_grad())
+            {
+                Tensor stateTensor = StateToTensor(state);
+                var resultTuple = myActorNet.forward(stateTensor, memoryState);
+                var result = resultTuple.Item1;
+
+                int[] discreteActions;
+                float[] continuousActions;
+
+                if (isTraining)
+                {
+                    // Discrete Actions
+                    discreteActions = SelectDiscreteActionsFromProbs(result);
+
+                    // Continuous Actions
+                    continuousActions = SampleContinuousActions(result);
+                }
+                else
+                {
+                    // Discrete Actions
+                    discreteActions = SelectGreedyDiscreteActions(result);
+
+                    // Continuous Actions
+                    continuousActions = SelectMeanContinuousActions(result);
+                }
+                return ((discreteActions, continuousActions), resultTuple.Item2);
             }
 
         }
@@ -260,6 +328,8 @@ namespace RLMatrix
             IContinuousEnvironment<T> myEnv;
             PPOAgent<T> myAgent;
             List<Transition<T>> episodeBuffer;
+            Tensor? memoryState = null;
+            List<T> statesHistory = new();
 
             public Episode(IContinuousEnvironment<T> myEnv, PPOAgent<T> agent)
             {
@@ -275,7 +345,21 @@ namespace RLMatrix
             {
                 if (!myEnv.isDone)
                 {
-                    var action = myAgent.SelectAction(currentState);
+                    (int[], float[]) action;
+
+                    if(!myAgent.myOptions.UseRNN)
+                    {
+                        action = myAgent.SelectAction(currentState);
+                    }
+                    else
+                    {
+                        //statesHistory.Add(currentState);
+                        //action = myAgent.SelectAction(statesHistory);
+                        var result = myAgent.SelectAction(currentState, memoryState);
+                        action = result.Item1;
+                        memoryState = (result.Item2);
+
+                    }
                     var reward = myEnv.Step(action.Item1, action.Item2);
                     var done = myEnv.isDone;
 
@@ -297,6 +381,8 @@ namespace RLMatrix
                 myAgent.myReplayBuffer.Push(episodeBuffer);
                 
                 episodeBuffer = new();
+                memoryState = null;
+                statesHistory = new();
                 var rewardCopy = cumulativeReward;
                 myAgent.episodeRewards.Add(rewardCopy);
                 if (myAgent.myOptions.DisplayPlot != null)
@@ -312,73 +398,16 @@ namespace RLMatrix
         }
         #endregion
 
-        //TODO: Probably can be removed since Step() does the same thing but with more granularity
-        public void TrainEpisode()
-        {
-            episodeCounter++;
-            // Initialize the environment and get its state
-            myEnvironments[0].Reset();
-            T state = DeepCopy(myEnvironments[0].GetCurrentState());
-            float cumulativeReward = 0;
 
-            List<Transition<T>> transitionsInEpisode = new List<Transition<T>>();
+  
 
-            for (int t = 0; ; t++)
-            {
-                // Select an action based on the policy
-                (int[], float[]) action = SelectAction(state);
-                // Take a step using the selected action
-                float reward = myEnvironments[0].Step(action.Item1, action.Item2);
-                // Check if the episode is done
-                var done = myEnvironments[0].isDone;
-
-                T nextState;
-                if (done)
-                {
-                    // If done, there is no next state
-                    nextState = default;
-                }
-                else
-                {
-                    // If not done, get the next state
-                    nextState = DeepCopy(myEnvironments[0].GetCurrentState());
-                }
-
-                if (state == null)
-                    Console.WriteLine("state is null");
-
-                // Store the transition in temporary memory
-                transitionsInEpisode.Add(new Transition<T>(state, action.Item1, action.Item2, reward, nextState));
-
-                cumulativeReward += reward;
-                // If not done, move to the next state
-                if (!done)
-                {
-                    state = nextState;
-                }
-                else
-                {
-                    //this ensures all the transitions are pushed together exactly when episode ends, so they are in order in the replay buffer
-                    myReplayBuffer.Push(transitionsInEpisode);
-
-
-                    OptimizeModel();
-
-
-                    //TODO: hardcoded chart
-                    episodeRewards.Add(cumulativeReward);
-
-                    if(myOptions.DisplayPlot != null)
-                    {
-                        myOptions.DisplayPlot.CreateOrUpdateChart(episodeRewards);
-                    }
-
-                    break;
-                }
-            }
-        }
         public virtual void OptimizeModel()
         {
+            if(myOptions.UseRNN && myOptions.BatchSize > 1)
+            {
+                throw new ArgumentException("Batch size larter than 1 is not yet supported with RNN");
+            }
+
             if (myReplayBuffer.Length < myOptions.BatchSize)
             {
                 return;
@@ -386,32 +415,43 @@ namespace RLMatrix
 
             List<Transition<T>> transitions = myReplayBuffer.SampleEntireMemory();
 
-            // Convert to tensors
-            Tensor stateBatch = stack(transitions.Select(t => StateToTensor(t.state)).ToArray()).to(myDevice);
-            Tensor discreteActionBatch = stack(transitions.Select(t => tensor(t.discreteActions)).ToArray()).to(myDevice);
-            Tensor continuousActionBatch = stack(transitions.Select(t => tensor(t.continuousActions)).ToArray()).to(myDevice);
             Tensor rewardBatch = stack(transitions.Select(t => tensor(t.reward)).ToArray()).to(myDevice);
             Tensor doneBatch = stack(transitions.Select(t => tensor(t.nextState == null ? 1 : 0)).ToArray()).to(myDevice);
-
-            // Concatenate discrete and continuous action batches
+            Tensor stateBatch = stack(transitions.Select(t => StateToTensor(t.state)).ToArray()).to(myDevice);
+            
+            Tensor discreteActionBatch = stack(transitions.Select(t => tensor(t.discreteActions)).ToArray()).to(myDevice);
+            Tensor continuousActionBatch = stack(transitions.Select(t => tensor(t.continuousActions)).ToArray()).to(myDevice);
             Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
 
-            Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze().detach();
-            Tensor valueOld = myCriticNet.forward(stateBatch).detach();
+
+            Tensor policyOld;
+            Tensor valueOld;
+
+            if(true)
+            {
+                policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze().detach();
+                valueOld = myCriticNet.forward(stateBatch).detach();
+            }
+
 
             var discountedRewards = RewardDiscount(rewardBatch, valueOld, doneBatch);
             var advantages = AdvantageDiscount(rewardBatch, valueOld, doneBatch);
 
             for (int i = 0; i < myOptions.PPOEpochs; i++)
             {
-                Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze();
-                Tensor values = myCriticNet.forward(stateBatch).squeeze();
+                Tensor policy;
+                Tensor values;
+
+                    policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze();
+                    values = myCriticNet.forward(stateBatch);
+
+
 
                 Tensor ratios = torch.exp(policy - policyOld);
                 Tensor surr1 = ratios * advantages;
                 Tensor surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages;
-
-                Tensor actorLoss = -torch.min(surr1, surr2).mean();
+                Tensor entropy =  myActorNet.ComputeEntropy(stateBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count());
+                Tensor actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
 
                 Tensor criticLoss = torch.pow(values - discountedRewards, 2).mean();
                 // Optimize policy network
@@ -428,78 +468,77 @@ namespace RLMatrix
             }
 
             myReplayBuffer.ClearMemory();
+        }
 
+        Tensor RewardDiscount(Tensor rewards, Tensor values, Tensor dones)
+        {
+            var batchSize = rewards.size(0);
 
-            Tensor RewardDiscount(Tensor rewards, Tensor values, Tensor dones)
+            if (batchSize == 1)
             {
-                var batchSize = rewards.size(0);
-
-                if (batchSize == 1)
-                {
-                    return rewards;
-                }
-
-                // Initialize tensors
-                Tensor returns = torch.zeros_like(rewards).to(myDevice);
-                double runningAdd = 0;
-
-                // Iterate downwards through the batch
-                for (long t = batchSize - 1; t >= 0; t--)
-                {
-                    // Check if the current step is the end of an episode
-                    if (dones.cpu().ReadCpuValue<int>(t) == 1)
-                    {
-                        runningAdd = 0;
-                    }
-
-                    // Update the running sum of discounted rewards
-                    runningAdd = runningAdd * myOptions.Gamma + rewards.cpu()[t].item<float>();
-
-                    // Store the discounted reward for the current step
-                    returns[t] = (float)runningAdd;
-                }
-
-                // Normalize the returns
-                //returns = (returns - returns.mean()) / (returns.std() + 1e-10);
-                return returns;
+                return rewards;
             }
 
-            Tensor AdvantageDiscount(Tensor rewards, Tensor values, Tensor dones)
+            // Initialize tensors
+            Tensor returns = torch.zeros_like(rewards).to(myDevice);
+            double runningAdd = 0;
+
+            // Iterate downwards through the batch
+            for (long t = batchSize - 1; t >= 0; t--)
             {
-                var batchSize = rewards.size(0);
-
-                if (batchSize == 1)
+                // Check if the current step is the end of an episode
+                if (dones.cpu().ReadCpuValue<int>(t) == 1)
                 {
-                    return rewards;
+                    runningAdd = 0;
                 }
 
-                // Initialize tensors
-                Tensor advantages = torch.zeros_like(rewards).to(myDevice);
-                double runningAdd = 0;
+                // Update the running sum of discounted rewards
+                runningAdd = runningAdd * myOptions.Gamma + rewards.cpu()[t].item<float>();
 
-                // Iterate downwards through the batch
-                for (long t = batchSize - 1; t >= 0; t--)
-                {
-                    // Check if the current step is the end of an episode
-                    if (dones.cpu().ReadCpuValue<int>(t) == 1)
-                    {
-                        runningAdd = 0;
-                    }
-
-                    // Calculate the temporal difference (TD) error
-                    double tdError = rewards.cpu()[t].item<float>() + myOptions.Gamma * (t < batchSize - 1 ? values.cpu()[t + 1].item<float>() : 0) * (1 - dones.cpu().ReadCpuValue<int>(t)) - values.cpu()[t].item<float>();
-                    // Update the running sum of discounted advantages
-                    runningAdd = runningAdd * myOptions.Gamma * myOptions.GaeLambda + tdError;
-
-                    // Store the advantage value for the current step
-                    advantages[t] = (float)runningAdd;
-                }
-
-                // Normalize the advantages
-                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10);
-                return advantages;
+                // Store the discounted reward for the current step
+                returns[t] = (float)runningAdd;
             }
 
+            // Normalize the returns
+            //returns = (returns - returns.mean()) / (returns.std() + 1e-10);
+            return returns;
+        }
+
+        Tensor AdvantageDiscount(Tensor rewards, Tensor values, Tensor dones)
+        {
+         
+            var batchSize = rewards.size(0);
+
+            if (batchSize == 1)
+            {
+                return rewards;
+            }
+
+            // Initialize tensors
+            Tensor advantages = torch.zeros_like(rewards).to(myDevice);
+            double runningAdd = 0;
+
+            // Iterate downwards through the batch
+            for (long t = batchSize - 1; t >= 0; t--)
+            {
+                // Check if the current step is the end of an episode
+                if (dones.cpu().ReadCpuValue<int>(t) == 1)
+                {
+                    runningAdd = 0;
+                }
+
+                // Calculate the temporal difference (TD) error
+                double tdError = rewards.cpu()[t].item<float>() + myOptions.Gamma * (t < batchSize - 1 ? values.cpu()[t + 1].item<float>() : 0) * (1 - dones.cpu().ReadCpuValue<int>(t)) - values.cpu()[t].item<float>();
+                // Update the running sum of discounted advantages
+                runningAdd = runningAdd * myOptions.Gamma * myOptions.GaeLambda + tdError;
+
+                // Store the advantage value for the current step
+                advantages[t] = (float)runningAdd;
+            }
+
+            // Normalize the advantages
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10);
+            return advantages;
         }
 
 
@@ -536,8 +575,15 @@ namespace RLMatrix
                     return tensor(stateArray).to(myDevice);
                 case float[,] stateMatrix:
                     return tensor(stateMatrix).to(myDevice);
+                case null:
+                    {
+                        throw new ArgumentNullException("State cannot be null");
+                    }
                 default:
-                    throw new InvalidCastException("State must be either float[] or float[,]");
+                    {
+                        throw new InvalidCastException("State must be either float[] or float[,]");
+                    }
+                    
             }
         }
 

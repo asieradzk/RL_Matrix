@@ -45,7 +45,7 @@ namespace RLMatrix
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
                         tupleSize => tupleSize);
                     var actionSize2 = env.actionSize;
-                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, new (float, float)[0], neuronsPerLayer , depth);
+                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, new (float, float)[0], neuronsPerLayer , depth, useRNN);
                 default:
                     throw new Exception("Unexpected type");
             }
@@ -68,7 +68,7 @@ namespace RLMatrix
                         tupleSize => tupleSize);
                     var actionSize2 = env.actionSize;
                     var continuousActionBounds2 = env.continuousActionBounds;
-                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, continuousActionBounds2, neuronsPerLayer, depth);
+                    return new PPOActorNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, continuousActionBounds2, neuronsPerLayer, depth, useRNN);
                 default:
                     throw new Exception("Unexpected type");
             }
@@ -87,7 +87,7 @@ namespace RLMatrix
                     var obsSize2D = env.stateSize.Match<(int, int)>(
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
                         tupleSize => tupleSize);
-                    return new PPOCriticNet2D("1DDQN", obsSize2D.Item1, obsSize2D.Item2, neuronsPerLayer);
+                    return new PPOCriticNet2D("1DDQN", obsSize2D.Item1, obsSize2D.Item2, neuronsPerLayer, depth, useRNN);
                 default:
                     throw new Exception("Unexpected type");
             }
@@ -106,7 +106,7 @@ namespace RLMatrix
                     var obsSize2D = env.stateSize.Match<(int, int)>(
                         intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
                         tupleSize => tupleSize);
-                    return new PPOCriticNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, neuronsPerLayer);
+                    return new PPOCriticNet2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, neuronsPerLayer, depth, useRNN);
                 default:
                     throw new Exception("Unexpected type");
             }

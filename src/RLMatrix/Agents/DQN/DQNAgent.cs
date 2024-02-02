@@ -44,7 +44,7 @@ namespace RLMatrix
             {
                 throw new System.ArgumentException("T must be either float[] or float[,]");
             }
-            netProvider ??= new DQNNetProvider<T>(1024, 2);
+            netProvider ??= new DQNNetProvider<T>(opts.Width, opts.Depth);
             myDevice = torch.cuda.is_available() ? torch.CUDA : torch.CPU;
             Console.WriteLine($"Running DQN on {myDevice.type.ToString()}");
             myOptions = opts;

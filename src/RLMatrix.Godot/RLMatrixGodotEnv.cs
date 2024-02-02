@@ -33,7 +33,9 @@ namespace RLMatrix.Godot
 
         public void Initialise()
         {
-            this.actionSize = new int[] { myHeads.Count };
+          
+            this.actionSize = new int[myHeads.Count];
+        
             for (int i = 0; i < myHeads.Count; i++)
             {
                 this.actionSize[i] = myHeads[i].Count;

@@ -34,7 +34,7 @@ namespace RLMatrix
 
         public PPOAgent(PPOAgentOptions opts, OneOf<List<IContinuousEnvironment<T>>, List<IEnvironment<T>>> env, IPPONetProvider<T> netProvider = null, GAIL<T> GAILInstance = null)
         {
-            netProvider = netProvider ?? new PPONetProviderBase<T>(256, 3, opts.UseRNN);
+            netProvider = netProvider ?? new PPONetProviderBase<T>(opts.Width, opts.Depth, opts.UseRNN);
 
             //check if T is either float[] or float[,]
             if (typeof(T) != typeof(float[]) && typeof(T) != typeof(float[,]))
@@ -79,7 +79,7 @@ namespace RLMatrix
             myCriticNet = netProvider.CreateCriticNet(myEnvironments[0]).to(myDevice);
 
             myActorOptimizer = optim.Adam(myActorNet.parameters(), myOptions.LR, amsgrad: true);
-            myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR * 10f, amsgrad: true);
+            myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR, amsgrad: true);
 
             //TODO: I think I forgot to make PPO specific memory.
             myReplayBuffer = new EpisodicReplayMemory<T>(myOptions.MemorySize);
@@ -106,7 +106,7 @@ namespace RLMatrix
             myCriticNet.load(path + "/critic.pt");
 
             myActorOptimizer = optim.Adam(myActorNet.parameters(), myOptions.LR, amsgrad: true);
-            myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR * 100f, amsgrad: true);
+            myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR, amsgrad: true);
         }
 
         public (int[], float[]) SelectAction(T state, bool isTraining = true)
@@ -439,28 +439,35 @@ namespace RLMatrix
 
             for (int i = 0; i < myOptions.PPOEpochs; i++)
             {
-                Tensor policy;
-                Tensor values;
+                // Calculate new policy and value estimates
+                Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze();
+                Tensor values = myCriticNet.forward(stateBatch);
 
-                    policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze();
-                    values = myCriticNet.forward(stateBatch);
-
-
-
+                // Policy loss calculation
                 Tensor ratios = torch.exp(policy - policyOld);
+                if(advantages.dim() == 1)
+                {
+                    advantages = advantages.unsqueeze(1);
+                }
+
                 Tensor surr1 = ratios * advantages;
                 Tensor surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages;
-                Tensor entropy =  myActorNet.ComputeEntropy(stateBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count());
+                Tensor entropy = myActorNet.ComputeEntropy(stateBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count());
                 Tensor actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
 
-                Tensor criticLoss = torch.pow(values - discountedRewards, 2).mean();
                 // Optimize policy network
                 myActorOptimizer.zero_grad();
                 actorLoss.backward();
                 torch.nn.utils.clip_grad_norm_(myActorNet.parameters(), myOptions.ClipGradNorm);
                 myActorOptimizer.step();
 
-                // Optimize value network
+                // Clipped value function loss 
+                Tensor valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange);
+                Tensor valueLoss1 = torch.pow(values - discountedRewards, 2);
+                Tensor valueLoss2 = torch.pow(valueClipped - discountedRewards, 2);
+                Tensor criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
+
+                // Optimize value network (updated to use the new criticLoss)
                 myCriticOptimizer.zero_grad();
                 criticLoss.backward();
                 torch.nn.utils.clip_grad_norm_(myCriticNet.parameters(), myOptions.ClipGradNorm);
@@ -506,6 +513,51 @@ namespace RLMatrix
 
         Tensor AdvantageDiscount(Tensor rewards, Tensor values, Tensor dones)
         {
+            var batchSize = rewards.size(0);
+
+            if (batchSize == 1)
+            {
+                return rewards;
+            }
+
+            // Initialize tensors
+            Tensor advantages = torch.zeros_like(rewards).to(myDevice);
+            Tensor runningAdd = torch.tensor(0).to(myDevice);
+
+            Tensor nextValue = torch.tensor(0).to(myDevice);  // This is V(s_{t+1}), initialized to 0 for the last timestep.
+
+            // Iterate downwards through the batch
+            for (long t = batchSize - 1; t >= 0; t--)
+            {
+                // Check if the current step is the end of an episode
+                if (dones[t].item<int>() == 1) // Adjust this line if your 'dones' tensor holds integers
+                {
+                    nextValue = torch.tensor(0).to(myDevice);  // Reset to 0 if the episode is done.
+                    runningAdd = torch.tensor(0).to(myDevice); // Reset to 0 if the episode is done.
+                }
+
+                // Calculate the temporal difference (TD) error
+                Tensor tdError = rewards[t] + myOptions.Gamma * nextValue * (1 - dones[t]) - values[t];
+
+                // Update the running sum of discounted advantages
+                runningAdd = runningAdd * myOptions.Gamma * myOptions.GaeLambda + tdError;
+
+                // Store the advantage value for the current step
+                advantages[t] = runningAdd.reshape(advantages[t].shape);
+
+
+                // Update nextValue for the next iteration (going backward)
+                nextValue = values[t];
+            }
+
+
+            // Normalize the advantages
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10);
+            return advantages;
+        }
+
+        Tensor AdvantageDiscount0(Tensor rewards, Tensor values, Tensor dones)
+        {
          
             var batchSize = rewards.size(0);
 
@@ -540,6 +592,7 @@ namespace RLMatrix
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10);
             return advantages;
         }
+
 
 
         protected T DeepCopy(T input)

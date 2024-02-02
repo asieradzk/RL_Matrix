@@ -26,9 +26,20 @@
         public float GaeLambda;
 
         /// <summary>
-        /// The learning rate for the agent's neural network. Higher values can make learning faster, but too high can make the learning process unstable and the agent may fail to learn. Defaults to 0.001.
+        /// The learning rate for the agent's neural network. Higher values can make learning faster, but too high can make the learning process unstable and the agent may fail to learn. Defaults to 1e-5f.
         /// </summary>
         public float LR;
+
+
+        /// <summary>
+        /// Number of hidden layers in the neural network. Defaults to 2.
+        /// </summary>
+        public int Depth;
+
+        /// <summary>
+        /// Number of neurons in each hidden layer. Defaults to 1024.
+        /// </summary>
+        public int Width;
 
         /// <summary>
         /// Clipping factor for PPO's objective function. It prevents excessively large policy updates. Defaults to 0.2.
@@ -46,7 +57,7 @@
         public float CValue;
 
         /// <summary>
-        /// Number of PPO epochs. The number of times the algorithm will iterate through the whole batch during each update step. Defaults to 4.
+        /// Number of PPO epochs. The number of times the algorithm will iterate through the whole batch during each update step. Defaults to 2.
         /// </summary>
         public int PPOEpochs;
 
@@ -57,7 +68,7 @@
 
 
         /// <summary>
-        /// Entropy coefficient. It determines the contribution of entropy to the total loss. Defaults to 0.0001.
+        /// Entropy coefficient. It determines the contribution of entropy to the total loss. Defaults to 0.1.
         /// </summary>
         public float EntropyCoefficient;
 
@@ -76,13 +87,15 @@
             int memorySize = 10000,
             float gamma = 0.99f,
             float gaeLambda = 0.95f,
-            float lr = 0.005f,
+            float lr = 1e-5f,
+            int depth = 2,
+            int width = 1024,
             float clipEpsilon = 0.2f,
             float vClipRange = 0.2f,
             float cValue = 0.5f,
             int ppoEpochs = 2,
             float clipGradNorm = 0.5f,
-            float entropyCoefficient = 0.0001f,
+            float entropyCoefficient = 0.1f,
             IRLChartService? displayPlot = null,
             bool useRNN = false)
         {
@@ -91,6 +104,8 @@
             Gamma = gamma;
             GaeLambda = gaeLambda;
             LR = lr;
+            Depth = depth;
+            Width = width;
             ClipEpsilon = clipEpsilon;
             VClipRange = vClipRange;
             CValue = cValue;

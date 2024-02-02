@@ -58,12 +58,12 @@ namespace RLMatrix
             // Discrete action entropy
             for (int i = 0; i < discreteActions; i++)
             {
-                Tensor actionLogits = logits.select(1, i);
-                Tensor probs = torch.nn.functional.softmax(actionLogits, dim: 1);
-                Tensor logProbs = torch.nn.functional.log_softmax(actionLogits, dim: 1);
-                Tensor entropy = -(probs * logProbs).sum(1, keepdim: true);
+                Tensor actionProbs = logits.select(1, i);  // These are already probabilities
+                Tensor logProbs = torch.log(actionProbs + 1e-10);  // Add a small constant for numerical stability
+                Tensor entropy = -(actionProbs * logProbs).sum(1, keepdim: true);
                 discreteEntropies.Add(entropy);
             }
+
 
             // Continuous action entropy
             for (int i = 0; i < continuousActions; i++)
@@ -77,8 +77,9 @@ namespace RLMatrix
             Tensor totalEntropy = torch.tensor(0.0f).to(states.device);  // Initialize to zero tensor
             if (discreteEntropies.Count > 0)
             {
-                totalEntropy += torch.cat(discreteEntropies.ToArray(), dim: 1).mean(new long[]{ 1}, true);
+                totalEntropy += torch.cat(discreteEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
             }
+
             if (continuousEntropies.Count > 0)
             {
                 totalEntropy += torch.cat(continuousEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
@@ -89,7 +90,6 @@ namespace RLMatrix
             {
                 totalEntropy /= (discreteEntropies.Count + continuousEntropies.Count);
             }
-
             return totalEntropy;
         }
 
@@ -358,13 +358,14 @@ namespace RLMatrix
                 x = x.unsqueeze(1);
             }
             x = functional.tanh(conv1.forward(x));
+            x = flatten.forward(x);
             if (useRNN)
             {
                 x = x.unsqueeze(0);
                 x = GRULayer.forward(x, null).Item1;
                 x = x.squeeze(0);
             }
-            x = flatten.forward(x);
+            
 
             foreach (var module in fcModules)
             {
@@ -420,6 +421,7 @@ namespace RLMatrix
                 x = x.unsqueeze(1);
             }
             x = functional.tanh(conv1.forward(x));
+            x = flatten.forward(x);
             Tensor stateRes = null;
             if (useRNN)
             {
@@ -428,7 +430,7 @@ namespace RLMatrix
                 x = result.Item1.squeeze(0);
                 stateRes = result.Item2;
             }
-            x = flatten.forward(x);
+            
 
             foreach (var module in fcModules)
             {

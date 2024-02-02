@@ -46,6 +46,15 @@
         public float LR;
 
         /// <summary>
+        /// Number of hidden layers in the neural network. Defaults to 2.
+        /// </summary>
+        public int Depth;
+        /// <summary>
+        /// Number of neurons in each hidden layer. Defaults to 1024.
+        /// </summary>
+        public int Width;
+
+        /// <summary>
         /// Determines whether the agent's progress (i.e., reward over time) should be plotted. Defaults to false.
         /// </summary>
         public IRLChartService? DisplayPlot;
@@ -59,6 +68,8 @@
             float epsDecay = 80f,
             float tau = 0.01f,
             float lr = 0.001f,
+            int depth = 2,
+            int width = 1024,
             IRLChartService? displayPlot = null)
         {
             BatchSize = batchSize;
@@ -69,6 +80,8 @@
             EPS_DECAY = epsDecay;
             TAU = tau;
             LR = lr;
+            Depth = depth;
+            Width = width;
             DisplayPlot = displayPlot;
         }
     }

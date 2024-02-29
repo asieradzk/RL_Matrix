@@ -424,18 +424,18 @@ namespace RLMatrix
             Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
 
 
-            Tensor policyOld;
-            Tensor valueOld;
-
-            if(true)
-            {
-                policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze().detach();
-                valueOld = myCriticNet.forward(stateBatch).detach();
-            }
+            Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze().detach();
+            Tensor valueOld = myCriticNet.forward(stateBatch).detach();
 
 
             var discountedRewards = RewardDiscount(rewardBatch, valueOld, doneBatch);
             var advantages = AdvantageDiscount(rewardBatch, valueOld, doneBatch);
+
+            //TODO: WIP multihead
+            if (policyOld.dim() > 1)
+            {
+                advantages = advantages.unsqueeze(1);
+            }
 
             for (int i = 0; i < myOptions.PPOEpochs; i++)
             {
@@ -445,10 +445,8 @@ namespace RLMatrix
 
                 // Policy loss calculation
                 Tensor ratios = torch.exp(policy - policyOld);
-                if(advantages.dim() == 1)
-                {
-                    advantages = advantages.unsqueeze(1);
-                }
+
+
 
                 Tensor surr1 = ratios * advantages;
                 Tensor surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages;
@@ -462,6 +460,7 @@ namespace RLMatrix
                 myActorOptimizer.step();
 
                 // Clipped value function loss 
+
                 Tensor valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange);
                 Tensor valueLoss1 = torch.pow(values - discountedRewards, 2);
                 Tensor valueLoss2 = torch.pow(valueClipped - discountedRewards, 2);

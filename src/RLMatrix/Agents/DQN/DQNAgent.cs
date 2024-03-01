@@ -157,13 +157,16 @@ namespace RLMatrix
             }
             else
             {
-                return; // All states are terminal
+                // If all next states are terminal, we still need to create a dummy tensor for nonFinalNextStates
+                // to prevent errors but it won't be used because nonFinalMask will filter them out.
+                nonFinalNextStates = zeros(new long[] { 1, stateBatch.shape[1] }).to(myDevice); // Adjust the shape as necessary
             }
 
             Tensor actionBatch = stack(batchMultiActions.Select(a => tensor(a).to(torch.int64)).ToArray()).to(myDevice);
             Tensor rewardBatch = stack(batchRewards.Select(r => tensor(r)).ToArray()).to(myDevice);
 
             Tensor qValuesAllHeads = myPolicyNet.forward(stateBatch);
+
             Tensor expandedActionBatch = actionBatch.unsqueeze(2); // Expand to [batchSize, numHeads, 1]
 
             Tensor stateActionValues = qValuesAllHeads.gather(2, expandedActionBatch).squeeze(2).to(myDevice); // [batchSize, numHeads]
@@ -171,11 +174,18 @@ namespace RLMatrix
             Tensor nextStateValues;
             using (no_grad())
             {
-                nextStateValues = myTargetNet.forward(nonFinalNextStates).max(2).values;  // [batchSize, numHeads]
+                if (nonFinalNextStatesArray.Length > 0)
+                {
+                    nextStateValues = myTargetNet.forward(nonFinalNextStates).max(2).values; // [batchSize, numHeads]
+                }
+                else
+                {
+                    // If all states are terminal, this tensor won't be used due to masking.
+                    nextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }).to(myDevice);
+                }
             }
+
             Tensor maskedNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }).to(myDevice);
-
-
             maskedNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), nextStateValues);
 
             Tensor expectedStateActionValues = (maskedNextStateValues * myOptions.GAMMA) + rewardBatch.unsqueeze(1);
@@ -240,7 +250,7 @@ namespace RLMatrix
 
         }
         int stepHorizon = 1;
-        int stepCounter = 0;
+        int stepCounter = 1;
         public void Step()
         {
             if (!initialisetrainingonce)

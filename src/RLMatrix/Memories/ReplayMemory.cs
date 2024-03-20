@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.IO;
+using RLMatrix.Memories;
 
 
 namespace RLMatrix
@@ -11,7 +12,7 @@ namespace RLMatrix
     /// The ReplayMemory class represents the memory of the agent in reinforcement learning.
     /// It is used to store and retrieve past experiences (transitions).
     /// </summary>
-    public class ReplayMemory<TState>
+    public class ReplayMemory<TState> : IMemory<TState>, IStorableMemory
     {
         private readonly int capacity;
         private readonly int batchSize;
@@ -22,6 +23,8 @@ namespace RLMatrix
         /// Gets the number of transitions currently stored in the memory.
         /// </summary>
         public int Length => memory.Count;
+
+        public int myCount => throw new NotImplementedException();
 
         /// <summary>
         /// Initializes a new instance of the ReplayMemory class.
@@ -176,5 +179,9 @@ namespace RLMatrix
             memory = (List<Transition<TState>>)bf.Deserialize(fs);
         }
 
+        public List<Transition<TState>> Sample(int sampleSize)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

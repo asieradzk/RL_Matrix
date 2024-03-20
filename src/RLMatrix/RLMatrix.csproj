@@ -28,8 +28,8 @@
   <ItemGroup>
 	  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 	  <PackageReference Include="OneOf" Version="3.0.263" />
-	  <PackageReference Include="TorchSharp-cuda-windows" Version="0.101.5" />
-	  <PackageReference Include="TorchVision" Version="0.101.5" />
+	  <PackageReference Include="TorchSharp-cuda-windows" Version="0.102.2" />
+	  <PackageReference Include="TorchVision" Version="0.102.2" />
   </ItemGroup>
 
 </Project>

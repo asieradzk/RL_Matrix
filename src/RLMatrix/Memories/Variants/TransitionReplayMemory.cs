@@ -14,6 +14,8 @@ namespace RLMatrix
         private readonly Random random = new Random();
         public int myCount => memory.Count;
 
+        public int Length => myCount;
+
         /// <summary>
         /// Initializes a new instance of the DQNReplayMemory class.
         /// </summary>

@@ -1,4 +1,5 @@
 ﻿using OneOf;
+using RLMatrix.Memories;
 using TorchSharp;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
@@ -20,7 +21,7 @@ namespace RLMatrix
         protected DQNNET myPolicyNet;
         protected DQNNET myTargetNet;
         protected OptimizerHelper myOptimizer;
-        protected ReplayMemory<T> myReplayBuffer;
+        protected IMemory<T> myReplayBuffer;
         protected int episodeCounter = 0;
 
         //TODO: Can this be managed? Can we have some object encapsulating all progress to peek inside current agent?
@@ -96,7 +97,8 @@ namespace RLMatrix
         /// <param name="state">The current state.</param>
         /// <param name="isTraining">A flag indicating whether the agent is in training mode.</param>
         /// <returns>The selected action.</returns>
-        public int[] SelectAction(T state, bool isTraining = true)
+        Random Random = new Random();
+        public virtual int[] SelectAction(T state, bool isTraining = true)
         {
             double sample = new Random().NextDouble();
             double epsThreshold = myOptions.EPS_END + (myOptions.EPS_START - myOptions.EPS_END) *
@@ -120,7 +122,7 @@ namespace RLMatrix
                     else
                     {
                         // For exploration, select a random action within the range of the action dimension.
-                        selectedActions[i] = new Random().Next(0, myEnvironments[0].actionSize[i]);
+                        selectedActions[i] = Random.Next(0, myEnvironments[0].actionSize[i]);
                     }
                 }
 
@@ -164,7 +166,6 @@ namespace RLMatrix
 
             Tensor actionBatch = stack(batchMultiActions.Select(a => tensor(a).to(torch.int64)).ToArray()).to(myDevice);
             Tensor rewardBatch = stack(batchRewards.Select(r => tensor(r)).ToArray()).to(myDevice);
-
             Tensor qValuesAllHeads = myPolicyNet.forward(stateBatch);
 
             Tensor expandedActionBatch = actionBatch.unsqueeze(2); // Expand to [batchSize, numHeads, 1]

@@ -54,6 +54,20 @@
         /// </summary>
         public int Width;
 
+        public int NumAtoms;
+
+        public float GaussianNoiseStd;
+
+        public float VMin;
+
+        public float VMax;
+
+        public float PriorityEpsilon;
+
+      
+
+
+
         /// <summary>
         /// Determines whether the agent's progress (i.e., reward over time) should be plotted. Defaults to false.
         /// </summary>
@@ -70,6 +84,11 @@
             float lr = 0.001f,
             int depth = 2,
             int width = 1024,
+            int numAtoms = 51,
+            float gaussianNoiseStd = 0.2f,
+            float vMin = 1f,
+            float vMax = 400f,
+            float priorityEpsilon = 0.01f,
             IRLChartService? displayPlot = null)
         {
             BatchSize = batchSize;
@@ -83,6 +102,11 @@
             Depth = depth;
             Width = width;
             DisplayPlot = displayPlot;
+            NumAtoms = numAtoms;
+            GaussianNoiseStd = gaussianNoiseStd;
+            VMin = vMin;
+            VMax = vMax;
+            PriorityEpsilon = priorityEpsilon;
         }
     }
 }

@@ -9,14 +9,14 @@ using TorchSharp;
 
 namespace RLMatrix.Agents.DQN.Variants
 {
-    public class DQNAgentRainbow3<T> : DQNPerNoisy<T>
+    public class DQNAgentRainbow<T> : DQNPerNoisy<T>
     {
         private readonly float _vMin;
         private readonly float _vMax;
         private readonly int _numAtoms;
         private readonly float _deltaZ;
 
-        public DQNAgentRainbow3(DQNAgentOptions opts, List<IEnvironment<T>> envs, IDQNNetProvider<T> netProvider = null)
+        public DQNAgentRainbow(DQNAgentOptions opts, List<IEnvironment<T>> envs, IDQNNetProvider<T> netProvider = null)
             : base(opts, envs, new RainbowNetworkProvider<T>(opts.Width, opts.Depth, opts.NumAtoms))
         {
             _vMin = opts.VMin;
@@ -26,6 +26,7 @@ namespace RLMatrix.Agents.DQN.Variants
 
             myTargetNet = new RainbowNetworkProvider<T>(opts.Width, opts.Depth, opts.NumAtoms).CreateCriticNet(envs[0]);
             myPolicyNet = new RainbowNetworkProvider<T>(opts.Width, opts.Depth, opts.NumAtoms).CreateCriticNet(envs[0]);
+            myOptimizer = torch.optim.Adam(myPolicyNet.parameters(), lr: opts.LR);
         }
 
         public override int[] SelectAction(T state, bool isTraining = true)
@@ -208,9 +209,7 @@ namespace RLMatrix.Agents.DQN.Variants
         protected override Tensor ComputeLoss(Tensor stateActionDistributions, Tensor targetDistributions)
         {
             var criterion = torch.nn.KLDivLoss(false, reduction: nn.Reduction.None);
-            var loss = criterion.forward(stateActionDistributions.log(), targetDistributions.log()).mean(new long[] { 2 }).sum();
-
-            loss.print();
+            var loss = criterion.forward(stateActionDistributions.log(), targetDistributions).mean(new long[] { 0, -1 }).sum();
 
             return loss;
         }

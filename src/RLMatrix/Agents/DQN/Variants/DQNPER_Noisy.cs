@@ -18,12 +18,6 @@ namespace RLMatrix.Agents.DQN.Variants {
 
         public override void OptimizeModel()
         {
-            foreach (var module in from module in myPolicyNet.modules()
-                                   where module is NoisyLinear
-                                   select module)
-            {
-                ((NoisyLinear)module).ResetNoise();
-            }
             base.OptimizeModel();
         }
 

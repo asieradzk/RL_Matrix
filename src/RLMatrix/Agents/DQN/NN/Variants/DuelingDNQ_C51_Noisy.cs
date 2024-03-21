@@ -32,7 +32,7 @@ namespace RLMatrix
             {
                 _sharedModules.Add(new NoisyLinear(width, width)); // Additional shared layers
             }
-         
+
             // Separate value stream
             _valueHead = Linear(width, _numAtoms, device: device); // C51 modifies this to output a distribution
 
@@ -43,7 +43,7 @@ namespace RLMatrix
                 _advantageHeads.Add(new NoisyLinear(width, actionSize * _numAtoms)); // C51 modifications for distributional outputs
             }
 
-       
+            // Register the modules for the network
             RegisterComponents();
         }
 

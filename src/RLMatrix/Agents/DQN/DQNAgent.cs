@@ -23,6 +23,7 @@ namespace RLMatrix
         protected OptimizerHelper myOptimizer;
         protected IMemory<T> myReplayBuffer;
         protected int episodeCounter = 0;
+        protected int softUpdateCounter = 0;
 
         //TODO: Can this be managed? Can we have some object encapsulating all progress to peek inside current agent?
         public List<double> episodeRewards = new();
@@ -100,37 +101,36 @@ namespace RLMatrix
         Random Random = new Random();
         public virtual int[] SelectAction(T state, bool isTraining = true)
         {
-            double sample = new Random().NextDouble();
+            double sample = Random.NextDouble(); // Use the already created Random object
             double epsThreshold = myOptions.EPS_END + (myOptions.EPS_START - myOptions.EPS_END) *
                                   Math.Exp(-1.0 * episodeCounter / myOptions.EPS_DECAY);
 
-            using (torch.no_grad())
+            if (sample > epsThreshold || !isTraining)
             {
-                Tensor stateTensor = StateToTensor(state);
-                int[] selectedActions = new int[myEnvironments[0].actionSize.Length];
-
-                // Get action predictions from policy network only once
-                Tensor predictedActions = myPolicyNet.forward(stateTensor);
-
+                return ActionsFromState(state);
+            }
+            else
+            {
+                // Exploration: Select random actions for each action dimension.
+                int[] randomActions = new int[myEnvironments[0].actionSize.Length];
                 for (int i = 0; i < myEnvironments[0].actionSize.Length; i++)
                 {
-                    if (sample > epsThreshold || !isTraining)
-                    {
-                        // Select the action with the highest expected reward for each action dimension.
-                        selectedActions[i] = (int)predictedActions.select(1, i).argmax().item<long>();
-                    }
-                    else
-                    {
-                        // For exploration, select a random action within the range of the action dimension.
-                        selectedActions[i] = Random.Next(0, myEnvironments[0].actionSize[i]);
-                    }
+                    randomActions[i] = Random.Next(0, myEnvironments[0].actionSize[i]);
                 }
-
-                return selectedActions;
+                return randomActions;
             }
         }
 
-
+        public virtual int[] ActionsFromState(T state)
+        {
+            using (torch.no_grad())
+            {
+                Tensor stateTensor = StateToTensor(state); // Shape: [state_dim]
+                Tensor qValuesAllHeads = myPolicyNet.forward(stateTensor).view(1, myEnvironments[0].actionSize.Length, myEnvironments[0].actionSize[0]); // Shape: [1, num_heads, num_actions]
+                Tensor bestActions = qValuesAllHeads.argmax(dim: -1).squeeze().to(ScalarType.Int32); // Shape: [num_heads]
+                return bestActions.data<int>().ToArray();
+            }
+        }
 
 
         /// <summary>
@@ -263,13 +263,21 @@ namespace RLMatrix
             {
                 episode.Step();
                 stepCounter++;
+                softUpdateCounter++;
             }
 
             episodeCounter++;
+            
             if(stepCounter > stepHorizon)
             {
                 OptimizeModel();
-                SoftUpdateTargetNetwork();
+               
+                if (softUpdateCounter > myOptions.SoftUpdateInterval)
+                {
+                    SoftUpdateTargetNetwork();
+                    softUpdateCounter = 0;
+                }
+                
                 stepCounter = 0;
             }
 
@@ -342,22 +350,25 @@ namespace RLMatrix
         /// Updates the target network weights based on the policy network weights.
         /// </summary>
         public void SoftUpdateTargetNetwork()
-        {
-            var targetNetStateDict = myTargetNet.state_dict();
-            var policyNetStateDict = myPolicyNet.state_dict();
-            var updatedStateDict = new Dictionary<string, Tensor>();
+{
+    var targetNetStateDict = myTargetNet.state_dict();
+    var policyNetStateDict = myPolicyNet.state_dict();
 
-            foreach (var key in targetNetStateDict.Keys)
-            {
-                Tensor targetNetParam = targetNetStateDict[key];
-                Tensor policyNetParam = policyNetStateDict[key];
-                updatedStateDict[key] = (policyNetParam * myOptions.TAU + targetNetParam * (1 - myOptions.TAU)).cpu();
-            }
+    foreach (var key in targetNetStateDict.Keys)
+    {
+        Tensor targetNetParam = targetNetStateDict[key];
+        Tensor policyNetParam = policyNetStateDict[key];
 
-            myTargetNet = myTargetNet.cpu();
-            myTargetNet.load_state_dict(updatedStateDict);
-            myTargetNet = myTargetNet.to(myDevice);
-        }
+        // Detach the target network parameter from the computational graph
+        targetNetParam = targetNetParam.detach();
+
+        // Update the target network parameter using a weighted average
+        targetNetParam.mul_(1 - myOptions.TAU).add_(policyNetParam * myOptions.TAU);
+    }
+
+    // Load the updated state dictionary into the target network
+    myTargetNet.load_state_dict(targetNetStateDict);
+}
 
         /// <summary>
         /// Converts the state to a tensor representation for torchsharp. Only float[] and float[,] states are supported.

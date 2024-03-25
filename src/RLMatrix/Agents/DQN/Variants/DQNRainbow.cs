@@ -17,92 +17,39 @@ namespace RLMatrix.Agents.DQN.Variants
         private readonly float _deltaZ;
 
         public DQNAgentRainbow(DQNAgentOptions opts, List<IEnvironment<T>> envs, IDQNNetProvider<T> netProvider = null)
-            : base(opts, envs, new RainbowNetworkProvider<T>(opts.Width, opts.Depth, opts.NumAtoms))
+            : base(opts, envs, netProvider ?? new RainbowNetworkProvider<T>(opts.Width, opts.Depth, opts.NumAtoms))
         {
             _vMin = opts.VMin;
             _vMax = opts.VMax;
             _numAtoms = opts.NumAtoms;
             _deltaZ = (_vMax - _vMin) / (_numAtoms - 1);
+            support = torch.linspace(_vMin, _vMax, steps: _numAtoms).to(myDevice); // Shape: [num_atoms]
 
-            myTargetNet = new RainbowNetworkProvider<T>(opts.Width, opts.Depth, opts.NumAtoms).CreateCriticNet(envs[0]);
-            myPolicyNet = new RainbowNetworkProvider<T>(opts.Width, opts.Depth, opts.NumAtoms).CreateCriticNet(envs[0]);
-            myOptimizer = torch.optim.Adam(myPolicyNet.parameters(), lr: opts.LR);
         }
+        Tensor support;
 
         public override int[] SelectAction(T state, bool isTraining = true)
         {
             if (isTraining)
             {
-                foreach (var module in from module in myPolicyNet.modules()
-                                       where module is NoisyLinear
-                                       select module)
-                {
-                    ((NoisyLinear)module).ResetNoise();
-                }
+                ResetNoise();
             }
 
+            //return random actions for test
+            return this.ActionsFromState(state);
+        }
+
+        public override int[] ActionsFromState(T state)
+        {
             using (torch.no_grad())
             {
                 Tensor stateTensor = StateToTensor(state); // Shape: [state_dim]
-                int[] selectedActions = new int[myEnvironments[0].actionSize.Length];
-
                 Tensor qValuesAllHeads = myPolicyNet.forward(stateTensor).view(1, myEnvironments[0].actionSize.Length, myEnvironments[0].actionSize[0], _numAtoms); // Shape: [1, num_heads, num_actions, num_atoms]
-
-                Tensor support = torch.linspace(_vMin, _vMax, steps: _numAtoms).to(myDevice); // Shape: [num_atoms]
-
-                for (int i = 0; i < myEnvironments[0].actionSize.Length; i++)
-                {
-                    Tensor qValueDistribution = qValuesAllHeads[0, i]; // Shape: [num_actions, num_atoms]
-                    Tensor expectedQValues = (qValueDistribution * support).sum(dim: -1); // Shape: [num_actions]
-                    selectedActions[i] = (int)expectedQValues.argmax().item<long>();
-                }
-
-                return selectedActions;
+                Tensor expectedQValues = (qValuesAllHeads * support).sum(dim: -1); // Shape: [1, num_heads, num_actions]
+                Tensor bestActions = expectedQValues.argmax(dim: -1).squeeze().to(ScalarType.Int32); // Shape: [num_heads]
+                return bestActions.data<int>().ToArray();
+            
             }
-        }
-
-        public override void OptimizeModel()
-        {
-            if (myReplayBuffer.Length < myOptions.BatchSize)
-                return;
-
-            List<Transition<T>> transitions = myReplayBuffer.Sample();
-            List<int> sampledIndices = null;
-
-            if (myReplayBuffer is PrioritizedReplayMemory<T> prioritizedReplayBuffer)
-            {
-                sampledIndices = prioritizedReplayBuffer.GetSampledIndices();
-            }
-
-            List<T> batchStates = transitions.Select(t => t.state).ToList();
-            List<int[]> batchMultiActions = transitions.Select(t => t.discreteActions).ToList();
-            List<float> batchRewards = transitions.Select(t => t.reward).ToList();
-            List<T> batchNextStates = transitions.Select(t => t.nextState).ToList();
-
-            Tensor nonFinalMask = CreateNonFinalMask(batchNextStates);
-            Tensor nextStateValues = ComputeNextStateValues(batchNextStates, nonFinalMask);
-            Tensor stateBatch = CreateStateBatch(batchStates);
-            Tensor actionBatch = CreateActionBatch(batchMultiActions);
-            Tensor rewardBatch = CreateRewardBatch(batchRewards);
-
-            Tensor qValuesAllHeads = ComputeQValues(stateBatch);
-            Tensor stateActionValues = ExtractStateActionValues(qValuesAllHeads, actionBatch);
-
-            Tensor expectedStateActionValues = ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask);
-
-            Tensor loss = ComputeLoss(stateActionValues, expectedStateActionValues);
-
-            UpdateModel(loss);
-
-            if (sampledIndices != null)
-            {
-                UpdatePrioritizedReplayMemory(stateActionValues, expectedStateActionValues.detach(), sampledIndices);
-            }
-        }
-
-        protected override Tensor ComputeQValues(Tensor stateBatch)
-        {
-            return myPolicyNet.forward(stateBatch);
         }
 
         protected override Tensor ExtractStateActionValues(Tensor qValuesAllHeads, Tensor actionBatch)
@@ -135,7 +82,6 @@ namespace RLMatrix.Agents.DQN.Variants
 
                     // Gather the corresponding Q-value distributions for the best actions
                     Tensor bestQDistributions = nextQDistributions.gather(2, bestActions.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, -1, _numAtoms)).squeeze(2); // Shape: [batch_size, num_heads, num_atoms]
-
                     return bestQDistributions;
                 }
             }
@@ -151,11 +97,14 @@ namespace RLMatrix.Agents.DQN.Variants
             // nextStateValues: [batch_size_non_final, num_heads, num_atoms]
             // rewardBatch: [batch_size]
             // nonFinalMask: [batch_size]
-            Tensor projectedDist = ProjectDistribution(nextStateValues); // [batch_size_non_final, num_heads, num_atoms]
             Tensor maskedDist = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count(), _numAtoms }).to(myDevice); // [batch_size, num_heads, num_atoms]
 
-            // Handle non-terminal states
-            maskedDist.index_copy_(0, nonFinalMask.nonzero().squeeze(), projectedDist); // [batch_size, num_heads, num_atoms]
+            if (nonFinalMask.sum().item<long>() > 0)
+            {
+                // Handle non-terminal states
+                Tensor projectedDist = ProjectDistribution(nextStateValues); // [batch_size_non_final, num_heads, num_atoms]
+                maskedDist.index_copy_(0, nonFinalMask.nonzero().squeeze(), projectedDist); // [batch_size, num_heads, num_atoms]
+            }
 
             // Handle terminal states
             Tensor terminalMask = nonFinalMask.logical_not();
@@ -169,7 +118,10 @@ namespace RLMatrix.Agents.DQN.Variants
 
             terminalDist.scatter_(2, atomIndices.expand(-1, myEnvironments[0].actionSize.Count(), -1).to(myDevice), scatterSource);
 
-            maskedDist.index_copy_(0, terminalMask.nonzero().squeeze(), terminalDist);
+            if (terminalMask.sum().item<long>() > 0)
+            {
+                maskedDist.index_copy_(0, terminalMask.nonzero().squeeze(), terminalDist);
+            }
 
             return maskedDist;
         }
@@ -183,25 +135,22 @@ namespace RLMatrix.Agents.DQN.Variants
             long batchSizeNonFinal = distribution.size(0);
             Tensor rewardBatchNonFinal = CreateRewardBatch(batchSizeNonFinal); // [batch_size_non_final]
 
-            for (int i = 0; i < _numAtoms; i++)
-            {
-                Tensor zTilde = (rewardBatchNonFinal.unsqueeze(-1) + myOptions.GAMMA * zValues[i]).clamp(_vMin, _vMax); // [batch_size_non_final, num_heads]
-                Tensor bj = (zTilde - _vMin) / _deltaZ; // [batch_size_non_final, num_heads]
-                Tensor lj = bj.floor(); // [batch_size_non_final, num_heads]
-                Tensor uj = bj.ceil(); // [batch_size_non_final, num_heads]
+            Tensor zTilde = (rewardBatchNonFinal.view(-1, 1, 1) + myOptions.GAMMA * zValues.view(1, 1, -1)).clamp(_vMin, _vMax); // [batch_size_non_final, 1, num_atoms]
+            Tensor bj = (zTilde - _vMin) / _deltaZ; // [batch_size_non_final, 1, num_atoms]
+            Tensor lj = bj.floor(); // [batch_size_non_final, 1, num_atoms]
+            Tensor uj = bj.ceil(); // [batch_size_non_final, 1, num_atoms]
 
-                Tensor ljMask = (lj >= 0) & (lj < _numAtoms); // [batch_size_non_final, num_heads]
-                Tensor ujMask = (uj >= 0) & (uj < _numAtoms); // [batch_size_non_final, num_heads]
+            Tensor ljMask = (lj >= 0) & (lj < _numAtoms); // [batch_size_non_final, 1, num_atoms]
+            Tensor ujMask = (uj >= 0) & (uj < _numAtoms); // [batch_size_non_final, 1, num_atoms]
 
-                Tensor lj_masked = lj.to(ScalarType.Int64) * ljMask.to(ScalarType.Int64); // [batch_size_non_final, num_heads]
-                Tensor uj_masked = uj.to(ScalarType.Int64) * ujMask.to(ScalarType.Int64); // [batch_size_non_final, num_heads]
+            Tensor lj_masked = lj.to(ScalarType.Int64) * ljMask.to(ScalarType.Int64); // [batch_size_non_final, 1, num_atoms]
+            Tensor uj_masked = uj.to(ScalarType.Int64) * ujMask.to(ScalarType.Int64); // [batch_size_non_final, 1, num_atoms]
 
-                Tensor lower_part = distribution.gather(2, lj_masked.unsqueeze(-1)).squeeze(-1) * (uj - bj) * ljMask; // [batch_size_non_final, num_heads]
-                Tensor upper_part = distribution.gather(2, uj_masked.unsqueeze(-1)).squeeze(-1) * (bj - lj) * ujMask; // [batch_size_non_final, num_heads]
+            Tensor lower_part = distribution.gather(2, lj_masked) * (uj - bj) * ljMask; // [batch_size_non_final, num_heads, num_atoms]
+            Tensor upper_part = distribution.gather(2, uj_masked) * (bj - lj) * ujMask; // [batch_size_non_final, num_heads, num_atoms]
 
-                projected.scatter_add_(2, lj_masked.unsqueeze(2), lower_part.unsqueeze(2)); // [batch_size_non_final, num_heads, num_atoms]
-                projected.scatter_add_(2, uj_masked.unsqueeze(2), upper_part.unsqueeze(2)); // [batch_size_non_final, num_heads, num_atoms]
-            }
+            projected.scatter_add_(2, lj_masked.expand(-1, distribution.size(1), -1), lower_part); // [batch_size_non_final, num_heads, num_atoms]
+            projected.scatter_add_(2, uj_masked.expand(-1, distribution.size(1), -1), upper_part); // [batch_size_non_final, num_heads, num_atoms]
 
             return projected;
         }
@@ -212,14 +161,6 @@ namespace RLMatrix.Agents.DQN.Variants
             var loss = criterion.forward(stateActionDistributions.log(), targetDistributions).mean(new long[] { 0, -1 }).sum();
 
             return loss;
-        }
-
-        protected override void UpdateModel(Tensor loss)
-        {
-            myOptimizer.zero_grad();
-            loss.backward();
-            torch.nn.utils.clip_grad_norm_(myPolicyNet.parameters(), 100);
-            myOptimizer.step();
         }
     }
 }

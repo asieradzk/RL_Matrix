@@ -126,7 +126,6 @@ namespace RLMatrix
             Tensor maskedNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }).to(myDevice);
             maskedNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), nextStateValues);
             return (maskedNextStateValues * myOptions.GAMMA) + rewardBatch.unsqueeze(1);
-
         }
 
         protected virtual Tensor ComputeLoss(Tensor stateActionValues, Tensor expectedStateActionValues)

@@ -17,7 +17,6 @@ namespace RLMatrix
 
         public DuelingDQN_C51_Noisy(string name, int obsSize, int width, int[] actionSizes, int depth, int numAtoms) : base(name)
         {
-            var device = torch.cuda_is_available() ? torch.CUDA : torch.CPU;
 
             if (obsSize < 1)
             {
@@ -34,7 +33,7 @@ namespace RLMatrix
             }
 
             // Separate value stream
-            _valueHead = Linear(width, _numAtoms, device: device); // C51 modifies this to output a distribution
+            _valueHead = Linear(width, _numAtoms); // C51 modifies this to output a distribution
 
 
             // Separate advantage streams for different action sizes

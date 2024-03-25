@@ -64,6 +64,8 @@
 
         public float PriorityEpsilon;
 
+        public int SoftUpdateInterval;
+
       
 
 
@@ -78,9 +80,9 @@
             int memorySize = 10000,
             float gamma = 0.99f,
             float epsStart = 1.0f,
-            float epsEnd = 0.01f,
+            float epsEnd = 0.005f,
             float epsDecay = 80f,
-            float tau = 0.01f,
+            float tau = 0.5f,
             float lr = 0.001f,
             int depth = 2,
             int width = 1024,
@@ -89,6 +91,7 @@
             float vMin = 1f,
             float vMax = 400f,
             float priorityEpsilon = 0.01f,
+            int softUpdateInterval = 1,
             IRLChartService? displayPlot = null)
         {
             BatchSize = batchSize;
@@ -107,6 +110,7 @@
             VMin = vMin;
             VMax = vMax;
             PriorityEpsilon = priorityEpsilon;
+            SoftUpdateInterval = softUpdateInterval;
         }
     }
 }

@@ -50,5 +50,30 @@
                     throw new Exception("Unexpected type");
             }
         }
+
+        public DQNNET CreateCriticNet(EnvSizeDTO<T> env)
+        {
+            throw new NotImplementedException();
+        }
+
+        public DQNNET CreateCriticNet(IEnvironment<T> env, bool noisyLayers = false, float noiseScale = 0)
+        {
+            throw new NotImplementedException();
+        }
+
+        public DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0)
+        {
+            throw new NotImplementedException();
+        }
+
+        public DQNNET CreateCriticNet(IEnvironment<T> env, bool noisyLayers = false, float noiseScale = 0, int numAtoms = 51)
+        {
+            throw new NotImplementedException();
+        }
+
+        public DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0, int numAtoms = 51)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -66,6 +66,16 @@
 
         public int SoftUpdateInterval;
 
+        public int NStepReturn;
+
+        public bool DoubleDQN;
+        public bool DuelingDQN;
+        public bool NoisyLayers;
+        public bool CategoricalDQN;
+        public bool PrioritizedExperienceReplay;
+
+        public float NoisyLayersScale;
+
       
 
 
@@ -92,7 +102,14 @@
             float vMax = 400f,
             float priorityEpsilon = 0.01f,
             int softUpdateInterval = 1,
-            IRLChartService? displayPlot = null)
+            int nStepReturn = 0,
+            IRLChartService? displayPlot = null,
+            bool doubleDQN = false,
+            bool duelingDQN = false,
+            bool noisyLayers = false,
+            bool categoricalDQN = false,
+            bool prioritizedExperienceReplay = false,
+            float noisyLayersScale = 0.00015f)
         {
             BatchSize = batchSize;
             MemorySize = memorySize;
@@ -111,6 +128,13 @@
             VMax = vMax;
             PriorityEpsilon = priorityEpsilon;
             SoftUpdateInterval = softUpdateInterval;
+            NStepReturn = nStepReturn;
+            DoubleDQN = doubleDQN;
+            DuelingDQN = duelingDQN;
+            NoisyLayers = noisyLayers;
+            CategoricalDQN = categoricalDQN;
+            PrioritizedExperienceReplay = prioritizedExperienceReplay;
+            NoisyLayersScale = noisyLayersScale;
         }
     }
 }

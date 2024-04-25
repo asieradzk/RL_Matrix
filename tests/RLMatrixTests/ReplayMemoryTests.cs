@@ -20,7 +20,7 @@ namespace RLMatrixTests
 
             var samples = replayMemory.Sample();
 
-            Assert.AreEqual(2, samples.Count);
+            Assert.AreEqual(2, samples.Length);
         }
 
         [TestMethod]
@@ -95,7 +95,7 @@ namespace RLMatrixTests
 
             var samples = replayMemory.Sample();
 
-            Assert.AreEqual(2, samples.Count);
+            Assert.AreEqual(2, samples.Length);
         }
 
         [TestMethod]
@@ -110,7 +110,7 @@ namespace RLMatrixTests
 
             var samples = replayMemory.Sample();
 
-            Assert.AreEqual(2, samples.Count);
+            Assert.AreEqual(2, samples.Length);
         }
 
         [TestMethod]

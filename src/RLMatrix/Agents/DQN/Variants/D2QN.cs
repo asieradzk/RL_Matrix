@@ -21,12 +21,9 @@ namespace RLMatrix
              if (myReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-            List<Transition<T>> transitions = myReplayBuffer.Sample();
+            ReadOnlySpan<TransitionInMemory<T>> transitions = myReplayBuffer.Sample();
 
-            List<T> batchStates = transitions.Select(t => t.state).ToList();
-            List<int[]> batchMultiActions = transitions.Select(t => t.discreteActions).ToList();
-            List<float> batchRewards = transitions.Select(t => t.reward).ToList();
-            List<T> batchNextStates = transitions.Select(t => t.nextState).ToList();
+            (T[] batchStates, int[][] batchMultiActions, float[] batchRewards, T?[] batchNextStates, bool[] nonFinalMaskArray) = (null, null, null, null, null); //ExtractBatchData(transitions);
 
             Tensor nonFinalMask = tensor(batchNextStates.Select(s => s != null).ToArray()).to(myDevice);
             Tensor stateBatch = stack(batchStates.Select(s => StateToTensor(s)).ToArray()).to(myDevice);

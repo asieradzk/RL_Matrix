@@ -296,7 +296,7 @@ namespace RLMatrix
         //TODO: wtf step horizon
         int stepHorizon = 400;
         int stepCounter = 0;
-        public void Step()
+        public void Step(bool isTraining = true     )
         {
             if (!initialisetrainingonce)
             {
@@ -305,14 +305,16 @@ namespace RLMatrix
 
             foreach (var episode in episodes)
             {
-                episode.Step();
+                episode.Step(isTraining);
                 stepCounter++;
             }
 
             episodeCounter++;
             if (true)
             {
-                OptimizeModel();
+                if(isTraining)
+                    OptimizeModel();
+
                 stepCounter = 0;
             }
 
@@ -323,11 +325,12 @@ namespace RLMatrix
         internal class Episode
         {
             T currentState;
+            Guid currentGuid;
             float cumulativeReward = 0;
 
             IContinuousEnvironment<T> myEnv;
             PPOAgent<T> myAgent;
-            List<Transition<T>> episodeBuffer;
+            List<TransitionPortable<T>> episodeBuffer;
             Tensor? memoryState = null;
             List<T> statesHistory = new();
 
@@ -337,11 +340,12 @@ namespace RLMatrix
                 myAgent = agent;
                 myEnv.Reset();
                 currentState = myAgent.DeepCopy(myEnv.GetCurrentState());
-                episodeBuffer = new List<Transition<T>>();
+                episodeBuffer = new List<TransitionPortable<T>>();
+                currentGuid = Guid.NewGuid();
             }
 
 
-            public void Step()
+            public void Step(bool isTraining)
             {
                 if (!myEnv.isDone)
                 {
@@ -349,7 +353,7 @@ namespace RLMatrix
 
                     if(!myAgent.myOptions.UseRNN)
                     {
-                        action = myAgent.SelectAction(currentState);
+                        action = myAgent.SelectAction(currentState, isTraining);
                     }
                     else
                     {
@@ -364,21 +368,25 @@ namespace RLMatrix
                     var done = myEnv.isDone;
 
                     T nextState;
+                    Guid nextGuid;
                     if (done)
                     {
+                        nextGuid = default;
                         nextState = default;
                     }
                     else
                     {
+                        nextGuid = Guid.NewGuid();
                         nextState = myAgent.DeepCopy(myEnv.GetCurrentState());
                     }
                     cumulativeReward += reward;
-                    episodeBuffer.Add(new Transition<T>(currentState, action.Item1, action.Item2, reward, nextState));
+                    episodeBuffer.Add(new TransitionPortable<T>(currentGuid, currentState, action.Item1, action.Item2, reward, nextGuid));
                     currentState = nextState;
+                    currentGuid = nextGuid;
                     return;
                 }
                 
-                myAgent.myReplayBuffer.Push(episodeBuffer);
+                myAgent.myReplayBuffer.Push(episodeBuffer.ToTransitionInMemory());
                 
                 episodeBuffer = new();
                 memoryState = null;
@@ -413,7 +421,8 @@ namespace RLMatrix
                 return;
             }
 
-            List<Transition<T>> transitions = myReplayBuffer.SampleEntireMemory();
+            //TODO: implement SPAN stuff
+            List<TransitionInMemory<T>> transitions = myReplayBuffer.SampleEntireMemory().ToArray().ToList();
 
             Tensor rewardBatch = stack(transitions.Select(t => tensor(t.reward)).ToArray()).to(myDevice);
             Tensor doneBatch = stack(transitions.Select(t => tensor(t.nextState == null ? 1 : 0)).ToArray()).to(myDevice);

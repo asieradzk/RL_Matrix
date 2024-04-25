@@ -5,32 +5,31 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.IO;
 using RLMatrix.Memories;
 
-
 namespace RLMatrix
 {
     /// <summary>
     /// The ReplayMemory class represents the memory of the agent in reinforcement learning.
-    /// It is used to store and retrieve past experiences (transitions).
+    /// It is used to store and retrieve past experiences (TransitionInMemorys).
     /// </summary>
     public class ReplayMemory<TState> : IMemory<TState>, IStorableMemory
     {
         private readonly int capacity;
         private readonly int batchSize;
-        private List<Transition<TState>> memory;
+        private TransitionInMemory<TState>[] memory;
+        private int count;
+        private int currentIndex;
         private readonly Random random = new Random();
 
         /// <summary>
-        /// Gets the number of transitions currently stored in the memory.
+        /// Gets the number of TransitionInMemorys currently stored in the memory.
         /// </summary>
-        public int Length => memory.Count;
-
-        public int myCount => throw new NotImplementedException();
+        public int Length => count;
 
         /// <summary>
         /// Initializes a new instance of the ReplayMemory class.
         /// </summary>
-        /// <param name="capacity">The maximum number of transitions the memory can hold.</param>
-        /// <param name="batchSize">The number of transitions to be returned when sampling.</param>
+        /// <param name="capacity">The maximum number of TransitionInMemorys the memory can hold.</param>
+        /// <param name="batchSize">The number of TransitionInMemorys to be returned when sampling.</param>
         public ReplayMemory(int capacity, int batchSize)
         {
             if (typeof(TState) != typeof(float[]) && typeof(TState) != typeof(float[,]))
@@ -40,118 +39,56 @@ namespace RLMatrix
 
             this.batchSize = batchSize;
             this.capacity = capacity;
-            memory = new List<Transition<TState>>(capacity);
+            memory = new TransitionInMemory<TState>[capacity];
+            count = 0;
+            currentIndex = 0;
         }
 
         /// <summary>
-        /// Adds a new transition to the memory. 
-        /// If the memory capacity is reached, the oldest transition is removed.
+        /// Adds a new TransitionInMemory to the memory. 
+        /// If the memory capacity is reached, the oldest TransitionInMemory is removed.
         /// </summary>
-        /// <param name="transition">The transition to be added.</param>
-        public void Push(Transition<TState> transition)
+        /// <param name="TransitionInMemory">The TransitionInMemory to be added.</param>
+        public void Push(TransitionInMemory<TState> TransitionInMemory)
         {
-            if (memory.Count >= capacity)
+            memory[currentIndex] = TransitionInMemory;
+            currentIndex = (currentIndex + 1) % capacity;
+
+            if (count < capacity)
             {
-                memory.RemoveAt(0); // Remove oldest if capacity is reached
+                count++;
             }
-
-            memory.Add(transition);
         }
 
         /// <summary>
-        /// Samples a batch of transitions randomly from the memory.
+        /// Samples a batch of TransitionInMemorys randomly from the memory.
         /// </summary>
-        /// <returns>A list of randomly sampled transitions.</returns>
-        public List<Transition<TState>> Sample()
+        /// <returns>A span of randomly sampled TransitionInMemorys.</returns>
+        public ReadOnlySpan<TransitionInMemory<TState>> Sample()
         {
-            if (batchSize > memory.Count)
+            if (batchSize > count)
             {
                 throw new InvalidOperationException("Batch size cannot be greater than current memory size.");
             }
 
-            return Enumerable.Range(0, batchSize)
-                             .Select(_ => memory[random.Next(memory.Count)])
-                             .ToList();
-        }
-
-        /// <summary>
-        /// Samples episodes randomly from the memory.
-        /// An episode is a sequence of transitions ending with a terminal state.
-        /// </summary>
-        /// <returns>A list of transitions representing one or more episodes.</returns>
-        public List<Transition<TState>> SampleEpisodes()
-        {
-            if (batchSize > memory.Count)
+            int[] indices = GetShuffledIndices(count, batchSize);
+            TransitionInMemory<TState>[] sampledTransitionInMemorys = new TransitionInMemory<TState>[batchSize];
+            for (int i = 0; i < batchSize; i++)
             {
-                throw new InvalidOperationException("Batch size cannot be greater than current memory size.");
+                sampledTransitionInMemorys[i] = memory[indices[i]];
             }
 
-            var episodes = SplitIntoEpisodes();
-            var sampledItems = new List<Transition<TState>>(batchSize);
-
-            while (sampledItems.Count < batchSize && episodes.Count > 0)
-            {
-                // Pick a random episode
-                int index = random.Next(episodes.Count);
-                var selectedEpisode = episodes[index];
-                episodes.RemoveAt(index);
-
-                // Add transitions from the selected episode to the sampled items
-                sampledItems.AddRange(selectedEpisode);
-            }
-
-            return sampledItems;
+            return new ReadOnlySpan<TransitionInMemory<TState>>(sampledTransitionInMemorys);
         }
 
-        /// <summary>
-        /// Splits the memory into separate episodes.
-        /// </summary>
-        /// <returns>A list of episodes, each represented as a list of transitions.</returns>
-        private List<List<Transition<TState>>> SplitIntoEpisodes()
-        {
-            var episodes = new List<List<Transition<TState>>>();
-            var currentEpisode = new List<Transition<TState>>();
-
-            foreach (var transition in memory)
-            {
-                if (transition.nextState != null)
-                {
-                    currentEpisode.Add(transition);
-                }
-                else
-                {
-                    if (currentEpisode.Any())
-                    {
-                        episodes.Add(currentEpisode);
-                        currentEpisode = new List<Transition<TState>>();
-                    }
-                }
-            }
-
-            // Add the last episode if it wasn't added inside the loop
-            if (currentEpisode.Any())
-            {
-                episodes.Add(currentEpisode);
-            }
-
-            return episodes;
-        }
 
         /// <summary>
-        /// Returns all transitions currently stored in the memory.
-        /// </summary>
-        /// <returns>A list of all transitions in the memory.</returns>
-        public List<Transition<TState>> SampleEntireMemory()
-        {
-            return new List<Transition<TState>>(memory);
-        }
-
-        /// <summary>
-        /// Clears all transitions from the memory.
+        /// Clears all TransitionInMemorys from the memory.
         /// </summary>
         public void ClearMemory()
         {
-            memory.Clear();
+            count = 0;
+            currentIndex = 0;
         }
 
         /// <summary>
@@ -161,8 +98,7 @@ namespace RLMatrix
         public void Save(string pathToFile)
         {
             using var fs = new FileStream(pathToFile, FileMode.Create);
-            var bf = new BinaryFormatter();
-            bf.Serialize(fs, memory);
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -175,13 +111,66 @@ namespace RLMatrix
                 throw new FileNotFoundException($"File {pathToFile} does not exist.");
 
             using var fs = new FileStream(pathToFile, FileMode.Open);
-            var bf = new BinaryFormatter();
-            memory = (List<Transition<TState>>)bf.Deserialize(fs);
+           throw new NotImplementedException();
         }
 
-        public List<Transition<TState>> Sample(int sampleSize)
+        /// <summary>
+        /// Samples a specified number of TransitionInMemorys randomly from the memory.
+        /// </summary>
+        /// <param name="sampleSize">The number of TransitionInMemorys to sample.</param>
+        /// <returns>A span of randomly sampled TransitionInMemorys.</returns>
+        public ReadOnlySpan<TransitionInMemory<TState>> Sample(int sampleSize)
         {
-            throw new NotImplementedException();
+            if (sampleSize > count)
+            {
+                throw new InvalidOperationException("Sample size cannot be greater than current memory size.");
+            }
+
+            int[] indices = GetShuffledIndices(count, sampleSize);
+            return new ReadOnlySpan<TransitionInMemory<TState>>(memory, indices[0], sampleSize);
+        }
+
+        private int[] GetShuffledIndices(int count, int size)
+        {
+            int[] indices = new int[size];
+            for (int i = 0; i < size; i++)
+            {
+                indices[i] = random.Next(count);
+            }
+            return indices;
+        }
+
+
+        private int searchDepth;
+        public unsafe int FindTransitionInMemoryIndex(TState state)
+        {
+            fixed (TransitionInMemory<TState>* memoryPtr = memory)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    if (Equals(memoryPtr[i].state, state))
+                    {
+                        return i;
+                    }
+                }
+            }
+            return -1;
+        }
+        public ref TransitionInMemory<TState> GetTransitionInMemory(int index)
+        {
+            if (index < 0 || index >= count)
+            {
+                throw new IndexOutOfRangeException("Index is out of range.");
+            }
+            return ref memory[index];
+        }
+
+        public void Push(IEnumerable<TransitionInMemory<TState>> TransitionInMemorys)
+        {
+            foreach (var TransitionInMemory in TransitionInMemorys)
+            {
+                Push(TransitionInMemory);
+            }
         }
     }
 }

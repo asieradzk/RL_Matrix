@@ -21,6 +21,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LunarLander", "examples\Lun
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{70B48B2C-4375-4F03-BBC6-6097BCCC54D1}"
 	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
 		GNUAfferoGPL.txt = GNUAfferoGPL.txt
 		LICENSE.txt = LICENSE.txt
 		README.md = README.md
@@ -31,6 +32,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Godot", "Godot", "{F8297F0F-5E29-40CE-AC8C-94AA746E3E18}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BallBalance", "examples\Godot\BallBalance\BallBalance.csproj", "{966ECDFC-96BF-40D8-BCD1-7099E1201511}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RLMatrix.Remote", "src\RLMatrix.Remote\RLMatrix.Remote.csproj", "{AAD3C71E-B5B8-4677-9C97-949CA3A77022}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -96,6 +99,14 @@ Global
 		{966ECDFC-96BF-40D8-BCD1-7099E1201511}.ExportRelease|Any CPU.Build.0 = ExportRelease|Any CPU
 		{966ECDFC-96BF-40D8-BCD1-7099E1201511}.Release|Any CPU.ActiveCfg = ExportRelease|Any CPU
 		{966ECDFC-96BF-40D8-BCD1-7099E1201511}.Release|Any CPU.Build.0 = ExportRelease|Any CPU
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -109,6 +120,7 @@ Global
 		{16F7C0F8-E663-4E8A-83A0-49D44C36317F} = {BFC4A676-39DF-4538-9A26-029CC69D283C}
 		{F8297F0F-5E29-40CE-AC8C-94AA746E3E18} = {1CBFC817-5DA3-4EA2-9703-000F9235F7B4}
 		{966ECDFC-96BF-40D8-BCD1-7099E1201511} = {F8297F0F-5E29-40CE-AC8C-94AA746E3E18}
+		{AAD3C71E-B5B8-4677-9C97-949CA3A77022} = {BFC4A676-39DF-4538-9A26-029CC69D283C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {BB52170A-37D7-4F03-8FC2-CE5B688C5F23}

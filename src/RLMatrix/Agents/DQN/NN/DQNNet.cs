@@ -1,16 +1,12 @@
 ﻿using System;
-using System.Diagnostics;
-using TorchSharp;
+using System.Collections.Generic;
 using TorchSharp.Modules;
+using TorchSharp;
 using static TorchSharp.torch;
 using static TorchSharp.torch.nn;
 
-
-
 namespace RLMatrix
 {
-    
-
     public abstract class DQNNET : Module<Tensor, Tensor>
     {
         public DQNNET(string name) : base(name)
@@ -18,37 +14,32 @@ namespace RLMatrix
         }
 
         public override abstract Tensor forward(Tensor x);
-
     }
 
     public sealed class DQN1D : DQNNET
     {
         private readonly ModuleList<Module<Tensor, Tensor>> modules = new();
         private readonly ModuleList<Module<Tensor, Tensor>> heads = new();
-        
-        public DQN1D(string name, int obsSize, int width, int[] actionSizes, int depth = 4) : base(name)
+
+        public DQN1D(string name, int obsSize, int width, int[] actionSizes, int depth = 4, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
         {
-            if(obsSize < 1)
+            if (obsSize < 1)
             {
-                throw new ArgumentException("Number of observations cant be less than 1");
+                throw new ArgumentException("Number of observations can't be less than 1");
             }
 
-            // First layer
-            modules.Add(Linear(obsSize, width));
+            modules.Add(noisyLayers ? new NoisyLinear(obsSize, width, std_init: noiseScale) : Linear(obsSize, width));
 
-            // Additional depth-1 hidden layers
             for (int i = 1; i < depth; i++)
             {
-                modules.Add(Linear(width, width));
+                modules.Add(noisyLayers ? new NoisyLinear(width, width, std_init: noiseScale) : Linear(width, width));
             }
 
-            // Multiple heads for multi-head actions
             foreach (var actionSize in actionSizes)
             {
-                heads.Add(Linear(width, actionSize));
+                heads.Add(noisyLayers ? new NoisyLinear(width, actionSize, std_init: noiseScale) : Linear(width, actionSize));
             }
 
-            // Register the modules and heads for the network
             RegisterComponents();
         }
 
@@ -64,14 +55,13 @@ namespace RLMatrix
                 x = functional.relu(module.forward(x));
             }
 
-            // Apply each head to the activations
             var outputs = new List<Tensor>();
             foreach (var head in heads)
             {
                 outputs.Add(head.forward(x));
             }
 
-            return stack(outputs, dim: 1);  // This returns a tensor of shape [batch_size, num_heads, actionSize]
+            return stack(outputs, dim: 1);
         }
 
         protected override void Dispose(bool disposing)
@@ -92,7 +82,6 @@ namespace RLMatrix
         }
     }
 
-
     public sealed class DQN2D : DQNNET
     {
         private readonly Module<Tensor, Tensor> conv1, flatten;
@@ -106,7 +95,7 @@ namespace RLMatrix
             return ((inputSize - kernelSize + 2 * padding) / stride) + 1;
         }
 
-        public DQN2D(string name, long h, long w, int[] actionSizes, int width, int depth = 3) : base(name)
+        public DQN2D(string name, long h, long w, int[] actionSizes, int width, int depth = 3, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
         {
             if (depth < 1) throw new ArgumentOutOfRangeException("Depth must be 1 or greater.");
 
@@ -123,19 +112,16 @@ namespace RLMatrix
 
             flatten = Flatten();
 
-            // First FC layer (always present)
-            fcModules.Add(Linear(linear_input_size, width));
+            fcModules.Add(noisyLayers ? new NoisyLinear(linear_input_size, width, std_init: noiseScale) : Linear(linear_input_size, width));
 
-            // Additional depth-1 FC layers
             for (int i = 1; i < depth; i++)
             {
-                fcModules.Add(Linear(width, width));
+                fcModules.Add(noisyLayers ? new NoisyLinear(width, width, std_init: noiseScale) : Linear(width, width));
             }
 
-            // Multiple heads for multi-head actions
             foreach (var actionSize in actionSizes)
             {
-                heads.Add(Linear(width, actionSize));
+                heads.Add(noisyLayers ? new NoisyLinear(width, actionSize, std_init: noiseScale) : Linear(width, actionSize));
             }
 
             RegisterComponents();
@@ -160,14 +146,13 @@ namespace RLMatrix
                 x = functional.relu(module.forward(x));
             }
 
-            // Apply each head to the activations
             var outputs = new List<Tensor>();
             foreach (var head in heads)
             {
                 outputs.Add(head.forward(x));
             }
 
-            return stack(outputs, dim: 1); // Stack results
+            return stack(outputs, dim: 1);
         }
 
         protected override void Dispose(bool disposing)
@@ -189,6 +174,4 @@ namespace RLMatrix
             base.Dispose(disposing);
         }
     }
-
-
 }

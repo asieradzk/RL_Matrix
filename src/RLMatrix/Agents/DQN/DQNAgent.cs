@@ -4,6 +4,8 @@ using TorchSharp;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
 using static TorchSharp.torch.nn;
+using static TorchSharp.torch.optim;
+using static TorchSharp.torch.optim.lr_scheduler;
 
 
 namespace RLMatrix
@@ -24,10 +26,11 @@ namespace RLMatrix
         protected IMemory<T> myReplayBuffer;
         protected int episodeCounter = 0;
         protected int softUpdateCounter = 0;
+        protected LRScheduler myLRScheduler;
 
         //TODO: Can this be managed? Can we have some object encapsulating all progress to peek inside current agent?
         public List<double> episodeRewards = new();
-
+     
         /// <summary>
         /// Initializes a new instance of the DQNAgent class.
         /// </summary>
@@ -54,13 +57,17 @@ namespace RLMatrix
 
             myPolicyNet = netProvider.CreateCriticNet(envs[0]).to(myDevice);
             myTargetNet = netProvider.CreateCriticNet(envs[0]).to(myDevice);
+         
             myOptimizer = optim.Adam(myPolicyNet.parameters(), opts.LR);
+            myLRScheduler = new optim.lr_scheduler.impl.CyclicLR(myOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
 
             myReplayBuffer = new ReplayMemory<T>(myOptions.MemorySize, myOptions.BatchSize);
             if (myOptions.DisplayPlot != null)
             {
                 myOptions.DisplayPlot.CreateOrUpdateChart(new List<double>());
             }
+            torch.backends.cudnn.allow_tf32 = true;
+            
 
         }
 
@@ -74,7 +81,8 @@ namespace RLMatrix
             if (!saveExperienceBuffer)
                 return;
 
-            myReplayBuffer.Save(path + "/experienceBuffer.bin");
+            throw new NotImplementedException();
+            //myReplayBuffer.Save(path + "/experienceBuffer.bin");
         }
 
         public void LoadAgent(string path)
@@ -87,7 +95,8 @@ namespace RLMatrix
             //check if contains experience buffer in the folder
             if (File.Exists(path + "/experienceBuffer.bin"))
             {
-                myReplayBuffer.Load(path + "/experienceBuffer.bin");
+                throw new NotImplementedException();
+               // myReplayBuffer.Load(path + "/experienceBuffer.bin");
             }
         }
 
@@ -125,81 +134,196 @@ namespace RLMatrix
         {
             using (torch.no_grad())
             {
-                Tensor stateTensor = StateToTensor(state); // Shape: [state_dim]
+                Tensor stateTensor = StateToTensor(state, myDevice); // Shape: [state_dim]
                 Tensor qValuesAllHeads = myPolicyNet.forward(stateTensor).view(1, myEnvironments[0].actionSize.Length, myEnvironments[0].actionSize[0]); // Shape: [1, num_heads, num_actions]
                 Tensor bestActions = qValuesAllHeads.argmax(dim: -1).squeeze().to(ScalarType.Int32); // Shape: [num_heads]
                 return bestActions.data<int>().ToArray();
             }
         }
+        private void CreateTensorsFromTransitions(ref ReadOnlySpan<TransitionInMemory<T>> transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch)
+        {
+            int length = transitions.Length;
+            var fixedActionSize = myEnvironments[0].actionSize.Length; // Assuming a fixed action size for all environments
+
+            // Pre-allocate arrays based on the known batch size
+            bool[] nonFinalMaskArray = new bool[length];
+            float[] batchRewards = new float[length];
+            int[] flatMultiActions = new int[length * fixedActionSize];
+            T[] batchStates = new T[length];
+            T?[] batchNextStates = new T?[length];
+
+            int flatMultiActionsIndex = 0;
+            int nonFinalNextStatesCount = 0;
+
+            
+            for (int i = 0; i < length; i++)
+            {
+                var transition = transitions[i];
+                nonFinalMaskArray[i] = transition.nextState != null;
+                batchRewards[i] = transition.reward;
+                Array.Copy(transition.discreteActions, 0, flatMultiActions, flatMultiActionsIndex, transition.discreteActions.Length);
+                flatMultiActionsIndex += transition.discreteActions.Length; // Assuming a fixed length for all actions
+
+                batchStates[i] = transition.state;
+                batchNextStates[i] = transition.nextState;
+
+                if (transition.nextState != null)
+                {
+                    nonFinalNextStatesCount++;
+                }
+            }
+
+        
+            stateBatch = StateToTensor(batchStates, myDevice);
+            nonFinalMask = torch.tensor(nonFinalMaskArray, device: myDevice);
+            rewardBatch = torch.tensor(batchRewards, device: myDevice);
+            actionBatch = torch.tensor(flatMultiActions, new long[] { length, fixedActionSize }, torch.int64).to(myDevice); // Reshape based on actual action size
 
 
+            if (nonFinalNextStatesCount > 0)
+            {
+                T[] nonFinalNextStatesArray = new T[nonFinalNextStatesCount];
+                int index = 0;
+                for (int i = 0; i < length; i++)
+                {
+                    if (batchNextStates[i] is not null)
+                    {
+                        nonFinalNextStatesArray[index++] = batchNextStates[i];
+                    }
+                }
+                nonFinalNextStates = StateToTensor(nonFinalNextStatesArray, myDevice);
+            }
+            else
+            {
+                nonFinalNextStates = torch.zeros(new long[] { 1, stateBatch.shape[1] }, device: myDevice);
+            }
+        }
         /// <summary>
         /// Optimizes the model instance based on the replay buffer.
         /// </summary>
         public virtual void OptimizeModel()
         {
+            int nSteps = 1;
+            bool useD2QN = false;
+
+
             if (myReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-            List<Transition<T>> transitions = myReplayBuffer.Sample();
+            ReadOnlySpan<TransitionInMemory<T>> transitions = myReplayBuffer.Sample();
+            CreateTensorsFromTransitions(ref transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
+            Tensor qValuesAllHeads = ComputeQValues(stateBatch);
+            Tensor stateActionValues = ExtractStateActionValues(qValuesAllHeads, actionBatch);
+            Tensor nextStateValues = ComputeNextStateValues(nonFinalNextStates, useD2QN);
+            Tensor expectedStateActionValues = ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, nSteps, ref transitions);
+            Tensor loss = ComputeLoss(stateActionValues, expectedStateActionValues);
+            UpdateModel(loss);
+            myLRScheduler.step();
+        }
 
-            List<T> batchStates = transitions.Select(t => t.state).ToList();
-            List<int[]> batchMultiActions = transitions.Select(t => t.discreteActions).ToList();
-            List<float> batchRewards = transitions.Select(t => t.reward).ToList();
-            List<T> batchNextStates = transitions.Select(t => t.nextState).ToList();
+        protected virtual Tensor ComputeQValues(Tensor stateBatch)
+        {
+            var res = myPolicyNet.forward(stateBatch);
+            return res;
+        }
 
-            Tensor nonFinalMask = tensor(batchNextStates.Select(s => s != null).ToArray()).to(myDevice);
-            Tensor stateBatch = stack(batchStates.Select(s => StateToTensor(s)).ToArray()).to(myDevice);
+        protected virtual Tensor ExtractStateActionValues(Tensor qValuesAllHeads, Tensor actionBatch)
+        {
+            Tensor expandedActionBatch = actionBatch.unsqueeze(2);
+            var res = qValuesAllHeads.gather(2, expandedActionBatch).squeeze(2).to(myDevice);
+            return res;
+        }
 
-            Tensor[] nonFinalNextStatesArray = batchNextStates.Where(s => s != null).Select(s => StateToTensor(s)).ToArray();
-            Tensor nonFinalNextStates;
-            if (nonFinalNextStatesArray.Length > 0)
-            {
-                nonFinalNextStates = stack(nonFinalNextStatesArray).to(myDevice);
-            }
-            else
-            {
-                // If all next states are terminal, we still need to create a dummy tensor for nonFinalNextStates
-                // to prevent errors but it won't be used because nonFinalMask will filter them out.
-                nonFinalNextStates = zeros(new long[] { 1, stateBatch.shape[1] }).to(myDevice); // Adjust the shape as necessary
-            }
-
-            Tensor actionBatch = stack(batchMultiActions.Select(a => tensor(a).to(torch.int64)).ToArray()).to(myDevice);
-            Tensor rewardBatch = stack(batchRewards.Select(r => tensor(r)).ToArray()).to(myDevice);
-            Tensor qValuesAllHeads = myPolicyNet.forward(stateBatch);
-
-            Tensor expandedActionBatch = actionBatch.unsqueeze(2); // Expand to [batchSize, numHeads, 1]
-
-            Tensor stateActionValues = qValuesAllHeads.gather(2, expandedActionBatch).squeeze(2).to(myDevice); // [batchSize, numHeads]
-
+        protected virtual Tensor ComputeNextStateValues(Tensor nonFinalNextStates, bool useD2QN)
+        {
             Tensor nextStateValues;
             using (no_grad())
             {
-                if (nonFinalNextStatesArray.Length > 0)
+                if (nonFinalNextStates.shape[0] > 0)
                 {
-                    nextStateValues = myTargetNet.forward(nonFinalNextStates).max(2).values; // [batchSize, numHeads]
+                    if (useD2QN)
+                    {
+                        // Use myPolicyNet to select the best action for each next state based on the current policy
+                        Tensor nextActions = myPolicyNet.forward(nonFinalNextStates).max(2).indexes;
+                        // Evaluate the selected actions' Q-values using myTargetNet
+                        nextStateValues = myTargetNet.forward(nonFinalNextStates).gather(2, nextActions.unsqueeze(-1)).squeeze(-1);
+                    }
+                    else
+                    {
+                        nextStateValues = myTargetNet.forward(nonFinalNextStates).max(2).values; // [batchSize, numHeads]
+                        Console.WriteLine("Old:_________");
+                        nonFinalNextStates.print();
+                        Console.WriteLine("_________");
+                    }
                 }
                 else
                 {
-                    // If all states are terminal, this tensor won't be used due to masking.
                     nextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }).to(myDevice);
                 }
             }
+            return nextStateValues;
+        }
 
-            Tensor maskedNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }).to(myDevice);
+        protected virtual Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, int nSteps, ref ReadOnlySpan<TransitionInMemory<T>> transitions)
+        {
+            Tensor maskedNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }, device: myDevice);
             maskedNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), nextStateValues);
 
-            Tensor expectedStateActionValues = (maskedNextStateValues * myOptions.GAMMA) + rewardBatch.unsqueeze(1);
+            if (nSteps <= 1)
+            {
+                var res=  (maskedNextStateValues * myOptions.GAMMA) + rewardBatch.unsqueeze(1);
+                return res;
+            }
+            else
+            {
+                // Compute n-step returns
+                Tensor nStepRewards = CalculateNStepReturns(ref transitions, nSteps, myOptions.GAMMA);
+                return (maskedNextStateValues * Math.Pow(myOptions.GAMMA, nSteps)) + nStepRewards.unsqueeze(1);
+            }
+        }
 
-            // Compute Huber loss
+        protected virtual Tensor ComputeLoss(Tensor stateActionValues, Tensor expectedStateActionValues)
+        {
             SmoothL1Loss criterion = torch.nn.SmoothL1Loss();
-            Tensor loss = criterion.forward(stateActionValues, expectedStateActionValues);
+            var res =  criterion.forward(stateActionValues, expectedStateActionValues);
+            return res;
+        }
 
-            // Optimize the model
+        protected virtual void UpdateModel(Tensor loss)
+        {
             myOptimizer.zero_grad();
             loss.backward();
             torch.nn.utils.clip_grad_value_(myPolicyNet.parameters(), 100);
             myOptimizer.step();
+        }
+
+        protected Tensor CalculateNStepReturns(ref ReadOnlySpan<TransitionInMemory<T>> transitions, int nSteps, float gamma)
+        {
+            int batchSize = transitions.Length;
+            Tensor returns = torch.zeros(batchSize, device: myDevice);
+
+            for (int i = 0; i < batchSize; i++)
+            {
+                TransitionInMemory<T> currentTransition = transitions[i];
+                float nStepReturn = 0;
+                float discount = 1;
+
+                for (int j = 0; j < nSteps; j++)
+                {
+                    nStepReturn += discount * currentTransition.reward;
+                    if (currentTransition.nextTransition is null)
+                    {
+                        break;
+                    }
+                    currentTransition = currentTransition.nextTransition;
+
+                    discount *= gamma;
+                }
+
+                returns[i] = nStepReturn;
+            }
+            returns.print();
+            return returns;
         }
 
 
@@ -252,7 +376,7 @@ namespace RLMatrix
         }
         int stepHorizon = 1;
         int stepCounter = 1;
-        public void Step()
+        public void Step(bool isTraining = true)
         {
             if (!initialisetrainingonce)
             {
@@ -261,7 +385,7 @@ namespace RLMatrix
 
             foreach (var episode in episodes)
             {
-                episode.Step();
+                episode.Step(isTraining);
                 stepCounter++;
                 softUpdateCounter++;
             }
@@ -270,11 +394,15 @@ namespace RLMatrix
             
             if(stepCounter > stepHorizon)
             {
-                OptimizeModel();
+                if(isTraining)
+                    OptimizeModel();
                
                 if (softUpdateCounter > myOptions.SoftUpdateInterval)
                 {
-                    SoftUpdateTargetNetwork();
+
+                    if(isTraining)
+                        SoftUpdateTargetNetwork();
+
                     softUpdateCounter = 0;
                 }
                 
@@ -288,6 +416,7 @@ namespace RLMatrix
         internal class Episode
         {
             T currentState;
+            Guid currentGuid;
             float cumulativeReward = 0;
 
             IEnvironment<T> myEnv;
@@ -299,35 +428,44 @@ namespace RLMatrix
                 myAgent = agent;
                 myEnv.Reset();
                 currentState = myAgent.DeepCopy(myEnv.GetCurrentState());
+                currentGuid = Guid.NewGuid();
             }
 
+            List<TransitionPortable<T>> TempBuffer = new();
 
-            public void Step()
+            public void Step(bool isTraining)
             {
                 if (!myEnv.isDone)
                 {
 
-                    var action = myAgent.SelectAction(currentState);
+                    var action = myAgent.SelectAction(currentState, isTraining);
                     var reward = myEnv.Step(action);
                     var done = myEnv.isDone;
 
                     T nextState;
+                    Guid nextGuid;
                     if (done)
                     {
                         nextState = default;
+                        nextGuid = default;
                     }
                     else
                     {
+
                         nextState = myAgent.DeepCopy(myEnv.GetCurrentState());
+                        nextGuid = Guid.NewGuid();
                     }
                     cumulativeReward += reward;
-                    myAgent.myReplayBuffer.Push(new Transition<T>(currentState, action, null, reward, nextState));
+                    TempBuffer.Add(new TransitionPortable<T>(currentGuid, currentState, action, null, reward: reward, NextTransitionGuid: nextGuid));
                     currentState = nextState;
+                    currentGuid = nextGuid;
                     return;
                 }
 
                 var rewardCopy = cumulativeReward;
                 myAgent.episodeRewards.Add(rewardCopy);
+                myAgent.myReplayBuffer.Push(TempBuffer.ToTransitionInMemory<T>());
+                TempBuffer.Clear();
                 if (myAgent.myOptions.DisplayPlot != null)
                 {
                     myAgent.myOptions.DisplayPlot.CreateOrUpdateChart(myAgent.episodeRewards);
@@ -380,12 +518,87 @@ namespace RLMatrix
             switch (state)
             {
                 case float[] stateArray:
-                    return tensor(stateArray).to(myDevice);
+                    return tensor(stateArray);
                 case float[,] stateMatrix:
-                    return tensor(stateMatrix).to(myDevice);
+                    return tensor(stateMatrix);
                 default:
                     throw new InvalidCastException("State must be either float[] or float[,]");
             }
+        }
+        /// <summary>
+        /// Converts the state to a tensor representation for torchsharp. Only float[] and float[,] states are supported.
+        /// </summary>
+        /// <param name="state">The state to convert.</param>
+        /// <returns>The state as a tensor.</returns>
+        protected Tensor StateToTensor(T state, Device device)
+        {
+            switch (state)
+            {
+                case float[] stateArray:
+                    return tensor(stateArray, device: device);
+                case float[,] stateMatrix:
+                    return tensor(stateMatrix, device: device);
+                default:
+                    throw new InvalidCastException("State must be either float[] or float[,]");
+            }
+        }
+
+        protected Tensor StateToTensor(T[] states, Device device)
+        {
+            // Assume the first element determines the type for all
+            if (states.Length == 0)
+            {
+                throw new ArgumentException("States array cannot be empty.");
+            }
+
+            if (states[0] is float[])
+            {
+                // Handling arrays of float arrays (float[][]).
+                return HandleFloatArrayStates(states as float[][], device);
+            }
+            else if (states[0] is float[,])
+            {
+                // Handling arrays of float matrices (float[][,]).
+                return HandleFloatMatrixStates(states as float[][,], device);
+            }
+            else
+            {
+                throw new InvalidCastException("States must be arrays of either float[] or float[,].");
+            }
+        }
+
+        Tensor HandleFloatArrayStates(float[][] states, Device device)
+        {
+            int totalSize = states.Length * states[0].Length;
+            float[] batchData = new float[totalSize];
+            int offset = 0;
+            foreach (var state in states)
+            {
+                Buffer.BlockCopy(state, 0, batchData, offset * sizeof(float), state.Length * sizeof(float));
+                offset += state.Length;
+            }
+            var batchShape = new long[] { states.Length, states[0].Length };
+            return torch.tensor(batchData, batchShape, device: device);
+        }
+
+        Tensor HandleFloatMatrixStates(float[][,] states, Device device)
+        {
+            int d1 = states[0].GetLength(0);
+            int d2 = states[0].GetLength(1);
+            float[] batchData = new float[states.Length * d1 * d2];
+            int offset = 0;
+
+            foreach (var matrix in states)
+            {
+                for (int i = 0; i < d1; i++)
+                {
+                    Buffer.BlockCopy(matrix, i * d2 * sizeof(float), batchData, offset, d2 * sizeof(float));
+                    offset += d2 * sizeof(float);
+                }
+            }
+
+            var batchShape = new long[] { states.Length, d1, d2 };
+            return torch.tensor(batchData, batchShape, device: device);
         }
 
 

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -31,6 +31,10 @@
 		<PackageReference Include="GodotSharpEditor" Version="4.2.1" />
 		<PackageReference Include="OneOf" Version="3.0.263" />
 		<PackageReference Include="RLMatrix" Version="0.2.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\RLMatrix\RLMatrix.csproj" />
 	</ItemGroup>
 
 </Project>

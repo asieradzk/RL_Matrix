@@ -19,15 +19,16 @@ namespace RLMatrix
             myMemory = new TransitionReplayMemory<T>(10000, 512);
         }
 
-        Transition<T>? previousTransition;
+        TransitionInMemory<T>? previousTransition;
         public void AddStep(T observation, int[] discreteActions, float[] continousActions, float rewards)
         {
-            var newTransition = new Transition<T>(DeepCopy(observation), discreteActions, continousActions, rewards, default);
+        
+            var newTransition = new TransitionInMemory<T>(DeepCopy(observation), discreteActions, continousActions, rewards, default, default);
            
             if(previousTransition != null)
             {
-                var transition = new Transition<T>(previousTransition.state, previousTransition.discreteActions, 
-                    previousTransition.continuousActions, previousTransition.reward, newTransition.state);
+                var transition = new TransitionInMemory<T>(previousTransition.state, previousTransition.discreteActions, 
+                    previousTransition.continuousActions, previousTransition.reward, newTransition.state, previousTransition);
                 myMemory.Push(transition);
             }
             previousTransition = newTransition;
@@ -44,12 +45,14 @@ namespace RLMatrix
 
         public void Save(string pathToFile)
         {
-            myMemory.Save(pathToFile);
+            throw new NotImplementedException();
+          //  myMemory.Save(pathToFile);
         }
 
         public void Load(string pathToFile)
         {
-            myMemory.Load(pathToFile);
+            throw new NotImplementedException();
+          //  myMemory.Load(pathToFile);
         }
 
         public T DeepCopy(T input)

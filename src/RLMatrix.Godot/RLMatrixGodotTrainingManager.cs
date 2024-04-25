@@ -54,10 +54,27 @@ namespace RLMatrix.Godot
                 AddChildrenOfType(child, resultList); // Recursive call to check the children of the current child
             }
         }
-
+        int trainingStepCounter = 100000;
+        int testingStepCounter = 20000;
         public override void _Process(double delta)
         {
-            myAgent.Step();
+            if (trainingStepCounter > 0)
+            {
+                myAgent.Step(true);
+                trainingStepCounter -= 10;
+                if (trainingStepCounter % 250 == 0)
+                    Console.WriteLine($"Training steps remaining: {trainingStepCounter}");
+            }
+            else if (testingStepCounter > 0)
+            {
+                myAgent.Step(false);
+                testingStepCounter -= 10;
+            }
+            else
+            {
+               Console.WriteLine("Training and testing complete");
+                GetTree().Quit();
+            }
         }
 
 

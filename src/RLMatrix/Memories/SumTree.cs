@@ -35,6 +35,38 @@ namespace RLMatrix
                 tree[treeIndex] += change; // Update the sum
             }
         }
+        public int GetMinPriorityIndex()
+        {
+            int minPriorityIndex = 0;
+            float minPriority = float.MaxValue;
+
+            for (int i = capacity; i < 2 * capacity; i++)
+            {
+                if (tree[i] < minPriority)
+                {
+                    minPriority = tree[i];
+                    minPriorityIndex = i - capacity;
+                }
+            }
+
+            return minPriorityIndex;
+        }
+        public int GetMaxPriorityIndex()
+        {
+            int maxPriorityIndex = 0;
+            float maxPriority = float.MinValue;
+
+            for (int i = capacity; i < 2 * capacity; i++)
+            {
+                if (tree[i] > maxPriority)
+                {
+                    maxPriority = tree[i];
+                    maxPriorityIndex = i - capacity;
+                }
+            }
+
+            return maxPriorityIndex;
+        }
 
         public int Retrieve(float value)
         {

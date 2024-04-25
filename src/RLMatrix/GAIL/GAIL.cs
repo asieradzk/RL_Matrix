@@ -118,24 +118,27 @@ public class GAIL<T>
 
     public void OptimiseDiscriminator(IMemory<T> replayBuffer)
     {
-        List<Transition<T>> agentTransitions;
-        List<Transition<T>> expertTransitions;
+        throw new NotImplementedException();
+        /*
+        List<TransitionReplayMemory<T>> agentTransitions;
+        List<TransitionReplayMemory<T>> expertTransitions;
         Tensor agentLabels;
         Tensor expertLabels;
 
-        var count = replayBuffer.myCount;
+        var count = replayBuffer.Length;
 
         if(count < myOptions.BatchSize || count < myOptions.BatchSize)
         {
-            agentTransitions = replayBuffer.Sample(count);
-            expertTransitions = expertDemonstrations.Sample(count);
+            agentTransitions = replayBuffer.Sample(count).ToArray().ToList();
+            expertTransitions = expertDemonstrations.Sample(count).ToArray().ToList();
             agentLabels = torch.zeros(count, dtype: torch.@float).to(myDevice);
             expertLabels = torch.ones(count, dtype: torch.@float).to(myDevice);
         }
         else
         {
-            agentTransitions = replayBuffer.Sample(myOptions.BatchSize);
-            expertTransitions = expertDemonstrations.Sample(myOptions.BatchSize);
+            //TODO: Span stuff
+            agentTransitions = replayBuffer.Sample(myOptions.BatchSize).ToArray().ToList();
+            expertTransitions = expertDemonstrations.Sample(myOptions.BatchSize).ToArray().ToList();
             // Labels: 0 for agent-generated, 1 for expert
             agentLabels = torch.zeros(myOptions.BatchSize, dtype: torch.@float).to(myDevice);
             expertLabels = torch.ones(myOptions.BatchSize, dtype: torch.@float).to(myDevice);
@@ -177,6 +180,7 @@ public class GAIL<T>
         myOptimizer.zero_grad();
         loss.backward();
         myOptimizer.step();
+        */
     }
 
 

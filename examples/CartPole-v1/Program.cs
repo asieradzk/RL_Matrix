@@ -25,7 +25,7 @@ var myAgentppo = new PPOAgent<float[]>(optsppo, envppo);
 
 for (int i = 0; i < 10000; i++)
 {
-    myAgentppo.Step();
+   // myAgentppo.Step();
 }
 
 

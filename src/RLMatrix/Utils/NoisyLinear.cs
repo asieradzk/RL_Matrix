@@ -12,7 +12,7 @@ namespace TorchSharp.Modules
         private float _std_init;
         private Device _device;
 
-        public NoisyLinear(long in_features, long out_features, bool bias = true, Device? device = null, ScalarType? dtype = null, float std_init = 0.00005f)
+        public NoisyLinear(long in_features, long out_features, bool bias = true, Device? device = null, ScalarType? dtype = null, float std_init = 0.0001f)
             : base(nameof(NoisyLinear))
         {
             _std_init = std_init;

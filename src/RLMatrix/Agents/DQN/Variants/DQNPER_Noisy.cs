@@ -36,16 +36,16 @@ namespace RLMatrix.Agents.DQN.Variants
             }
         }
 
-        public override void OptimizeModel()
-        {
-            base.OptimizeModel();
-        }
-
         public override int[] SelectAction(T state, bool isTraining = true)
         {
             if(isTraining)
             {
+                myPolicyNet.train();
                 ResetNoise();
+            }
+            else
+            {
+                myPolicyNet.eval();
             }
 
             return ActionsFromState(state);
@@ -55,10 +55,8 @@ namespace RLMatrix.Agents.DQN.Variants
         {
             using (torch.no_grad())
             {
-                Tensor stateTensor = StateToTensor(state); // Shape: [state_dim]
-
+                Tensor stateTensor = StateToTensor(state, myDevice); // Shape: [state_dim]
                 Tensor qValuesAllHeads = myPolicyNet.forward(stateTensor).view(1, myEnvironments[0].actionSize.Length, myEnvironments[0].actionSize[0]); // Shape: [1, num_heads, num_actions]
-
                 Tensor bestActions = qValuesAllHeads.argmax(dim: -1).squeeze().to(ScalarType.Int32); // Shape: [num_heads]
 
                 return bestActions.data<int>().ToArray();

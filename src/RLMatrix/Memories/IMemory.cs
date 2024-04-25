@@ -1,46 +1,42 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.IO;
 
 namespace RLMatrix.Memories
 {
     public interface IMemory<TState>
     {
         int Length { get; }
-        public void Push(Transition<TState> transition);
-        public List<Transition<TState>> Sample(int sampleSize);
-        public List<Transition<TState>> Sample();
-        public void Save(string pathToFile);
-        public void Load(string pathToFile);
-        public int myCount { get; }
+        void Push(TransitionInMemory<TState> transition);
+        void Push (IEnumerable<TransitionInMemory<TState>> transitions);
+        ReadOnlySpan<TransitionInMemory<TState>> Sample();
+
+        ReadOnlySpan<TransitionInMemory<TState>> Sample(int batchSize);
     }
+
     public interface IStorableMemory
     {
         void Save(string pathToFile);
         void Load(string pathToFile);
     }
 
-
     public interface IPERMemory<TState> : IMemory<TState>
     {
-        // Overrides the Push method to add a priority.
-        void Push(Transition<TState> transition, float priority);
-
-        // Add an Update method specific to PER for updating priorities.
-        void Update(long experienceId, float newPriority);
+        void Push(TransitionInMemory<TState> transition, float priority);
+        void Push(IEnumerable<TransitionInMemory<TState>> transitions, IEnumerable<float> priorities);
+        void Update(int experienceId, float newPriority);
     }
+
     public interface IEpisodicMemory<TState> : IMemory<TState>
     {
-        void Push(List<Transition<TState>> episode);
-        public void ClearMemory();
+        void Push(List<TransitionInMemory<TState>> episode);
+        void ClearMemory();
     }
+
     public interface IBatchMemory<TState> : IMemory<TState>
     {
-        void PushBatch(List<Transition<TState>> transitions);
+        void PushBatch(ReadOnlySpan<TransitionInMemory<TState>> transitions);
     }
-
-
-
 }

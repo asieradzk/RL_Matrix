@@ -13,29 +13,26 @@ namespace RLMatrix
         private readonly Module<Tensor, Tensor> valueHead;
         private readonly ModuleList<Module<Tensor, Tensor>> advantageHeads = new ModuleList<Module<Tensor, Tensor>>();
 
-        public DuelingDQN(string name, int obsSize, int width, int[] actionSizes, int depth = 4) : base(name)
+        public DuelingDQN(string name, int obsSize, int width, int[] actionSizes, int depth = 4, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
         {
+
             if (obsSize < 1)
             {
                 throw new ArgumentException("Number of observations can't be less than 1");
             }
 
-            // Shared layers configuration
-            sharedModules.Add(Linear(obsSize, width)); // First shared layer
+            sharedModules.Add(noisyLayers ? new NoisyLinear(obsSize, width, std_init: noiseScale) : Linear(obsSize, width));
             for (int i = 1; i < depth; i++)
             {
-                sharedModules.Add(Linear(width, width)); // Additional shared layers
+                sharedModules.Add(noisyLayers ? new NoisyLinear(width, width, std_init: noiseScale) : Linear(width, width));
             }
 
-            // Separate value stream (only one head because state value doesn't depend on action)
-            valueHead = Linear(width, 1);
-            // Separate advantage streams (multiple heads for different action sizes)
+            valueHead = noisyLayers ? new NoisyLinear(width, 1, std_init: noiseScale) : Linear(width, 1);
             foreach (var actionSize in actionSizes)
             {
-                advantageHeads.Add(Linear(width, actionSize));
+                advantageHeads.Add(noisyLayers ? new NoisyLinear(width, actionSize, std_init: noiseScale) : Linear(width, actionSize));
             }
 
-            // Register the modules for the network
             RegisterComponents();
         }
 
@@ -43,43 +40,34 @@ namespace RLMatrix
         {
             if (x.dim() == 1)
             {
-                x = x.unsqueeze(0); // Ensure input is at least 2D, now [batch_size, feature_size]
+                x = x.unsqueeze(0);
             }
 
-            // Forward through shared layers
             foreach (var module in sharedModules)
             {
-                x = functional.relu(module.forward(x)); // After this, shape should still be [batch_size, feature_size]
+                x = functional.relu(module.forward(x));
             }
 
-            // Forward through value stream
-            var value = valueHead.forward(x).unsqueeze(1); // This should make shape [batch_size, 1, 1] to prepare for broadcasting
+            var value = valueHead.forward(x).unsqueeze(1);
 
-            // Forward through each advantage stream (head)
             var advantageList = new List<Tensor>();
             foreach (var head in advantageHeads)
             {
-                var advantage = head.forward(x); // Expected shape [batch_size, actionSize]
-                                               
-                advantage = advantage.unsqueeze(1); 
+                var advantage = head.forward(x);
+                advantage = advantage.unsqueeze(1);
                 advantageList.Add(advantage);
             }
 
-            // Combine value and advantages to get Q values for each head/action size
             var qValuesList = new List<Tensor>();
             foreach (var advantage in advantageList)
             {
-                // Broadcast value across advantage's actions, should align shapes
-                var qValues = value + (advantage - advantage.mean(dimensions: new long[] { 2 }, keepdim: true)); // Subtract mean along the correct dimension
-                qValuesList.Add(qValues.squeeze(1)); // Remove the extra dimension to get [batch_size, actionSize] before stacking
+                var qValues = value + (advantage - advantage.mean(dimensions: new long[] { 2 }, keepdim: true));
+                qValuesList.Add(qValues.squeeze(1));
             }
 
-        
             var finalOutput = torch.stack(qValuesList, dim: 1);
-            return finalOutput; // Expected final shape [batch_size, num_heads, actionSize]
+            return finalOutput;
         }
-
-
 
         protected override void Dispose(bool disposing)
         {
@@ -100,7 +88,6 @@ namespace RLMatrix
         }
     }
 
-
     public sealed class DuelingDQN2D : DQNNET
     {
         private readonly Module<Tensor, Tensor> conv1, flatten;
@@ -110,7 +97,7 @@ namespace RLMatrix
         private readonly int width;
         private long linear_input_size;
 
-        public DuelingDQN2D(string name, long h, long w, int[] actionSizes, int width, int depth = 3) : base(name)
+        public DuelingDQN2D(string name, long h, long w, int[] actionSizes, int width, int depth = 3, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
         {
             if (depth < 1) throw new ArgumentOutOfRangeException("Depth must be 1 or greater.");
             this.width = width;
@@ -123,22 +110,18 @@ namespace RLMatrix
             linear_input_size = output_height * output_width * width;
             flatten = Flatten();
 
-            // First FC layer (always present)
-            sharedModules.Add(Linear(linear_input_size, width));
+            sharedModules.Add(noisyLayers ? new NoisyLinear(linear_input_size, width, std_init: noiseScale) : Linear(linear_input_size, width));
 
-            // Additional depth-1 FC layers
             for (int i = 1; i < depth; i++)
             {
-                sharedModules.Add(Linear(width, width));
+                sharedModules.Add(noisyLayers ? new NoisyLinear(width, width, std_init: noiseScale) : Linear(width, width));
             }
 
-            // Separate value stream (only one head because state value doesn't depend on action)
-            valueHead = Linear(width, 1);
+            valueHead = noisyLayers ? new NoisyLinear(width, 1, std_init: noiseScale) : Linear(width, 1);
 
-            // Separate advantage streams (multiple heads for different action sizes)
             foreach (var actionSize in actionSizes)
             {
-                advantageHeads.Add(Linear(width, actionSize));
+                advantageHeads.Add(noisyLayers ? new NoisyLinear(width, actionSize, std_init: noiseScale) : Linear(width, actionSize));
             }
 
             RegisterComponents();
@@ -163,10 +146,8 @@ namespace RLMatrix
                 x = functional.relu(module.forward(x));
             }
 
-            // Forward through value stream
             var value = valueHead.forward(x).unsqueeze(1);
 
-            // Forward through each advantage stream (head)
             var advantageList = new List<Tensor>();
             foreach (var head in advantageHeads)
             {
@@ -174,7 +155,6 @@ namespace RLMatrix
                 advantageList.Add(advantage);
             }
 
-            // Combine value and advantages to get Q values for each head/action size
             var qValuesList = new List<Tensor>();
             foreach (var advantage in advantageList)
             {
@@ -182,9 +162,8 @@ namespace RLMatrix
                 qValuesList.Add(qValues.squeeze(1));
             }
 
-            // Stack along a new dimension for the heads
             var finalOutput = torch.stack(qValuesList, dim: 1);
-            return finalOutput; // Expected final shape [batch_size, num_heads, actionSize]
+            return finalOutput;
         }
 
         protected override void Dispose(bool disposing)

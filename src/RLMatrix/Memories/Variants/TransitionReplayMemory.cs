@@ -6,21 +6,29 @@ using RLMatrix.Memories;
 
 namespace RLMatrix
 {
+    /// <summary>
+    /// The TransitionInMemoryReplayMemory class represents the memory of the agent in reinforcement learning.
+    /// It is used to store and retrieve past experiences (TransitionInMemorys) for algorithms like PPO that require complete episodes.
+    /// </summary>
     public class TransitionReplayMemory<TState> : IMemory<TState>, IStorableMemory
     {
         private readonly int capacity;
         private readonly int batchSize;
-        public List<Transition<TState>> memory;
+        private TransitionInMemory<TState>[] memory;
+        private int count;
+        private int currentIndex;
         private readonly Random random = new Random();
-        public int myCount => memory.Count;
-
-        public int Length => myCount;
 
         /// <summary>
-        /// Initializes a new instance of the DQNReplayMemory class.
+        /// Gets the number of TransitionInMemorys currently stored in the memory.
         /// </summary>
-        /// <param name="capacity">The maximum number of transitions the memory can hold.</param>
-        /// <param name="batchSize">The number of transitions to be returned when sampling.</param>
+        public int Length => count;
+
+        /// <summary>
+        /// Initializes a new instance of the TransitionInMemoryReplayMemory class.
+        /// </summary>
+        /// <param name="capacity">The maximum number of TransitionInMemorys the memory can hold.</param>
+        /// <param name="batchSize">The number of TransitionInMemorys to be returned when sampling.</param>
         public TransitionReplayMemory(int capacity, int batchSize)
         {
             if (typeof(TState) != typeof(float[]) && typeof(TState) != typeof(float[,]))
@@ -30,64 +38,78 @@ namespace RLMatrix
 
             this.capacity = capacity;
             this.batchSize = batchSize;
-            memory = new List<Transition<TState>>(capacity);
+            memory = new TransitionInMemory<TState>[capacity];
+            count = 0;
+            currentIndex = 0;
         }
 
         /// <summary>
-        /// Adds a new transition to the memory. 
-        /// If the memory capacity is reached, the oldest transition is removed.
+        /// Adds a new TransitionInMemory to the memory.
+        /// If the memory capacity is reached, the oldest TransitionInMemory is removed.
         /// </summary>
-        /// <param name="transition">The transition to be added.</param>
-        public void Push(Transition<TState> transition)
+        /// <param name="TransitionInMemory">The TransitionInMemory to be added.</param>
+        public void Push(TransitionInMemory<TState> TransitionInMemory)
         {
-            if (memory.Count >= capacity)
+            memory[currentIndex] = TransitionInMemory;
+            currentIndex = (currentIndex + 1) % capacity;
+
+            if (count < capacity)
             {
-                memory.RemoveAt(0); // Remove oldest if capacity is reached
+                count++;
             }
-
-            memory.Add(transition);
         }
 
         /// <summary>
-        /// Samples a batch of transitions randomly from the memory.
+        /// Samples a batch of TransitionInMemorys randomly from the memory.
         /// </summary>
-        /// <returns>A list of randomly sampled transitions.</returns>
-        public List<Transition<TState>> Sample()
+        /// <returns>A span of randomly sampled TransitionInMemorys.</returns>
+        public ReadOnlySpan<TransitionInMemory<TState>> Sample()
         {
-            if (batchSize > memory.Count)
+            if (batchSize > count)
             {
                 throw new InvalidOperationException("Batch size cannot be greater than current memory size.");
             }
 
-            return Enumerable.Range(0, batchSize)
-                             .Select(_ => memory[random.Next(memory.Count)])
-                             .ToList();
-        }
-        public List<Transition<TState>> Sample(int sampleSize)
-        {
-            if (sampleSize > memory.Count)
-            {
-                throw new InvalidOperationException("Batch size cannot be greater than current memory size.");
-            }
+            var indices = Enumerable.Range(0, count)
+                                    .OrderBy(x => random.Next())
+                                    .Take(batchSize)
+                                    .ToArray();
 
-            return Enumerable.Range(0, sampleSize)
-                             .Select(_ => memory[random.Next(memory.Count)])
-                             .ToList();
+            return new ReadOnlySpan<TransitionInMemory<TState>>(indices.Select(i => memory[i]).ToArray());
         }
 
         /// <summary>
-        /// Serializes the DQNReplayMemory and saves it to a file.
+        /// Samples a specified number of TransitionInMemorys randomly from the memory.
+        /// </summary>
+        /// <param name="sampleSize">The number of TransitionInMemorys to sample.</param>
+        /// <returns>A span of randomly sampled TransitionInMemorys.</returns>
+        public ReadOnlySpan<TransitionInMemory<TState>> Sample(int sampleSize)
+        {
+            if (sampleSize > count)
+            {
+                throw new InvalidOperationException("Sample size cannot be greater than current memory size.");
+            }
+
+            var indices = Enumerable.Range(0, count)
+                                    .OrderBy(x => random.Next())
+                                    .Take(sampleSize)
+                                    .ToArray();
+
+            return new ReadOnlySpan<TransitionInMemory<TState>>(indices.Select(i => memory[i]).ToArray());
+        }
+
+        /// <summary>
+        /// Serializes the TransitionInMemoryReplayMemory and saves it to a file.
         /// </summary>
         /// <param name="pathToFile">The path where to save the serialized memory.</param>
         public void Save(string pathToFile)
         {
             using var fs = new FileStream(pathToFile, FileMode.Create);
-            var bf = new BinaryFormatter();
-            bf.Serialize(fs, memory);
+            throw new NotImplementedException();
         }
 
         /// <summary>
-        /// Loads DQNReplayMemory from a file and deserializes it.
+        /// Loads TransitionInMemoryReplayMemory from a file and deserializes it.
         /// </summary>
         /// <param name="pathToFile">The path from where to load the serialized memory.</param>
         public void Load(string pathToFile)
@@ -96,8 +118,22 @@ namespace RLMatrix
                 throw new FileNotFoundException($"File {pathToFile} does not exist.");
 
             using var fs = new FileStream(pathToFile, FileMode.Open);
-            var bf = new BinaryFormatter();
-            memory = (List<Transition<TState>>)bf.Deserialize(fs);
+            throw new NotImplementedException();
+        }
+
+        public int FindTransitionInMemoryIndex(TState state)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ref TransitionInMemory<TState> GetTransitionInMemory(int index)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Push(IEnumerable<TransitionInMemory<TState>> TransitionInMemorys)
+        {
+            throw new NotImplementedException();
         }
     }
 }

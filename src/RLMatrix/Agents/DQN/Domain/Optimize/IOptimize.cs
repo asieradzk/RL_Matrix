@@ -13,7 +13,7 @@ namespace RLMatrix.Agents.DQN.Domain
 {
     public interface IComputeQValues
     {
-        Tensor ComputeQValues(Tensor states, Module<Tensor, Tensor> policyNet, int[] ActionSizes, int numAtoms);
+        Tensor ComputeQValues(Tensor states, Module<Tensor, Tensor> policyNet);
     }
 
     public interface IExtractStateActionValues

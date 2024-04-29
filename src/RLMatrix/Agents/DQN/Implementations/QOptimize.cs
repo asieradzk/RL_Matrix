@@ -22,7 +22,6 @@ namespace RLMatrix.Agents.DQN.Domain
         public DQNAgentOptions myOptions;
         public Device myDevice;
         public int[] ActionSizes;
-        int NumAtoms;
 
         public QOptimize(
          Module<Tensor, Tensor> policyNet,
@@ -36,7 +35,6 @@ namespace RLMatrix.Agents.DQN.Domain
          DQNAgentOptions options,
          Device device,
          int[] actionSizes,
-         int numAtoms,
          LRScheduler lrScheduler = null,
          IGAIL<T> GAIL = null)
         {
@@ -54,8 +52,6 @@ namespace RLMatrix.Agents.DQN.Domain
             lrScheduler ??= new optim.lr_scheduler.impl.CyclicLR(Optimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
             LRScheduler = lrScheduler;
             myGAIL = GAIL;
-            NumAtoms = numAtoms;
-
 
         }
         public void Optimize(IMemory<T> ReplayBuffer)
@@ -75,7 +71,7 @@ namespace RLMatrix.Agents.DQN.Domain
                 myGAIL.OptimiseDiscriminator(ReplayBuffer);
                 rewardBatch = myGAIL.AugmentRewardBatch(stateBatch, actionBatch, rewardBatch);
             }
-            Tensor qValuesAllHeads = QValuesCalculator.ComputeQValues(stateBatch, PolicyNet, ActionSizes, NumAtoms);
+            Tensor qValuesAllHeads = QValuesCalculator.ComputeQValues(stateBatch, PolicyNet);
             Tensor stateActionValues = StateActionValueExtractor.ExtractStateActionValues(qValuesAllHeads, actionBatch);
             Tensor nextStateValues = NextStateValuesCalculator.ComputeNextStateValues(nonFinalNextStates, TargetNet, PolicyNet, myOptions, ActionSizes, myDevice);
             Tensor expectedStateActionValues = ExpectedStateActionValuesCalculator.ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, myOptions, ref transitions, ActionSizes, myDevice);

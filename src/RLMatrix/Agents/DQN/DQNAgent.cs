@@ -251,9 +251,6 @@ namespace RLMatrix
                     else
                     {
                         nextStateValues = myTargetNet.forward(nonFinalNextStates).max(2).values; // [batchSize, numHeads]
-                        Console.WriteLine("Old:_________");
-                        nonFinalNextStates.print();
-                        Console.WriteLine("_________");
                     }
                 }
                 else

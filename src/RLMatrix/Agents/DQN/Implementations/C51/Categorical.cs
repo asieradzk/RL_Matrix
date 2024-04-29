@@ -12,7 +12,17 @@ namespace RLMatrix.Agents.DQN.Implementations.C51
 {
     public class CategoricalComputeQValues : IComputeQValues
     {
-        public Tensor ComputeQValues(Tensor stateBatch, Module<Tensor, Tensor> policyNet, int[] ActionSizes, int numAtoms)
+        int[] ActionSizes;
+        int numAtoms;
+
+        public CategoricalComputeQValues(int[] ActionSizes, int numAtoms)
+        {
+            this.ActionSizes = ActionSizes;
+            this.numAtoms = numAtoms;
+        }
+
+
+        public Tensor ComputeQValues(Tensor stateBatch, Module<Tensor, Tensor> policyNet)
         {
             var result = policyNet.forward(stateBatch);
             return result.view(stateBatch.shape[0], ActionSizes.Length, ActionSizes[0], numAtoms); // Shape: [batch_size, num_heads, num_actions, num_atoms]
@@ -38,6 +48,7 @@ namespace RLMatrix.Agents.DQN.Implementations.C51
 
     public class CategoricalComputeExpectedStateActionValues<T> : IComputeExpectedStateActionValues<T>
     {
+        BaseComputeNStepReturns<T> computeNStepReturns = new BaseComputeNStepReturns<T>();
         private readonly float _vMin;
         private readonly float _vMax;
         private readonly int _numAtoms;
@@ -45,43 +56,43 @@ namespace RLMatrix.Agents.DQN.Implementations.C51
         private readonly Tensor _support;
         Device myDevice;
 
-        public CategoricalComputeExpectedStateActionValues(float vMin, float vMax, int numAtoms, Device device)
+        public CategoricalComputeExpectedStateActionValues(float vMin, float vMax, int numAtoms, Device device, Tensor support)
         {
             _vMin = vMin;
             _vMax = vMax;
             _numAtoms = numAtoms;
             _deltaZ = (_vMax - _vMin) / (_numAtoms - 1);
-            _support = torch.linspace(_vMin, _vMax, steps: _numAtoms).to(device);
+            _support = support;
             myDevice = device;
         }
-        protected override Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, int nSteps, ref ReadOnlySpan<TransitionInMemory<T>> transitions)
+        public Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, DQNAgentOptions opts, ref ReadOnlySpan<TransitionInMemory<T>> transitions, int[] ActionCount, Device device)
         {
-            Tensor maskedDist = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count(), _numAtoms }).to(myDevice); // [batch_size, num_heads, num_atoms]
+            Tensor maskedDist = zeros(new long[] { opts.BatchSize, ActionCount.Count(), _numAtoms }).to(myDevice); // [batch_size, num_heads, num_atoms]
 
             if (nonFinalMask.sum().item<long>() > 0)
             {
                 Tensor nStepRewardBatch;
-                if (nSteps > 1)
+                if (opts.NStepReturn > 1)
                 {
 
-                    nStepRewardBatch = CalculateNStepReturns(ref transitions, nSteps, myOptions.GAMMA)[nonFinalMask];
+                    nStepRewardBatch = computeNStepReturns.ComputeNStepReturns(ref transitions, opts, device)[nonFinalMask];
                 }
                 else
                 {
                     nStepRewardBatch = rewardBatch[nonFinalMask];
                 }
-                Tensor projectedDist = ProjectDistribution(nextStateValues, nStepRewardBatch); // [batch_size_non_final, num_heads, num_atoms]
+                Tensor projectedDist = ProjectDistribution(nextStateValues, nStepRewardBatch, opts); // [batch_size_non_final, num_heads, num_atoms]
                 maskedDist.index_copy_(0, nonFinalMask.nonzero().squeeze(), projectedDist); // [batch_size, num_heads, num_atoms]
             }
 
             Tensor terminalMask = nonFinalMask.logical_not();
             Tensor terminalRewards = rewardBatch[terminalMask].unsqueeze(-1).unsqueeze(-1);
-            Tensor terminalDist = zeros(new long[] { terminalMask.sum().item<long>(), myEnvironments[0].actionSize.Count(), _numAtoms }).to(myDevice);
+            Tensor terminalDist = zeros(new long[] { terminalMask.sum().item<long>(), ActionCount.Count(), _numAtoms }).to(myDevice);
 
             Tensor atomIndices = ((terminalRewards - _vMin) / _deltaZ).round().to(torch.int64).clamp(0, _numAtoms - 1).to(myDevice);
             Tensor scatterSource = ones_like(terminalDist).to(terminalDist.dtype);
 
-            terminalDist.scatter_(2, atomIndices.expand(-1, myEnvironments[0].actionSize.Count(), -1).to(myDevice), scatterSource);
+            terminalDist.scatter_(2, atomIndices.expand(-1, ActionCount.Count(), -1).to(myDevice), scatterSource);
 
             if (terminalMask.sum().item<long>() > 0)
             {
@@ -90,12 +101,12 @@ namespace RLMatrix.Agents.DQN.Implementations.C51
 
             return maskedDist;
         }
-        private Tensor ProjectDistribution(Tensor distribution, Tensor rewards)
+        private Tensor ProjectDistribution(Tensor distribution, Tensor rewards, DQNAgentOptions opts)
         {
             Tensor projected = zeros_like(distribution); // [batch_size_non_final, num_heads, num_atoms]
             Tensor zValues = arange(_vMin, _vMax + _deltaZ, _deltaZ).to(myDevice); // [num_atoms]
 
-            Tensor zTilde = (rewards.view(-1, 1, 1) + myOptions.GAMMA * zValues.view(1, 1, -1)).clamp(_vMin, _vMax); // [batch_size_non_final, 1, num_atoms]
+            Tensor zTilde = (rewards.view(-1, 1, 1) + opts.GAMMA * zValues.view(1, 1, -1)).clamp(_vMin, _vMax); // [batch_size_non_final, 1, num_atoms]
             Tensor bj = (zTilde - _vMin) / _deltaZ; // [batch_size_non_final, 1, num_atoms]
             Tensor lj = bj.floor(); // [batch_size_non_final, 1, num_atoms]
             Tensor uj = bj.ceil(); // [batch_size_non_final, 1, num_atoms]
@@ -117,13 +128,57 @@ namespace RLMatrix.Agents.DQN.Implementations.C51
 
     }
 
+        public class C51ComputeNextStateValues : IComputeNextStateValues
+        {
+            private readonly int _numAtoms;
+
+            public C51ComputeNextStateValues(int numAtoms)
+            {
+                _numAtoms = numAtoms;
+            }
+
+            public Tensor ComputeNextStateValues(Tensor nonFinalNextStates, Module<Tensor, Tensor> targetNet, Module<Tensor, Tensor> policyNet, DQNAgentOptions opts, int[] ActionSize, Device device)
+            {
+                Tensor nextStateDistributions;
+
+                using (no_grad())
+                {
+                    if (nonFinalNextStates.shape[0] > 0)
+                    {
+                        if (opts.DoubleDQN)
+                        {
+                        // Using policyNet to select the best action for each next state based on current policy
+                        Tensor nextActions = policyNet.forward(nonFinalNextStates).max(1, keepdim: true).indexes;
+
+                        // Evaluating the selected actions' Q-value distributions using targetNet
+                        Tensor allNextStateDistributions = targetNet.forward(nonFinalNextStates);
+                        nextStateDistributions = allNextStateDistributions.gather(1, nextActions).squeeze(-1);
+                    }
+                        else
+                        {
+                            // Compute the Q-value distributions for all actions in the next states using targetNet
+                            nextStateDistributions = targetNet.forward(nonFinalNextStates);
+
+                            // Select the Q-value distributions corresponding to the actions with the highest mean Q-value
+                            nextStateDistributions = nextStateDistributions.max(2).values;
+                        }
+                    }
+                    else
+                    {
+                        nextStateDistributions = zeros(new long[] { opts.BatchSize, _numAtoms }, device: device);
+                    }
+                }
+
+                return nextStateDistributions;
+            }
+        }
+
     public class CategoricalComputeLoss : IComputeLoss
     {
         public Tensor ComputeLoss(Tensor stateActionDistributions, Tensor targetDistributions)
         {
             var criterion = torch.nn.KLDivLoss(false, reduction: nn.Reduction.None);
             var loss = criterion.forward(stateActionDistributions.log(), targetDistributions).mean(new long[] { 0, -1 }).sum();
-            loss.print();
             return loss;
         }
     }

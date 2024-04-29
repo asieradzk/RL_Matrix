@@ -9,7 +9,7 @@ namespace RLMatrix
 {
     public class BaseComputeQValues : IComputeQValues
     {
-        public Tensor ComputeQValues(Tensor states, Module<Tensor, Tensor> policyNet, int[] ActionSizes, int numAtoms)
+        public Tensor ComputeQValues(Tensor states, Module<Tensor, Tensor> policyNet)
         {
             var res = policyNet.forward(states);
             return res;
@@ -90,6 +90,8 @@ namespace RLMatrix
 
     public class BaseComputeExpectedStateActionValues<T> : IComputeExpectedStateActionValues<T>
     {
+        BaseComputeNStepReturns<T> computeNStepReturns = new BaseComputeNStepReturns<T>();
+
         public Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, DQNAgentOptions opts, ref ReadOnlySpan<TransitionInMemory<T>> transitions, int[] ActionCount, Device device)
         {
             Tensor maskedNextStateValues = zeros(new long[] { opts.BatchSize, ActionCount.Length }, device: device);
@@ -102,7 +104,6 @@ namespace RLMatrix
             else
             {
                 // Compute n-step returns
-                var computeNStepReturns = new BaseComputeNStepReturns<T>();
                 Tensor nStepRewards = computeNStepReturns.ComputeNStepReturns(ref transitions, opts, device);
 
                 return (maskedNextStateValues * Math.Pow(opts.GAMMA, opts.NStepReturn)) + nStepRewards.unsqueeze(1);

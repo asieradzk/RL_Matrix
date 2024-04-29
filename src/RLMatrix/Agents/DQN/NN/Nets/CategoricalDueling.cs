@@ -15,8 +15,10 @@ namespace RLMatrix
         private readonly int _numAtoms;
         private readonly int[] _actionSizes;
 
-        public CategoricalDuelingDQN1D(string name, int obsSize, int width, int[] actionSizes, int depth, int numAtoms, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
+        public CategoricalDuelingDQN1D(string name, int obsSize, int width, int[] actionSizes, int depth, int numAtoms, bool noisyLayers = false, float noiseScale = 0.01f) : base(name)
         {
+            noiseScale = noiseScale * 0.01f;
+
             if (obsSize < 1)
             {
                 throw new ArgumentException("Number of observations can't be less than 1");
@@ -114,8 +116,10 @@ namespace RLMatrix
         private readonly int _numAtoms;
         private readonly int[] _actionSizes;
 
-        public CategoricalDuelingDQN2D(string name, long h, long w, int[] actionSizes, int width, int depth, int numAtoms, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
+        public CategoricalDuelingDQN2D(string name, long h, long w, int[] actionSizes, int width, int depth, int numAtoms, bool noisyLayers = false, float noiseScale = 0.01f) : base(name)
         {
+            noiseScale = noiseScale * 0.01f;
+
             if (depth < 1) throw new ArgumentOutOfRangeException("Depth must be 1 or greater.");
             _width = width;
             _numAtoms = numAtoms;

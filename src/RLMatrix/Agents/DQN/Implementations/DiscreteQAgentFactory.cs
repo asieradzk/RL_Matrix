@@ -23,24 +23,26 @@ namespace RLMatrix
 
             //Pattern matching logic here
             IComputeQValues qValuesCalculator = options.CategoricalDQN
-                ? new CategoricalComputeQValues()
+                ? new CategoricalComputeQValues(ActionSizes, options.NumAtoms)
                 : new BaseComputeQValues();
 
             IExtractStateActionValues qValuesExtractor = options.CategoricalDQN
                 ? new CategoricalExtractStateActionValues(options.NumAtoms)
                 : new BaseExtractStateActionValues();
 
-            IComputeNextStateValues nextStateValueCalculator = new BaseComputeNextStateValues();
+            IComputeNextStateValues nextStateValueCalculator = options.CategoricalDQN
+                ? new C51ComputeNextStateValues(options.NumAtoms)
+                : new BaseComputeNextStateValues();
 
             IComputeExpectedStateActionValues<T> expectedStateActionValuesCalculator = options.CategoricalDQN
-                ? new CategoricalComputeExpectedStateActionValues<T>(options.VMin, options.VMax, options.NumAtoms, device)
+                ? new CategoricalComputeExpectedStateActionValues<T>(options.VMin, options.VMax, options.NumAtoms, device, support: GetSupport(options.NumAtoms, options.VMin, options.VMax, device)) //TODO: a bit weird, should I just pass options?
                 : new BaseComputeExpectedStateActionValues<T>();
 
             IComputeLoss lossCalculator = options.CategoricalDQN
                 ? new CategoricalComputeLoss()
                 : new BaseComputeLoss();
 
-            var Optimizer = new QOptimize<T>(policyNet, targetNet, optimizer, qValuesCalculator, qValuesExtractor, nextStateValueCalculator, expectedStateActionValuesCalculator, lossCalculator, options, device, ActionSizes, options.NumAtoms, lrScheduler);
+            var Optimizer = new QOptimize<T>(policyNet, targetNet, optimizer, qValuesCalculator, qValuesExtractor, nextStateValueCalculator, expectedStateActionValuesCalculator, lossCalculator, options, device, ActionSizes, lrScheduler);
             
             List<NoisyLinear> noisyLayers = new();
             if (options.NoisyLayers)

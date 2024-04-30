@@ -34,7 +34,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Agents\DQN\Implementations\PER\" />
     <Folder Include="Rollout\" />
   </ItemGroup>
 

@@ -76,7 +76,7 @@ namespace RLMatrix
 
         public DQNNET CreateCriticNet(IEnvironment<T> env, bool noisyLayers = false, float noiseScale = 0, int numAtoms = 51)
         {
-            throw new NotImplementedException();
+            return CreateCriticNet(env);
         }
 
         public DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0, int numAtoms = 51)

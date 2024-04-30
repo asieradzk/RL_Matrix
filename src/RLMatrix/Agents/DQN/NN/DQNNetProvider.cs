@@ -64,7 +64,7 @@ namespace RLMatrix
                     {
                         NetworkType.vanilla => new DQN1D("1DDQN", obsSize, neuronsPerLayer, actionSize, depth, noisyLayers, noiseScale),
                         NetworkType.dueling => new DuelingDQN("1DDuelingDQN", obsSize, neuronsPerLayer, actionSize, depth, noisyLayers, noiseScale),
-                        //NetworkType.categorical => new CategoricalDQN1D("1DCategoricalDQN", obsSize, neuronsPerLayer, actionSize, depth, noisyLayers, noiseScale),
+                        NetworkType.categorical => new CategoricalDQN1D("1DCategoricalDQN", obsSize, neuronsPerLayer, actionSize, depth, numAtoms, noisyLayers, noiseScale),
                         NetworkType.categoricalDueling => new CategoricalDuelingDQN1D("1DCategoricalDuelingDQN", obsSize, neuronsPerLayer, actionSize, depth, numAtoms, noisyLayers, noiseScale),
                         _ => throw new ArgumentOutOfRangeException(nameof(myNetworkTYpe), myNetworkTYpe, null)
                     };
@@ -77,7 +77,7 @@ namespace RLMatrix
                     {
                         NetworkType.vanilla => new DQN2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, noisyLayers, noiseScale),
                         NetworkType.dueling => new DuelingDQN2D("2DDuelingDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, noisyLayers, noiseScale),
-                     //   NetworkType.categorical => new CategoricalDQN2D("2DCategoricalDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, noisyLayers, noiseScale),
+                        NetworkType.categorical => new CategoricalDQN2D("2DCategoricalDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, numAtoms, noisyLayers, noiseScale),
                         NetworkType.categoricalDueling => new CategoricalDuelingDQN2D("2DCategoricalDuelingDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, numAtoms, noisyLayers, noiseScale),
                         _ => throw new ArgumentOutOfRangeException(nameof(myNetworkTYpe), myNetworkTYpe, null)
                     };

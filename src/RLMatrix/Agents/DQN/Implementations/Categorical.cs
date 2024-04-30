@@ -128,50 +128,55 @@ namespace RLMatrix.Agents.DQN.Implementations.C51
 
     }
 
-        public class C51ComputeNextStateValues : IComputeNextStateValues
+    public class C51ComputeNextStateValues : IComputeNextStateValues
+    {
+        private readonly int _numAtoms;
+
+        public C51ComputeNextStateValues(int numAtoms)
         {
-            private readonly int _numAtoms;
+            _numAtoms = numAtoms;
+        }
 
-            public C51ComputeNextStateValues(int numAtoms)
+        public Tensor ComputeNextStateValues(Tensor nonFinalNextStates, Module<Tensor, Tensor> targetNet, Module<Tensor, Tensor> policyNet, DQNAgentOptions opts, int[] ActionSize, Device device)
+        {
+            Tensor nextStateDistributions;
+
+            using (no_grad())
             {
-                _numAtoms = numAtoms;
-            }
-
-            public Tensor ComputeNextStateValues(Tensor nonFinalNextStates, Module<Tensor, Tensor> targetNet, Module<Tensor, Tensor> policyNet, DQNAgentOptions opts, int[] ActionSize, Device device)
-            {
-                Tensor nextStateDistributions;
-
-                using (no_grad())
+                if (nonFinalNextStates.shape[0] > 0)
                 {
-                    if (nonFinalNextStates.shape[0] > 0)
+                    if (opts.DoubleDQN)
                     {
-                        if (opts.DoubleDQN)
-                        {
                         // Using policyNet to select the best action for each next state based on current policy
-                        Tensor nextActions = policyNet.forward(nonFinalNextStates).max(1, keepdim: true).indexes;
+                        Tensor policyDistributions = policyNet.forward(nonFinalNextStates);
+                        Tensor meanQValues = policyDistributions.mean(new long[] { 3}); // Average across atoms
+                        Tensor nextActions = meanQValues.max(2, keepdim: true).indexes; // Select best action for each head
 
                         // Evaluating the selected actions' Q-value distributions using targetNet
                         Tensor allNextStateDistributions = targetNet.forward(nonFinalNextStates);
-                        nextStateDistributions = allNextStateDistributions.gather(1, nextActions).squeeze(-1);
-                    }
-                        else
-                        {
-                            // Compute the Q-value distributions for all actions in the next states using targetNet
-                            nextStateDistributions = targetNet.forward(nonFinalNextStates);
 
-                            // Select the Q-value distributions corresponding to the actions with the highest mean Q-value
-                            nextStateDistributions = nextStateDistributions.max(2).values;
-                        }
+                        // Gather the distributions corresponding to the selected actions
+                        nextStateDistributions = allNextStateDistributions.gather(2, nextActions.unsqueeze(3).expand(-1, -1, -1, _numAtoms)).squeeze(2);
                     }
                     else
                     {
-                        nextStateDistributions = zeros(new long[] { opts.BatchSize, _numAtoms }, device: device);
+                        // Compute the Q-value distributions for all actions in the next states using targetNet
+                        nextStateDistributions = targetNet.forward(nonFinalNextStates);
+
+                        // Select the Q-value distributions corresponding to the actions with the highest mean Q-value
+                        nextStateDistributions = nextStateDistributions.max(2).values;
                     }
                 }
-
-                return nextStateDistributions;
+                else
+                {
+                    nextStateDistributions = zeros(new long[] { opts.BatchSize, _numAtoms }, device: device);
+                }
             }
+
+            return nextStateDistributions;
         }
+    }
+
 
     public class CategoricalComputeLoss : IComputeLoss
     {

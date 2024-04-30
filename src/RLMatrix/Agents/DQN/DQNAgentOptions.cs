@@ -76,12 +76,8 @@
 
         public float NoisyLayersScale;
 
-      
-
-
-
         /// <summary>
-        /// Determines whether the agent's progress (i.e., reward over time) should be plotted. Defaults to false.
+        /// Determines whether the agent's progress (i.e., reward over time) should be plotted. Defaults to null.
         /// </summary>
         public IRLChartService? DisplayPlot;
 

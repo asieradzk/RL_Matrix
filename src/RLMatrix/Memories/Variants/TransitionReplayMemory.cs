@@ -10,6 +10,8 @@ namespace RLMatrix
     /// The TransitionInMemoryReplayMemory class represents the memory of the agent in reinforcement learning.
     /// It is used to store and retrieve past experiences (TransitionInMemorys) for algorithms like PPO that require complete episodes.
     /// </summary>
+    /// 
+    //this is some leftover stuff from GAIL?
     public class TransitionReplayMemory<TState> : IMemory<TState>, IStorableMemory
     {
         private readonly int capacity;

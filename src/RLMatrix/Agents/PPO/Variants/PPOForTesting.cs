@@ -8,6 +8,7 @@ using static TorchSharp.torch;
 using TorchSharp;
 using TorchSharp.Modules;
 using RLMatrix.Memories;
+using RLMatrix.Agents.DQN.Domain;
 
 namespace RLMatrix.Agents.PPO.Variants
 {
@@ -143,7 +144,40 @@ namespace RLMatrix.Agents.PPO.Variants
             
         }
 
+        public static void CreateTensorsFromTransitions(ref Device device, ref ReadOnlySpan<TransitionInMemory<T>> transitions, out Tensor stateBatch, out Tensor discreteActionBatch, out Tensor continuousActionBatch, out Tensor rewardBatch, out Tensor doneBatch)
+        {
+            int length = transitions.Length;
+            var fixedDiscreteActionSize = transitions[0].discreteActions.Length;
+            var fixedContinuousActionSize = transitions[0].continuousActions.Length;
 
+            // Pre-allocate arrays based on the known batch size
+            float[] batchRewards = new float[length];
+            int[] flatDiscreteActions = new int[length * fixedDiscreteActionSize];
+            float[] flatContinuousActions = new float[length * fixedContinuousActionSize];
+            T[] batchStates = new T[length];
+            bool[] batchDone = new bool[length];
+
+            int flatDiscreteActionsIndex = 0;
+            int flatContinuousActionsIndex = 0;
+
+            for (int i = 0; i < length; i++)
+            {
+                var transition = transitions[i];
+                batchRewards[i] = transition.reward;
+                batchDone[i] = transition.nextState == null;
+                Array.Copy(transition.discreteActions, 0, flatDiscreteActions, flatDiscreteActionsIndex, fixedDiscreteActionSize);
+                flatDiscreteActionsIndex += fixedDiscreteActionSize;
+                Array.Copy(transition.continuousActions, 0, flatContinuousActions, flatContinuousActionsIndex, fixedContinuousActionSize);
+                flatContinuousActionsIndex += fixedContinuousActionSize;
+                batchStates[i] = transition.state;
+            }
+
+            stateBatch = QOptimizerUtils<T>.StateBatchToTensor(batchStates, device);
+            rewardBatch = torch.tensor(batchRewards, device: device);
+            doneBatch = torch.tensor(batchDone, device: device);
+            discreteActionBatch = torch.tensor(flatDiscreteActions, new long[] { length, fixedDiscreteActionSize }, torch.int64, device: device);
+            continuousActionBatch = torch.tensor(flatContinuousActions, new long[] { length, fixedContinuousActionSize }, device: device);
+        }
 
         public override void OptimizeModel()
         {

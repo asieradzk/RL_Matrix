@@ -1,4 +1,5 @@
-﻿using System;
+﻿using RLMatrix.Agents.DQN.Domain;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,11 +8,17 @@ using System.Threading.Tasks;
 
 namespace RLMatrix
 {
+    public interface IDiscreteRolloutAgent<TState>
+    {
+        Task Step(bool isTraining = true);
+    }
 
-    public class BaseRolloutAgent<TState>
+
+    public class BaseRolloutAgent<TState> : IDiscreteRolloutAgent<TState>
     {
         protected readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
         protected readonly Dictionary<Guid, Episode<TState>> _ennvGuidPairs;
+        //This can be a remote proxy instead for distributed training
         protected readonly IDiscreteProxy<TState> _agent;
         public DQNAgentOptions _options;
 
@@ -29,7 +36,7 @@ namespace RLMatrix
 
         protected IDiscreteProxy<TState> CreateAgent(DQNAgentOptions options, IEnvironmentAsync<TState> env)
         {
-            return new LocalDiscreteAgent<TState>(options, env.actionSize, env.stateSize);
+            return new LocalDiscreteQAgent<TState>(options, env.actionSize, env.stateSize);
         }
         List<double> chart = new();
         public async Task Step(bool isTraining = true)
@@ -115,9 +122,30 @@ namespace RLMatrix
         {
             return await _agent.SelectActionsBatchAsync(stateInfos);
         }
+        private TState DeepCopy(TState input)
+        {
+            if (input is float[] array1D)
+            {
+                return (TState)(object)array1D.ToArray(); // Create a new array with the same elements
+            }
+            else if (input is float[,] array2D)
+            {
+                int rows = array2D.GetLength(0);
+                int cols = array2D.GetLength(1);
+                var clone = new float[rows, cols];
+                Buffer.BlockCopy(array2D, 0, clone, 0, array2D.Length * sizeof(float));
+                return (TState)(object)clone;
+            }
+            else
+            {
+                throw new InvalidOperationException("This method can only be used with float[] or float[,].");
+            }
+        }
         private async Task<(Guid environmentId, TState state)> GetStateAsync(Guid environmentId, IEnvironmentAsync<TState> env)
         {
-            var state = await env.GetCurrentState();
+            //TODO: is there a way to ensure that env doesnt give a reference type?
+            //Maybe TState is not suitable this opens up a discussion. It could be a OneOf
+            var state = DeepCopy(await env.GetCurrentState());
             return (environmentId, state);
         }
 
@@ -142,7 +170,7 @@ namespace RLMatrix
                 {
                     nextGuid = Guid.NewGuid();
                 }
-                var transition = new TransitionPortable<T>((Guid)guidCache, DeepCopy(state), discreteACtions, null, reward, nextGuid);
+                var transition = new TransitionPortable<T>((Guid)guidCache, state, discreteACtions, null, reward, nextGuid);
                 TempBuffer.Add(transition);
                 cumulativeReward += reward;
                 guidCache = nextGuid;
@@ -153,31 +181,6 @@ namespace RLMatrix
                     TempBuffer.Clear();
                 }
 
-
-                T DeepCopy(T input)
-                {
-                    if (!typeof(T).IsArray)
-                    {
-                        throw new InvalidOperationException("This method can only be used with arrays!");
-                    }
-
-                    // Handle nulls
-                    if (ReferenceEquals(input, null))
-                    {
-                        return default(T);
-                    }
-
-                    var rank = ((Array)(object)input).Rank;
-                    var lengths = new int[rank];
-                    for (int i = 0; i < rank; ++i)
-                        lengths[i] = ((Array)(object)input).GetLength(i);
-
-                    var clone = Array.CreateInstance(typeof(T).GetElementType(), lengths);
-
-                    Array.Copy((Array)(object)input, clone, ((Array)(object)input).Length);
-
-                    return (T)(object)clone;
-                }
             }
         }
 

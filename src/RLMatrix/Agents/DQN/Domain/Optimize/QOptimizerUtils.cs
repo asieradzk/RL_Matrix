@@ -39,7 +39,6 @@ namespace RLMatrix.Agents.DQN.Domain
                 }
             }
 
-
             stateBatch = StateBatchToTensor(batchStates, device);
             nonFinalMask = torch.tensor(nonFinalMaskArray, device: device);
             rewardBatch = torch.tensor(batchRewards, device: device);
@@ -65,6 +64,42 @@ namespace RLMatrix.Agents.DQN.Domain
             }
         }
 
+        public static void PrintTState(T state)
+        {
+            switch (state)
+            {
+                case float[] stateArray:
+                    PrintFloatArrayState(stateArray);
+                    break;
+                case float[,] stateMatrix:
+                    PrintFloatMatrixState(stateMatrix);
+                    break;
+                default:
+                    throw new InvalidCastException("State must be either float[] or float[,]");
+            }
+             static void PrintFloatArrayState(float[] stateArray)
+            {
+                Console.WriteLine("Float Array State:");
+                Console.WriteLine(string.Join(", ", stateArray));
+            }
+
+             static void PrintFloatMatrixState(float[,] stateMatrix)
+            {
+                Console.WriteLine("Float Matrix State:");
+                int rows = stateMatrix.GetLength(0);
+                int cols = stateMatrix.GetLength(1);
+                for (int i = 0; i < rows; i++)
+                {
+                    for (int j = 0; j < cols; j++)
+                    {
+                        Console.Write(stateMatrix[i, j] + " ");
+                    }
+                    Console.WriteLine();
+                }
+            }
+        }
+
+ 
 
         /// <summary>
         /// Converts the state to a tensor representation for torchsharp. Only float[] and float[,] states are supported.
@@ -124,6 +159,7 @@ namespace RLMatrix.Agents.DQN.Domain
 
         public static Tensor HandleFloatMatrixStates(float[][,] states, Device device)
         {
+         
             int d1 = states[0].GetLength(0);
             int d2 = states[0].GetLength(1);
             float[] batchData = new float[states.Length * d1 * d2];
@@ -139,7 +175,8 @@ namespace RLMatrix.Agents.DQN.Domain
             }
 
             var batchShape = new long[] { states.Length, d1, d2 };
-            return torch.tensor(batchData, batchShape, device: device);
+            var result = torch.tensor(batchData, batchShape, device: device);
+            return result;
         }
 
 

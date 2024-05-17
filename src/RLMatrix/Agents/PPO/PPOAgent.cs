@@ -12,6 +12,7 @@ using OneOf;
 using RLMatrix.Memories;
 using System.Security;
 using System.Net.Http.Headers;
+using RLMatrix.Agents.DQN.Domain;
 
 namespace RLMatrix
 {
@@ -406,9 +407,40 @@ namespace RLMatrix
         }
         #endregion
 
+        public static void CreateTensorsFromTransitions(ref Device device, ref ReadOnlySpan<TransitionInMemory<T>> transitions, out Tensor stateBatch, out Tensor discreteActionBatch, out Tensor continuousActionBatch, out Tensor rewardBatch, out Tensor doneBatch)
+        {
+            int length = transitions.Length;
+            var fixedDiscreteActionSize = transitions[0].discreteActions.Length;
+            var fixedContinuousActionSize = transitions[0].continuousActions.Length;
 
-  
+            // Pre-allocate arrays based on the known batch size
+            float[] batchRewards = new float[length];
+            int[] flatDiscreteActions = new int[length * fixedDiscreteActionSize];
+            float[] flatContinuousActions = new float[length * fixedContinuousActionSize];
+            T[] batchStates = new T[length];
+            int[] batchDone = new int[length];
 
+            int flatDiscreteActionsIndex = 0;
+            int flatContinuousActionsIndex = 0;
+
+            for (int i = 0; i < length; i++)
+            {
+                var transition = transitions[i];
+                batchRewards[i] = transition.reward;
+                batchDone[i] = transition.nextState == null ? 1 : 0;
+                Array.Copy(transition.discreteActions, 0, flatDiscreteActions, flatDiscreteActionsIndex, fixedDiscreteActionSize);
+                flatDiscreteActionsIndex += fixedDiscreteActionSize;
+                Array.Copy(transition.continuousActions, 0, flatContinuousActions, flatContinuousActionsIndex, fixedContinuousActionSize);
+                flatContinuousActionsIndex += fixedContinuousActionSize;
+                batchStates[i] = transition.state;
+            }
+
+            stateBatch = QOptimizerUtils<T>.StateBatchToTensor(batchStates, device);
+            rewardBatch = torch.tensor(batchRewards, device: device);
+            doneBatch = torch.tensor(batchDone, device: device);
+            discreteActionBatch = torch.tensor(flatDiscreteActions, new long[] { length, fixedDiscreteActionSize }, torch.int64, device: device);
+            continuousActionBatch = torch.tensor(flatContinuousActions, new long[] { length, fixedContinuousActionSize }, device: device);
+        }
         public virtual void OptimizeModel()
         {
             if(myOptions.UseRNN && myOptions.BatchSize > 1)
@@ -422,14 +454,8 @@ namespace RLMatrix
             }
 
             //TODO: implement SPAN stuff
-            List<TransitionInMemory<T>> transitions = myReplayBuffer.SampleEntireMemory().ToArray().ToList();
-
-            Tensor rewardBatch = stack(transitions.Select(t => tensor(t.reward)).ToArray()).to(myDevice);
-            Tensor doneBatch = stack(transitions.Select(t => tensor(t.nextState == null ? 1 : 0)).ToArray()).to(myDevice);
-            Tensor stateBatch = stack(transitions.Select(t => StateToTensor(t.state)).ToArray()).to(myDevice);
-            
-            Tensor discreteActionBatch = stack(transitions.Select(t => tensor(t.discreteActions)).ToArray()).to(myDevice);
-            Tensor continuousActionBatch = stack(transitions.Select(t => tensor(t.continuousActions)).ToArray()).to(myDevice);
+            var transitions = myReplayBuffer.SampleEntireMemory();
+            CreateTensorsFromTransitions(ref myDevice, ref transitions, out var stateBatch, out var discreteActionBatch, out var continuousActionBatch, out var rewardBatch, out var doneBatch);
             Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
 
 
@@ -440,7 +466,7 @@ namespace RLMatrix
             var discountedRewards = RewardDiscount(rewardBatch, valueOld, doneBatch);
             var advantages = AdvantageDiscount(rewardBatch, valueOld, doneBatch);
 
-            //TODO: WIP multihead
+        
             if (policyOld.dim() > 1)
             {
                 advantages = advantages.unsqueeze(1);
@@ -450,8 +476,7 @@ namespace RLMatrix
             {
                 // Calculate new policy and value estimates
                 Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze();
-                Tensor values = myCriticNet.forward(stateBatch);
-
+                Tensor values = myCriticNet.forward(stateBatch);;
                 // Policy loss calculation
                 Tensor ratios = torch.exp(policy - policyOld);
 
@@ -472,6 +497,7 @@ namespace RLMatrix
 
                 Tensor valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange);
                 Tensor valueLoss1 = torch.pow(values - discountedRewards, 2);
+                valueLoss1.print();
                 Tensor valueLoss2 = torch.pow(valueClipped - discountedRewards, 2);
                 Tensor criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
 

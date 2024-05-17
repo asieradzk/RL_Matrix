@@ -2,11 +2,12 @@
 
 namespace RLMatrix
 {
-    public class LocalDiscreteAgent<T> : IDiscreteProxy<T>
+    //misleading name? since this is DQN
+    public class LocalDiscreteQAgent<T> : IDiscreteProxy<T>
     {
         private readonly ComposableQDiscreteAgent<T> _agent;
 
-        public LocalDiscreteAgent(DQNAgentOptions opts, int[] actionSizes, OneOf<int, (int, int)> stateSizes, IDiscreteQAgentFactory<T> agentComposer = null)
+        public LocalDiscreteQAgent(DQNAgentOptions opts, int[] actionSizes, OneOf<int, (int, int)> stateSizes, IDiscreteQAgentFactory<T> agentComposer = null)
         {
             //chekd if null and create default
             _agent = agentComposer?.ComposeAgent(opts) ?? DiscreteQAgentFactory<T>.ComposeQAgent(opts, actionSizes, stateSizes);

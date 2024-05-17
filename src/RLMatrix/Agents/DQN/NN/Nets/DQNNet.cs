@@ -102,11 +102,12 @@ namespace RLMatrix
             this.width = width;
 
             var smallestDim = Math.Min(h, w);
+            var padding = smallestDim / 2;
 
-            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1));
+            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1), padding: (padding, padding));
 
-            long output_height = CalculateConvOutputSize(h, smallestDim);
-            long output_width = CalculateConvOutputSize(w, smallestDim);
+            long output_height = CalculateConvOutputSize(h, smallestDim, padding: padding);
+            long output_width = CalculateConvOutputSize(w, smallestDim, padding: padding);
 
             linear_input_size = output_height * output_width * width;
 
@@ -126,7 +127,6 @@ namespace RLMatrix
 
             RegisterComponents();
         }
-
         public override Tensor forward(Tensor x)
         {
             if (x.dim() == 2)
@@ -137,10 +137,8 @@ namespace RLMatrix
             {
                 x = x.unsqueeze(1);
             }
-
             x = functional.relu(conv1.forward(x));
             x = flatten.forward(x);
-
             foreach (var module in fcModules)
             {
                 x = functional.relu(module.forward(x));

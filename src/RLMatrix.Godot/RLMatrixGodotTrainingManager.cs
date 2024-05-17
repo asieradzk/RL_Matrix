@@ -5,6 +5,7 @@ using System.Diagnostics;
 using RLMatrix;
 using RLMatrix.Agents.PPO.Variants;
 using RLMatrix.Agents;
+using RLMatrix.Godot.RLMatrix.Godot;
 
 namespace RLMatrix.Godot
 {
@@ -12,15 +13,15 @@ namespace RLMatrix.Godot
     public abstract partial class TrainingManagerBaseDiscrete<T, TState> : Node where T : GodotEnvironmentDiscrete<TState>
     {
 
-        internal List<IEnvironment<TState>> myEnvironments = new();
-        public IDiscreteAgent<TState> myAgent { get; set; }
-        protected abstract IDiscreteAgent<TState> CreateAgent(List<IEnvironment<TState>> environments);
+        internal List<IEnvironmentAsync<TState>> myEnvironments = new();
+        public IDiscreteRolloutAgent<TState> myAgent { get; set; }
+        protected abstract IDiscreteRolloutAgent<TState> CreateAgent(List<IEnvironmentAsync<TState>> environments);
 
         public override void _Ready()
         {
             AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
-            myEnvironments = GetAllChildrenOfType<IEnvironment<TState>>(this); // Get all children of type IEnvironment<TState>
+            myEnvironments = GetAllChildrenOfType<IEnvironmentAsync<TState>>(this); // Get all children of type IEnvironment<TState>
 
             Console.WriteLine($"Training with envs: {myEnvironments.Count}");
 
@@ -80,7 +81,8 @@ namespace RLMatrix.Godot
 
 
 
-        //This is here because some relection stuff was breaking, I think binary serialiser related.
+        //TODO: This is here because some reflection stuff was breaking, I think binary serialiser related.
+        //Maybe can be removed after binary serialiser is gone
         System.Reflection.Assembly CurrentDomain_AssemblyResolve(object sender, ResolveEventArgs args)
         {
             string assemblyName = new System.Reflection.AssemblyName(args.Name).Name;

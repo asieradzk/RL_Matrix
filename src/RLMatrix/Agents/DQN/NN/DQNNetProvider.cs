@@ -75,10 +75,10 @@ namespace RLMatrix
                     var actionSize2 = env.actionSize;
                     return myNetworkTYpe switch
                     {
-                        NetworkType.vanilla => new DQN2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, noisyLayers, noiseScale),
-                        NetworkType.dueling => new DuelingDQN2D("2DDuelingDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, noisyLayers, noiseScale),
-                        NetworkType.categorical => new CategoricalDQN2D("2DCategoricalDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, numAtoms, noisyLayers, noiseScale),
-                        NetworkType.categoricalDueling => new CategoricalDuelingDQN2D("2DCategoricalDuelingDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth, numAtoms, noisyLayers, noiseScale),
+                        NetworkType.vanilla => new DQN2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth: depth, noisyLayers, noiseScale),
+                        NetworkType.dueling => new DuelingDQN2D("2DDuelingDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth: depth, noisyLayers, noiseScale),
+                        NetworkType.categorical => new CategoricalDQN2D("2DCategoricalDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth: depth, numAtoms, noisyLayers, noiseScale),
+                        NetworkType.categoricalDueling => new CategoricalDuelingDQN2D("2DCategoricalDuelingDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth: depth, numAtoms, noisyLayers, noiseScale),
                         _ => throw new ArgumentOutOfRangeException(nameof(myNetworkTYpe), myNetworkTYpe, null)
                     };
                 default:

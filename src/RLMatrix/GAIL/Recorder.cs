@@ -23,12 +23,12 @@ namespace RLMatrix
         public void AddStep(T observation, int[] discreteActions, float[] continousActions, float rewards)
         {
         
-            var newTransition = new TransitionInMemory<T>(DeepCopy(observation), discreteActions, continousActions, rewards, default, default);
+            var newTransition = new TransitionInMemory<T>(DeepCopy(observation), discreteActions, continousActions, rewards, default, default, default);
            
             if(previousTransition != null)
             {
                 var transition = new TransitionInMemory<T>(previousTransition.state, previousTransition.discreteActions, 
-                    previousTransition.continuousActions, previousTransition.reward, newTransition.state, previousTransition);
+                    previousTransition.continuousActions, previousTransition.reward, newTransition.state, previousTransition, null);
                 myMemory.Push(transition);
             }
             previousTransition = newTransition;

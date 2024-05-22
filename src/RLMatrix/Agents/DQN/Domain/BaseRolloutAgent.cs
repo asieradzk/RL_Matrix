@@ -110,7 +110,12 @@ namespace RLMatrix
                 _options.DisplayPlot.CreateOrUpdateChart(chart);
             }
 
-            await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
+            if (transitionsToShip.Count > 0)
+            {
+                await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
+            }
+
+            
 
             
             await _agent.OptimizeModelAsync();

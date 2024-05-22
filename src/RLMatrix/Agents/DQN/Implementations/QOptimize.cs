@@ -90,20 +90,13 @@ namespace RLMatrix.Agents.DQN.Domain
         protected virtual void UpdatePrioritizedReplayMemory(PrioritizedReplayMemory<T> prioritizedReplayBuffer, Tensor stateActionValues, Tensor detachedExpectedStateActionValues, Span<int> sampledIndices)
         {
             Tensor tdErrors = (stateActionValues - detachedExpectedStateActionValues).abs();
-            float[] errors = ExtractTensorData(tdErrors);
+            float[] errors = QOptimizerUtils<T>.ExtractTensorData(tdErrors);
 
             for (int i = 0; i < sampledIndices.Length; i++)
             {
                 (prioritizedReplayBuffer).UpdatePriority(sampledIndices[i], errors[i] + 0.001f);
             }
-            float[] ExtractTensorData(Tensor tensor)
-            {
-                tensor = tensor.cpu();
-
-                float[] data = new float[tensor.NumberOfElements];
-                tensor.data<float>().CopyTo(data, 0);
-                return data;
-            }
+            
         }
 
         int updateCounter = 0;

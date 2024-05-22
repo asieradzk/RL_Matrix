@@ -25,7 +25,7 @@ namespace RLMatrix
             return res;
         }
     }
-
+    //TODO: This takes somewhat long to execute?
     public class BaseComputeNextStateValues : IComputeNextStateValues
     {
         public Tensor ComputeNextStateValues(Tensor nonFinalNextStates, Module<Tensor, Tensor> targetNet, Module<Tensor, Tensor> policyNet, DQNAgentOptions opts, int[] ActionSize, Device device)
@@ -88,6 +88,8 @@ namespace RLMatrix
         }
     }
 
+
+    //TODO: does this method take quite long to execute?
     public class BaseComputeExpectedStateActionValues<T> : IComputeExpectedStateActionValues<T>
     {
         BaseComputeNStepReturns<T> computeNStepReturns = new BaseComputeNStepReturns<T>();

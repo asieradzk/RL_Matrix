@@ -99,7 +99,14 @@ namespace RLMatrix.Agents.DQN.Domain
             }
         }
 
- 
+        public static float[] ExtractTensorData(Tensor tensor)
+        {
+            tensor = tensor.cpu();
+
+            float[] data = new float[tensor.NumberOfElements];
+            tensor.data<float>().CopyTo(data, 0);
+            return data;
+        }
 
         /// <summary>
         /// Converts the state to a tensor representation for torchsharp. Only float[] and float[,] states are supported.

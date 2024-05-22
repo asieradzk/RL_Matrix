@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -369,10 +370,10 @@ namespace RLMatrix
                     var done = myEnv.isDone;
 
                     T nextState;
-                    Guid nextGuid;
+                    Guid? nextGuid;
                     if (done)
                     {
-                        nextGuid = default;
+                        nextGuid = null;
                         nextState = default;
                     }
                     else
@@ -383,11 +384,10 @@ namespace RLMatrix
                     cumulativeReward += reward;
                     episodeBuffer.Add(new TransitionPortable<T>(currentGuid, currentState, action.Item1, action.Item2, reward, nextGuid));
                     currentState = nextState;
-                    currentGuid = nextGuid;
+                    currentGuid = nextGuid ?? Guid.NewGuid();
                     return;
                 }
-                
-                myAgent.myReplayBuffer.Push(episodeBuffer.ToTransitionInMemory());
+                myAgent.myReplayBuffer.Push(episodeBuffer.ToTransitionInMemory<T>());
                 
                 episodeBuffer = new();
                 memoryState = null;
@@ -458,13 +458,13 @@ namespace RLMatrix
             CreateTensorsFromTransitions(ref myDevice, ref transitions, out var stateBatch, out var discreteActionBatch, out var continuousActionBatch, out var rewardBatch, out var doneBatch);
             Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
 
-
             Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze().detach();
             Tensor valueOld = myCriticNet.forward(stateBatch).detach();
 
 
-            var discountedRewards = RewardDiscount(rewardBatch, valueOld, doneBatch);
-            var advantages = AdvantageDiscount(rewardBatch, valueOld, doneBatch);
+            var discountedRewards = RewardDiscount(ref transitions);
+            //var advantages = AdvantageDiscountPrevious(rewardBatch, valueOld, doneBatch);
+            var advantages = AdvantageDiscount(ref transitions, valueOld);
 
         
             if (policyOld.dim() > 1)
@@ -497,7 +497,6 @@ namespace RLMatrix
 
                 Tensor valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange);
                 Tensor valueLoss1 = torch.pow(values - discountedRewards, 2);
-                valueLoss1.print();
                 Tensor valueLoss2 = torch.pow(valueClipped - discountedRewards, 2);
                 Tensor criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
 
@@ -511,41 +510,90 @@ namespace RLMatrix
             myReplayBuffer.ClearMemory();
         }
 
-        Tensor RewardDiscount(Tensor rewards, Tensor values, Tensor dones)
+        Tensor RewardDiscount(ref ReadOnlySpan<TransitionInMemory<T>> transitions)
         {
-            var batchSize = rewards.size(0);
+            var batchSize = transitions.Length;
 
             if (batchSize == 1)
             {
-                return rewards;
+                return torch.tensor(transitions[0].reward).to(myDevice);
             }
 
             // Initialize tensors
-            Tensor returns = torch.zeros_like(rewards).to(myDevice);
-            double runningAdd = 0;
+            Tensor returns = torch.zeros(batchSize).to(myDevice);
 
-            // Iterate downwards through the batch
-            for (long t = batchSize - 1; t >= 0; t--)
+            // Find all the last transitions using LINQ
+            var lastTransitions = transitions.ToArray()
+                .Where(t => t.nextTransition == null)
+                .Select((t, i) => (Transition: t, Index: i))
+                .ToList();
+
+            foreach (var (lastTransition, endIndex) in lastTransitions)
             {
-                // Check if the current step is the end of an episode
-                if (dones.cpu().ReadCpuValue<int>(t) == 1)
+                double discountedReward = 0;
+                var currentTransition = lastTransition;
+                int transitionIndex = 0;
+
+                while (currentTransition != null)
                 {
-                    runningAdd = 0;
+                    discountedReward = currentTransition.reward + myOptions.Gamma * discountedReward;
+                    returns[endIndex - transitionIndex] = (float)discountedReward;
+
+                    currentTransition = currentTransition.previousTransition;
+                    transitionIndex++;
                 }
-
-                // Update the running sum of discounted rewards
-                runningAdd = runningAdd * myOptions.Gamma + rewards.cpu()[t].item<float>();
-
-                // Store the discounted reward for the current step
-                returns[t] = (float)runningAdd;
             }
 
-            // Normalize the returns
-            //returns = (returns - returns.mean()) / (returns.std() + 1e-10);
             return returns;
         }
 
-        Tensor AdvantageDiscount(Tensor rewards, Tensor values, Tensor dones)
+        Tensor AdvantageDiscount(ref ReadOnlySpan<TransitionInMemory<T>> transitions, Tensor values)
+        {
+
+            var batchSize = transitions.Length;
+
+            if (batchSize == 1)
+            {
+                return torch.tensor(transitions[0].reward).to(myDevice);
+            }
+
+            float[] advantages = new float[batchSize];
+            float[] valueArray = QOptimizerUtils<T>.ExtractTensorData(values);  
+
+            // Find all the last transitions using LINQ
+            var lastTransitions = transitions.ToArray()
+                .Where(t => t.nextTransition == null)
+                .Select(t => (t))
+                .ToList();
+
+            foreach( var lastTransition in lastTransitions)
+            {
+                float runningAdd = 0;
+                var currentTransition = lastTransition;
+                int transitionIndex = transitions.IndexOf(currentTransition);
+
+                while (currentTransition != null)
+                {
+                    float nextValue = currentTransition.nextTransition != null ? valueArray[transitionIndex + 1] : 0f;
+                    float tdError = currentTransition.reward + myOptions.Gamma * nextValue - valueArray[transitionIndex];
+                    runningAdd = tdError + myOptions.Gamma * myOptions.GaeLambda * runningAdd;
+
+                    advantages[transitionIndex] = runningAdd;
+
+                    currentTransition = currentTransition.previousTransition;
+                    if (currentTransition != null)
+                    transitionIndex = transitions.IndexOf(currentTransition);
+                }
+            }
+
+            // Convert the advantages array to a tensor and normalize it
+            Tensor advantagesTensor = torch.tensor(advantages).to(myDevice);
+            advantagesTensor = (advantagesTensor - advantagesTensor.mean()) / (advantagesTensor.std() + 1e-10);
+
+            return advantagesTensor;
+        }
+
+        Tensor AdvantageDiscountPrevious(Tensor rewards, Tensor values, Tensor dones)
         {
             var batchSize = rewards.size(0);
 
@@ -564,7 +612,7 @@ namespace RLMatrix
             for (long t = batchSize - 1; t >= 0; t--)
             {
                 // Check if the current step is the end of an episode
-                if (dones[t].item<int>() == 1) // Adjust this line if your 'dones' tensor holds integers
+                if (dones[t].item<int>() == 1)
                 {
                     nextValue = torch.tensor(0).to(myDevice);  // Reset to 0 if the episode is done.
                     runningAdd = torch.tensor(0).to(myDevice); // Reset to 0 if the episode is done.
@@ -589,45 +637,6 @@ namespace RLMatrix
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10);
             return advantages;
         }
-
-        Tensor AdvantageDiscount0(Tensor rewards, Tensor values, Tensor dones)
-        {
-         
-            var batchSize = rewards.size(0);
-
-            if (batchSize == 1)
-            {
-                return rewards;
-            }
-
-            // Initialize tensors
-            Tensor advantages = torch.zeros_like(rewards).to(myDevice);
-            double runningAdd = 0;
-
-            // Iterate downwards through the batch
-            for (long t = batchSize - 1; t >= 0; t--)
-            {
-                // Check if the current step is the end of an episode
-                if (dones.cpu().ReadCpuValue<int>(t) == 1)
-                {
-                    runningAdd = 0;
-                }
-
-                // Calculate the temporal difference (TD) error
-                double tdError = rewards.cpu()[t].item<float>() + myOptions.Gamma * (t < batchSize - 1 ? values.cpu()[t + 1].item<float>() : 0) * (1 - dones.cpu().ReadCpuValue<int>(t)) - values.cpu()[t].item<float>();
-                // Update the running sum of discounted advantages
-                runningAdd = runningAdd * myOptions.Gamma * myOptions.GaeLambda + tdError;
-
-                // Store the advantage value for the current step
-                advantages[t] = (float)runningAdd;
-            }
-
-            // Normalize the advantages
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10);
-            return advantages;
-        }
-
-
 
         protected T DeepCopy(T input)
         {
@@ -678,3 +687,5 @@ namespace RLMatrix
 
 
 }
+
+

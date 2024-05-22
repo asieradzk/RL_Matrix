@@ -130,7 +130,7 @@ namespace RLMatrix.Agents.PPO.Variants
             for (int iteration = 0; iteration < 20; iteration++)
             {
                 var transitions = myReplayBuffer.SamplePortionOfMemory((iteration) * 5, 5);
-                Retrain(initializationEpochs + ((1+ iteration)/10), learningRate * ((1+ iteration)/10), transitions.ToArray().ToList());
+             //   Retrain(initializationEpochs + ((1+ iteration)/10), learningRate * ((1+ iteration)/10), transitions.ToArray().ToList());
             }
         }
 
@@ -139,7 +139,7 @@ namespace RLMatrix.Agents.PPO.Variants
                //Sweeps from lowest to highest in 5% chunks, improving the epochs and learning rate towards final values
 
             var transitions = myReplayBuffer.SamplePortionOfMemoryByRewards(topPercent);
-            Retrain(initializationEpochs, learningRate, transitions.ToArray().ToList());
+          //  Retrain(initializationEpochs, learningRate, transitions.ToArray().ToList());
 
             
         }
@@ -185,7 +185,7 @@ namespace RLMatrix.Agents.PPO.Variants
             {
                 if(myGAIL != null && myReplayBuffer.Length > 0)
                 {
-                    myGAIL.OptimiseDiscriminator(myReplayBuffer);
+                  //  myGAIL.OptimiseDiscriminator(myReplayBuffer);
                 }
                 
                 return;
@@ -208,7 +208,7 @@ namespace RLMatrix.Agents.PPO.Variants
             Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
             if (myGAIL != null)
             {
-                myGAIL.OptimiseDiscriminator(myReplayBuffer);
+              //  myGAIL.OptimiseDiscriminator(myReplayBuffer);
                 rewardBatch = myGAIL.AugmentRewards(stateBatch, actionBatch, rewardBatch);
                 rewardBatch.print();
             }

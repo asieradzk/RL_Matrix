@@ -21,7 +21,7 @@ namespace RLMatrix
              if (myReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-            ReadOnlySpan<TransitionInMemory<T>> transitions = myReplayBuffer.Sample();
+            var transitions = myReplayBuffer.Sample(myOptions.BatchSize);
 
             (T[] batchStates, int[][] batchMultiActions, float[] batchRewards, T?[] batchNextStates, bool[] nonFinalMaskArray) = (null, null, null, null, null); //ExtractBatchData(transitions);
 

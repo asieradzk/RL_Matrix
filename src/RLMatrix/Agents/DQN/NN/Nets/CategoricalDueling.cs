@@ -116,6 +116,11 @@ namespace RLMatrix
         private readonly int _numAtoms;
         private readonly int[] _actionSizes;
 
+        private long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
+        {
+            return ((inputSize - kernelSize + 2 * padding) / stride) + 1;
+        }
+
         public CategoricalDuelingDQN2D(string name, long h, long w, int[] actionSizes, int width, int depth, int numAtoms, bool noisyLayers = false, float noiseScale = 0.01f) : base(name)
         {
             noiseScale *= 0.2f;
@@ -125,10 +130,12 @@ namespace RLMatrix
             _actionSizes = actionSizes;
 
             var smallestDim = Math.Min(h, w);
-            _conv1 = Conv2d(1, _width, kernelSize: (smallestDim, smallestDim), stride: (1, 1));
+            var padding = smallestDim / 2;
 
-            long outputHeight = CalculateConvOutputSize(h, smallestDim);
-            long outputWidth = CalculateConvOutputSize(w, smallestDim);
+            _conv1 = Conv2d(1, _width, kernelSize: (smallestDim, smallestDim), stride: (1, 1), padding: (padding, padding));
+
+            long outputHeight = CalculateConvOutputSize(h, smallestDim, stride: 1, padding: padding);
+            long outputWidth = CalculateConvOutputSize(w, smallestDim, stride: 1, padding: padding);
             _linearInputSize = outputHeight * outputWidth * _width;
             _flatten = Flatten();
 
@@ -219,9 +226,6 @@ namespace RLMatrix
             base.Dispose(disposing);
         }
 
-        private long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
-        {
-            return ((inputSize - kernelSize + 2 * padding) / stride) + 1;
-        }
+
     }
 }

@@ -1,4 +1,5 @@
 ﻿using OneOf;
+using RLMatrix.Agents.Common;
 using RLMatrix.Agents.DQN.Domain;
 using RLMatrix.Agents.DQN.Implementations.C51;
 using RLMatrix.Memories;
@@ -12,16 +13,19 @@ namespace RLMatrix
 {
     public static class DiscreteQAgentFactory<T>
     {
-        public static ComposableQDiscreteAgent<T> ComposeQAgent(DQNAgentOptions options, int[] ActionSizes, OneOf<int, (int, int)> StateSizes, IDQNNetProvider<T> netProvider = null, LRScheduler lrScheduler = null)
+        public static ComposableQDiscreteAgent<T> ComposeQAgent(DQNAgentOptions options, int[] ActionSizes, OneOf<int, (int, int)> StateSizes, IDQNNetProvider<T> netProvider = null, LRScheduler lrScheduler = null, IGAIL<T> gail = null)
         {
+            //Uses pattern matching from options to create a neural net for algorithm selected from permutations
+            //Here we also initialise device and optimizer
             netProvider ??= GetNetProviderFromOptions(options);
             var device = torch.device(torch.cuda.is_available() ? "cuda" : "cpu");
             var policyNet = netProvider.CreateCriticNet(new EnvSizeDTO<T> { actionSize = ActionSizes, stateSize = StateSizes }, options.NoisyLayers, options.NoisyLayersScale, options.NumAtoms).to(device);
             var targetNet = netProvider.CreateCriticNet(new EnvSizeDTO<T> { actionSize = ActionSizes, stateSize = StateSizes }, options.NoisyLayers, options.NoisyLayersScale, options.NumAtoms).to(device);
             var optimizer = optim.Adam(policyNet.parameters(), options.LR);
+            lrScheduler ??= new optim.lr_scheduler.impl.CyclicLR(optimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
 
 
-            //Pattern matching logic here
+            //We need to discriminate between tensor functions for categorical and non-categorical DQN
             IComputeQValues qValuesCalculator = options.CategoricalDQN
                 ? new CategoricalComputeQValues(ActionSizes, options.NumAtoms)
                 : new BaseComputeQValues();
@@ -42,8 +46,9 @@ namespace RLMatrix
                 ? new CategoricalComputeLoss()
                 : new BaseComputeLoss();
 
-            var Optimizer = new QOptimize<T>(policyNet, targetNet, optimizer, qValuesCalculator, qValuesExtractor, nextStateValueCalculator, expectedStateActionValuesCalculator, lossCalculator, options, device, ActionSizes, lrScheduler);
+            var Optimizer = new QOptimize<T>(policyNet, targetNet, optimizer, qValuesCalculator, qValuesExtractor, nextStateValueCalculator, expectedStateActionValuesCalculator, lossCalculator, options, device, ActionSizes, lrScheduler, gail); //TODO: Null GAIL
             
+            //If noisy layers are present will be cached here for noise resetting
             List<NoisyLinear> noisyLayers = new();
             if (options.NoisyLayers)
             {
@@ -51,13 +56,15 @@ namespace RLMatrix
                           where module is NoisyLinear
                           select (NoisyLinear)module);
             }
+
+            //Caching support tensor for categorical DQN
             Tensor support = null;
             if (options.CategoricalDQN)
             {
                 support = GetSupport(options.NumAtoms, options.VMin, options.VMax, device);
             }
 
-
+            //composition of the DQN agent takes place here
             var Agent = new ComposableQDiscreteAgent<T>
             {
                 Options = options,
@@ -88,10 +95,10 @@ namespace RLMatrix
             IMemory<T> memory;
             switch(options.PrioritizedExperienceReplay)
             {                 case true:
-                               memory = new PrioritizedReplayMemory<T>(options.MemorySize, options.BatchSize);
+                               memory = new PrioritizedReplayMemory<T>(options.MemorySize);
                                break;
                            case false:
-                               memory = new ReplayMemory<T>(options.MemorySize, options.BatchSize);
+                               memory = new ReplayMemory<T>(options.MemorySize);
                                break;
                        }
             return memory;
@@ -101,6 +108,7 @@ namespace RLMatrix
 
         private static Func<T[], ComposableQDiscreteAgent<T>, bool, int[][]> GetActionSelectFuncFromOptions(DQNAgentOptions opts)
         {
+            //We fetch correct action selection algorithm based on permutation of options
             return (opts.NoisyLayers, opts.CategoricalDQN) switch
             {
                 (false, false) => VanillaActionSelection,
@@ -110,6 +118,9 @@ namespace RLMatrix
             };
         }
 
+
+        //TODO: All these can be batched to get actions for multiple consumers in single gpu pass
+        //This is not implemented yet because it causes multiple environemtns to behave identical - since their initial observation and random roll/noise are the same
         private static int[][] VanillaActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
         {
             int[][] actions = new int[states.Length][];
@@ -197,7 +208,7 @@ namespace RLMatrix
         {
             using (torch.no_grad())
             {
-                Tensor stateTensor = QOptimizerUtils<T>.StateToTensor(state, device);
+                Tensor stateTensor = Utilities<T>.StateToTensor(state, device);
                 Tensor qValuesAllHeads = policyNet.forward(stateTensor).view(1, ActionSizes.Length, ActionSizes[0]);
                 Tensor bestActions = qValuesAllHeads.argmax(dim: -1).squeeze().to(ScalarType.Int32);
                 var result = bestActions.data<int>().ToArray();
@@ -209,7 +220,7 @@ namespace RLMatrix
         {
             using (torch.no_grad())
             {
-                Tensor stateTensor = QOptimizerUtils<T>.StateToTensor(state, device);
+                Tensor stateTensor = Utilities<T>.StateToTensor(state, device);
                 Tensor qValuesAllHeads = policyNet.forward(stateTensor).view(1, ActionSizes.Length, ActionSizes[0], numAtoms);
                 Tensor expectedQValues = (qValuesAllHeads * support).sum(dim: -1);
                 Tensor bestActions = expectedQValues.argmax(dim: -1).squeeze().to(ScalarType.Int32);

@@ -23,7 +23,7 @@ namespace RLMatrix
     {
         private readonly ModuleList<Module<Tensor, Tensor>> fcModules = new();
         private readonly Module<Tensor, Tensor> head;
-        private readonly GRU lstmLayer;
+        private RNN lstmLayer;
         private int hiddenSize;
         private bool useRnn;
 
@@ -40,8 +40,8 @@ namespace RLMatrix
             if (useRnn)
             {
                 // Initialize LSTM layer if useRnn is true
-                lstmLayer = nn.GRU(inputs, hiddenSize, depth, batchFirst: true);
-                width = hiddenSize; // The output of LSTM layer is now the input for the heads
+                lstmLayer = nn.RNN(inputs, hiddenSize, depth, batchFirst: true, dropout: 0.05f);
+                //width = hiddenSize; // The output of LSTM layer is now the input for the heads
             }
 
             // Base layers
@@ -77,13 +77,18 @@ namespace RLMatrix
                 x = x.unsqueeze(0);
             }
 
+            if (useRnn && x.dim() == 2)
+            {
+                x = x.unsqueeze(0);
+            }
+
+
             // Apply the first fc module
             if (useRnn)
             {
-                x = x.unsqueeze(0);
                 // Apply LSTM layer if useRnn is true
                 x = lstmLayer.forward(x, null).Item1;
-                x = x.squeeze(0);
+                x = x.reshape(new long[] { x.size(0) * x.size(1), x.size(2) });
                 x = functional.tanh(fcModules.First().forward(x));
             }
             else
@@ -145,19 +150,20 @@ namespace RLMatrix
             this.hiddenSize = width; // Assuming hidden size to be same as width for simplicity.
 
             var smallestDim = Math.Min(h, w);
+            var padding = smallestDim / 2;
 
             // Convolutional layer to process 2D input.
-            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1));
+            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1), padding: (padding, padding));
 
             // Calculate input size for the fully connected layers after convolution and flattening.
-            long output_height = CalculateConvOutputSize(h, smallestDim);
-            long output_width = CalculateConvOutputSize(w, smallestDim);
+            long output_height = CalculateConvOutputSize(h, smallestDim, stride: 1, padding: padding);
+            long output_width = CalculateConvOutputSize(w, smallestDim, stride: 1, padding: padding);
             linear_input_size = output_height * output_width * width;
 
             if (useRnn)
             {
                 // Initialize GRU layer if useRnn is true
-                gruLayer = nn.GRU(linear_input_size, hiddenSize, depth, batchFirst: true);
+                gruLayer = nn.GRU(linear_input_size, hiddenSize, depth, batchFirst: true, dropout: 0.1f);
                 linear_input_size = hiddenSize; // The output of GRU layer is now the input for the fully connected layers.
             }
 
@@ -188,16 +194,25 @@ namespace RLMatrix
                 x = x.unsqueeze(1);
             }
 
+            var batchength = x.size(0);
+            var sequencLength = x.size(1);
+
+            if (useRnn && x.dim() == 4)
+            {
+                x = x.reshape(new long[] { batchength * sequencLength, 1, x.size(2), x.size(3) });
+            }
+
+
+
             // Process through convolutional layer.
             x = functional.tanh(conv1.forward(x));
             x = flatten.forward(x);
 
             if (useRnn)
             {
-                x = x.unsqueeze(0);
-                // Apply GRU layer if useRnn is true
+                x = x.reshape(new long[] { batchength, sequencLength, x.size(1) });
                 x = gruLayer.forward(x, null).Item1;
-                x = x.squeeze(0);
+                x = x.reshape(new long[] { -1, x.size(2) });
             }
 
             // Process through fully connected layers.

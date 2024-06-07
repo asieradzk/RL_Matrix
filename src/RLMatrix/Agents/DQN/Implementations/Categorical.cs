@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using static TorchSharp.torch.nn;
 using static TorchSharp.torch;
 using TorchSharp;
+using RLMatrix.Agents.Common;
 
 namespace RLMatrix.Agents.DQN.Implementations.C51
 {
@@ -65,7 +66,7 @@ namespace RLMatrix.Agents.DQN.Implementations.C51
             _support = support;
             myDevice = device;
         }
-        public Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, DQNAgentOptions opts, ref ReadOnlySpan<TransitionInMemory<T>> transitions, int[] ActionCount, Device device)
+        public Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, DQNAgentOptions opts, IList<TransitionInMemory<T>> transitions, int[] ActionCount, Device device)
         {
             Tensor maskedDist = zeros(new long[] { opts.BatchSize, ActionCount.Count(), _numAtoms }).to(myDevice); // [batch_size, num_heads, num_atoms]
 
@@ -75,7 +76,7 @@ namespace RLMatrix.Agents.DQN.Implementations.C51
                 if (opts.NStepReturn > 1)
                 {
 
-                    nStepRewardBatch = computeNStepReturns.ComputeNStepReturns(ref transitions, opts, device)[nonFinalMask];
+                    nStepRewardBatch = computeNStepReturns.ComputeNStepReturns(transitions, opts, device)[nonFinalMask];
                 }
                 else
                 {

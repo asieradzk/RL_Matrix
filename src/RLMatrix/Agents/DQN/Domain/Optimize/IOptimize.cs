@@ -1,4 +1,5 @@
-﻿using RLMatrix.Memories;
+﻿using RLMatrix.Agents.Common;
+using RLMatrix.Memories;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,22 +29,17 @@ namespace RLMatrix.Agents.DQN.Domain
 
     public interface IComputeNStepReturns<T>
     {
-        Tensor ComputeNStepReturns(ref ReadOnlySpan<TransitionInMemory<T>> transitions, DQNAgentOptions opts, Device device);
+        Tensor ComputeNStepReturns(IList<TransitionInMemory<T>> transitions, DQNAgentOptions opts, Device device);
     }
 
     public interface IComputeExpectedStateActionValues<T>
     {
-        Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, DQNAgentOptions opts, ref ReadOnlySpan<TransitionInMemory<T>> transitions, int[] ActionCount, Device device);
+        Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, DQNAgentOptions opts, IList<TransitionInMemory<T>> transitions, int[] ActionCount, Device device);
     }
 
     public interface IComputeLoss
     {
         Tensor ComputeLoss(Tensor expectedStateActionValues, Tensor stateActionValues);
-    }
-
-    public interface IOptimize<T>
-    {
-        void Optimize(IMemory<T> replayBuffer);
     }
 
     public interface IGAIL<T>

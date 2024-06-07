@@ -1,6 +1,9 @@
 ﻿using RLMatrix;
+using RLMatrix.Agents.Common;
 using RLMatrix.Memories;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 
 /// <summary>
@@ -10,7 +13,6 @@ using System.Runtime.Serialization.Formatters.Binary;
 public class PrioritizedReplayMemory<TState> : IMemory<TState>, IStorableMemory
 {
     private readonly int capacity;
-    private readonly int batchSize;
     private readonly Random random = new Random();
     private readonly SumTree sumTree;
     private TransitionInMemory<TState>[] memory;
@@ -23,20 +25,19 @@ public class PrioritizedReplayMemory<TState> : IMemory<TState>, IStorableMemory
     /// </summary>
     public int Length => count;
 
+    public int NumEpisodes { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+
     /// <summary>
     /// Initializes a new instance of the PrioritizedReplayMemory class.
     /// </summary>
     /// <param name="capacity">The maximum number of transitions the memory can hold.</param>
-    /// <param name="batchSize">The number of transitions to be returned when sampling.</param>
-    public PrioritizedReplayMemory(int capacity, int batchSize)
+    public PrioritizedReplayMemory(int capacity)
     {
         this.capacity = capacity;
-        this.batchSize = batchSize;
         this.sumTree = new SumTree(capacity);
         this.memory = new TransitionInMemory<TState>[capacity];
         this.count = 0;
         this.currentIndex = 0;
-        this.lastSampledIndices = new int[batchSize];
     }
 
     /// <summary>
@@ -59,15 +60,69 @@ public class PrioritizedReplayMemory<TState> : IMemory<TState>, IStorableMemory
     }
 
     /// <summary>
-    /// Samples a batch of transitions based on their priority.
+    /// Adds multiple transitions to the memory with a priority.
     /// </summary>
-    /// <returns>A span of sampled transitions.</returns>
-    public ReadOnlySpan<TransitionInMemory<TState>> Sample()
+    /// <param name="transitions">The transitions to be added.</param>
+    public void Push(IList<TransitionInMemory<TState>> transitions)
+    {
+        int transitionsCount = transitions.Count;
+        if (transitionsCount > capacity)
+        {
+            throw new ArgumentException("Number of transitions exceeds the memory capacity.");
+        }
+
+        float priority = sumTree.MaxPriority;
+        if (count + transitionsCount <= capacity)
+        {
+            for (int i = 0; i < transitionsCount; i++)
+            {
+                memory[currentIndex] = transitions[i];
+                sumTree.Add(priority);
+                currentIndex = (currentIndex + 1) % capacity;
+            }
+            count += transitionsCount;
+        }
+        else
+        {
+            int remainingCapacity = capacity - count;
+            for (int i = 0; i < remainingCapacity; i++)
+            {
+                memory[currentIndex] = transitions[i];
+                sumTree.Add(priority);
+                currentIndex = (currentIndex + 1) % capacity;
+            }
+            for (int i = remainingCapacity; i < transitionsCount; i++)
+            {
+                memory[i - remainingCapacity] = transitions[i];
+                sumTree.Add(priority);
+            }
+            currentIndex = transitionsCount - remainingCapacity;
+            count = capacity;
+        }
+    }
+
+    /// <summary>
+    /// Samples the entire memory.
+    /// </summary>
+    /// <returns>An IList of all transitions in the memory.</returns>
+    public IList<TransitionInMemory<TState>> SampleEntireMemory()
+    {
+        return memory.Take(count).ToList();
+    }
+
+    /// <summary>
+    /// Samples a specified number of transitions based on their priority.
+    /// </summary>
+    /// <param name="batchSize">The number of transitions to sample.</param>
+    /// <returns>An IList of sampled transitions.</returns>
+    public IList<TransitionInMemory<TState>> Sample(int batchSize)
     {
         if (batchSize > count)
         {
             throw new InvalidOperationException("Batch size cannot be greater than current memory size.");
         }
+
+        lastSampledIndices = new int[batchSize];
 
         float segment = sumTree.TotalSum / batchSize;
         for (int i = 0; i < batchSize; i++)
@@ -78,16 +133,16 @@ public class PrioritizedReplayMemory<TState> : IMemory<TState>, IStorableMemory
             lastSampledIndices[i] = sumTree.Retrieve(value);
         }
 
-        return new ReadOnlySpan<TransitionInMemory<TState>>(lastSampledIndices.Select(i => memory[i]).ToArray());
+        return lastSampledIndices.Select(i => memory[i]).ToList();
     }
 
     /// <summary>
     /// Gets the indices of the last sampled transitions.
     /// </summary>
-    /// <returns>A span of the last sampled indices.</returns>
-    public Span<int> GetSampledIndices()
+    /// <returns>An array of the last sampled indices.</returns>
+    public int[] GetSampledIndices()
     {
-        return new Span<int>(lastSampledIndices);
+        return lastSampledIndices;
     }
 
     /// <summary>
@@ -138,31 +193,6 @@ public class PrioritizedReplayMemory<TState> : IMemory<TState>, IStorableMemory
         throw new NotImplementedException();
     }
 
-    /// <summary>
-    /// Samples a specified number of transitions based on their priority.
-    /// </summary>
-    /// <param name="sampleSize">The number of transitions to sample.</param>
-    /// <returns>A span of sampled transitions.</returns>
-    public ReadOnlySpan<TransitionInMemory<TState>> Sample(int sampleSize)
-    {
-        if (sampleSize > count)
-        {
-            throw new InvalidOperationException("Sample size cannot be greater than current memory size.");
-        }
-
-        var indices = new int[sampleSize];
-        float segment = sumTree.TotalSum / sampleSize;
-        for (int i = 0; i < sampleSize; i++)
-        {
-            float a = segment * i;
-            float b = segment * (i + 1);
-            float value = (float)(random.NextDouble() * (b - a) + a);
-            indices[i] = sumTree.Retrieve(value);
-        }
-
-        return new ReadOnlySpan<TransitionInMemory<TState>>(indices.Select(i => memory[i]).ToArray());
-    }
-
     public unsafe int FindTransitionIndex(TState state)
     {
         fixed (TransitionInMemory<TState>* memoryPtr = memory)
@@ -187,13 +217,4 @@ public class PrioritizedReplayMemory<TState> : IMemory<TState>, IStorableMemory
         }
         return ref memory[index];
     }
-
-    public void Push(IEnumerable<TransitionInMemory<TState>> transitions)
-    {
-        foreach (var transition in transitions)
-        {
-            Push(transition);
-        }
-    }
-
 }

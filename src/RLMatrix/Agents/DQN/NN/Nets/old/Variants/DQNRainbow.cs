@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using RLMatrix.Agents.Common;
 using TorchSharp;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
@@ -79,7 +80,7 @@ namespace RLMatrix.Agents.DQN.Variants
             if (myReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-            ReadOnlySpan<TransitionInMemory<T>> transitions = myReplayBuffer.Sample();
+            var transitions = myReplayBuffer.Sample(myOptions.BatchSize);
             ReadOnlySpan<int> sampledIndices = null;
 
             if (myReplayBuffer is PrioritizedReplayMemory<T> prioritizedReplayBuffer)
@@ -87,7 +88,7 @@ namespace RLMatrix.Agents.DQN.Variants
                 sampledIndices = prioritizedReplayBuffer.GetSampledIndices();
             }
 
-            CreateTensorsFromTransitions(ref transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
+            CreateTensorsFromTransitions(transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
 
             Tensor qValuesAllHeads = ComputeQValues(stateBatch);
             Tensor stateActionValues = ExtractStateActionValues(qValuesAllHeads, actionBatch);
@@ -105,7 +106,7 @@ namespace RLMatrix.Agents.DQN.Variants
                 }
             }
 
-            Tensor expectedStateActionValues = ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, 1, ref transitions);
+            Tensor expectedStateActionValues = ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, 1, transitions);
             Tensor loss = ComputeLoss(stateActionValues, expectedStateActionValues);
             UpdateModel(loss);
 
@@ -115,7 +116,7 @@ namespace RLMatrix.Agents.DQN.Variants
             }
         }
 
-        protected override Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, int nSteps, ref ReadOnlySpan<TransitionInMemory<T>> transitions)
+        protected override Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, int nSteps, IEnumerable<TransitionInMemory<T>> transitions)
         {
             Tensor maskedDist = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count(), _numAtoms }).to(myDevice); // [batch_size, num_heads, num_atoms]
 
@@ -125,7 +126,7 @@ namespace RLMatrix.Agents.DQN.Variants
                 if (nSteps > 1)
                 {
 
-                    nStepRewardBatch = CalculateNStepReturns(ref transitions, nSteps, myOptions.GAMMA)[nonFinalMask];
+                    nStepRewardBatch = CalculateNStepReturns(transitions, nSteps, myOptions.GAMMA)[nonFinalMask];
                 }
                 else
                 {

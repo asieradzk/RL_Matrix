@@ -1,4 +1,5 @@
 ﻿using OneOf;
+using RLMatrix.Agents.Common;
 using RLMatrix.Memories;
 using TorchSharp;
 using TorchSharp.Modules;
@@ -61,7 +62,7 @@ namespace RLMatrix
             myOptimizer = optim.Adam(myPolicyNet.parameters(), opts.LR);
             myLRScheduler = new optim.lr_scheduler.impl.CyclicLR(myOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
 
-            myReplayBuffer = new ReplayMemory<T>(myOptions.MemorySize, myOptions.BatchSize);
+            myReplayBuffer = new ReplayMemory<T>(myOptions.MemorySize);
             if (myOptions.DisplayPlot != null)
             {
                 myOptions.DisplayPlot.CreateOrUpdateChart(new List<double>());
@@ -140,9 +141,9 @@ namespace RLMatrix
                 return bestActions.data<int>().ToArray();
             }
         }
-        private void CreateTensorsFromTransitions(ref ReadOnlySpan<TransitionInMemory<T>> transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch)
+        private void CreateTensorsFromTransitions(IEnumerable<TransitionInMemory<T>> transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch)
         {
-            int length = transitions.Length;
+            int length = transitions.Count();
             var fixedActionSize = myEnvironments[0].actionSize.Length; // Assuming a fixed action size for all environments
 
             // Pre-allocate arrays based on the known batch size
@@ -158,7 +159,7 @@ namespace RLMatrix
             
             for (int i = 0; i < length; i++)
             {
-                var transition = transitions[i];
+                var transition = transitions.ElementAt(i);
                 nonFinalMaskArray[i] = transition.nextState != null;
                 batchRewards[i] = transition.reward;
                 Array.Copy(transition.discreteActions, 0, flatMultiActions, flatMultiActionsIndex, transition.discreteActions.Length);
@@ -210,12 +211,12 @@ namespace RLMatrix
             if (myReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-            ReadOnlySpan<TransitionInMemory<T>> transitions = myReplayBuffer.Sample();
-            CreateTensorsFromTransitions(ref transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
+            var transitions = myReplayBuffer.Sample(myOptions.BatchSize);
+            CreateTensorsFromTransitions(transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
             Tensor qValuesAllHeads = ComputeQValues(stateBatch);
             Tensor stateActionValues = ExtractStateActionValues(qValuesAllHeads, actionBatch);
             Tensor nextStateValues = ComputeNextStateValues(nonFinalNextStates, useD2QN);
-            Tensor expectedStateActionValues = ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, nSteps, ref transitions);
+            Tensor expectedStateActionValues = ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, nSteps, transitions);
             Tensor loss = ComputeLoss(stateActionValues, expectedStateActionValues);
             UpdateModel(loss);
             myLRScheduler.step();
@@ -261,7 +262,7 @@ namespace RLMatrix
             return nextStateValues;
         }
 
-        protected virtual Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, int nSteps, ref ReadOnlySpan<TransitionInMemory<T>> transitions)
+        protected virtual Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, int nSteps, IEnumerable<TransitionInMemory<T>> transitions)
         {
             Tensor maskedNextStateValues = zeros(new long[] { myOptions.BatchSize, myEnvironments[0].actionSize.Count() }, device: myDevice);
             maskedNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), nextStateValues);
@@ -274,7 +275,7 @@ namespace RLMatrix
             else
             {
                 // Compute n-step returns
-                Tensor nStepRewards = CalculateNStepReturns(ref transitions, nSteps, myOptions.GAMMA);
+                Tensor nStepRewards = CalculateNStepReturns(transitions, nSteps, myOptions.GAMMA);
                 return (maskedNextStateValues * Math.Pow(myOptions.GAMMA, nSteps)) + nStepRewards.unsqueeze(1);
             }
         }
@@ -294,14 +295,14 @@ namespace RLMatrix
             myOptimizer.step();
         }
 
-        protected Tensor CalculateNStepReturns(ref ReadOnlySpan<TransitionInMemory<T>> transitions, int nSteps, float gamma)
+        protected Tensor CalculateNStepReturns(IEnumerable<TransitionInMemory<T>> transitions, int nSteps, float gamma)
         {
-            int batchSize = transitions.Length;
+            int batchSize = transitions.Count();
             Tensor returns = torch.zeros(batchSize, device: myDevice);
 
             for (int i = 0; i < batchSize; i++)
             {
-                TransitionInMemory<T> currentTransition = transitions[i];
+                TransitionInMemory<T> currentTransition = transitions.ElementAt(i);
                 float nStepReturn = 0;
                 float discount = 1;
 

@@ -1,17 +1,63 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Intrinsics.X86;
+using System.Runtime.Intrinsics;
+using System.Collections;
+using System.Runtime.CompilerServices;
+using IEnumerableUnpacker;
 
-namespace RLMatrix
+namespace RLMatrix.Agents.Common
 {
+    public static class TransitionInMemoryExtensions2
+    {
+        private static unsafe void ProcessTransition<TState>(ParallelState<TState> state, int i)
+        {
+            var transition = state.Transitions[i];
+            state.PBatchStates[i] = transition.state;
+
+            float* pContinuousDest = state.PBatchContinuousActions + i * state.FixedContinuousActionSize;
+            int* pDiscreteDest = state.PBatchDiscreteActions + i * state.FixedDiscreteActionSize;
+
+            fixed (float* pContinuousActionsSrc = transition.continuousActions)
+            fixed (int* pDiscreteActionsSrc = transition.discreteActions)
+            {
+                // Copy continuous actions
+                int continuousActionSize = state.FixedContinuousActionSize;
+                int continuousActionsByteSize = continuousActionSize * sizeof(float);
+                Unsafe.CopyBlockUnaligned(pContinuousDest, pContinuousActionsSrc, (uint)continuousActionsByteSize);
+
+                // Copy discrete actions
+                int discreteActionSize = state.FixedDiscreteActionSize;
+                int discreteActionsByteSize = discreteActionSize * sizeof(int);
+                Unsafe.CopyBlockUnaligned(pDiscreteDest, pDiscreteActionsSrc, (uint)discreteActionsByteSize);
+            }
+        }
+        private unsafe struct ParallelState<TState>
+        {
+            public TransitionInMemory<TState>[] Transitions;
+            public TState* PBatchStates;
+            public float* PBatchContinuousActions;
+            public int* PBatchDiscreteActions;
+            public int FixedContinuousActionSize;
+            public int FixedDiscreteActionSize;
+        }
+    }
+
+
     /// <summary>
     /// The Transition record represents a single transition in reinforcement learning.
     /// It contains the current state, discrete and continuous actions taken, reward received, and the next state.
     /// </summary>
+
+    [Unpackable]
     public sealed class TransitionInMemory<TState> : IEquatable<TransitionInMemory<TState>>
     {
+        [Unpack("batchStates")]
         public TState state;
+        [Unpack("batchDiscreteActions")]
         public int[] discreteActions;
+        [Unpack("batchContinuousActions")]
         public float[] continuousActions;
         public float reward;
         public TState? nextState;
@@ -61,7 +107,7 @@ namespace RLMatrix
 
     public static class TransitionExtensions
     {
-        public static IEnumerable<TransitionInMemory<TState>> ToTransitionInMemory<TState>(this IEnumerable<TransitionPortable<TState>> portableTransitions)
+        public static IList<TransitionInMemory<TState>> ToTransitionInMemory<TState>(this IEnumerable<TransitionPortable<TState>> portableTransitions)
         {
             var transitionMap = new Dictionary<Guid, TransitionInMemory<TState>>();
 

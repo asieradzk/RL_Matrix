@@ -1,4 +1,5 @@
-﻿using RLMatrix.Memories;
+﻿using RLMatrix.Agents.Common;
+using RLMatrix.Memories;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -8,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace RLMatrix
 {
-    
+
 
     public class Recorder<T> 
     {
@@ -16,7 +17,8 @@ namespace RLMatrix
 
         public Recorder()
         {
-            myMemory = new TransitionReplayMemory<T>(10000, 512);
+            throw new NotImplementedException();
+            //myMemory = new TransitionReplayMemory<T>(10000, 512);
         }
 
         TransitionInMemory<T>? previousTransition;

@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using RLMatrix.Agents.Common;
 using RLMatrix.Agents.DQN.Domain;
 using RLMatrix.Memories;
 using TorchSharp.Modules;
@@ -8,30 +9,11 @@ using static TorchSharp.torchvision;
 
 namespace RLMatrix
 {
+
+    //TODO: for removal
     public interface IDiscreteAgent<T> {
         public void Step(bool isTraining);
 
-    }
-
-    public interface IHasMemory<T>
-    {
-        public IMemory<T> Memory { get; set; }
-        public void AddTransition(IEnumerable<TransitionPortable<T>> transitions);
-    }
-    public interface ISelectActions<T>
-    {
-        public int[][] SelectActions(T[] states, bool isTraining);
-    }
-    public interface IHasOptimizer<T>
-    {
-        public IOptimize<T> Optimizer { get; init; }
-    }
-
-    public interface IDiscreteAgentCore<T>
-    {
-        public int[] ActionSizes { get; init; }
-        public int[][] SelectActions(T[] states, bool isTraining);
-        public void OptimizeModel();
     }
 
     public class ComposableQDiscreteAgent<T> : IDiscreteAgentCore<T>, IHasMemory<T>, ISelectActions<T>, IHasOptimizer<T>
@@ -66,15 +48,6 @@ namespace RLMatrix
         {
             return SelectActionsFunc(states, this, isTraining);
         }
-    }
-
-
-
-    public interface IDiscreteProxy<T>
-    {
-        public ValueTask<Dictionary<Guid, int[]>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos);
-        public ValueTask UploadTransitionsAsync(IEnumerable<TransitionPortable<T>> transitions);
-        public ValueTask OptimizeModelAsync();
     }
 
     public interface IDiscreteQAgentFactory<T>

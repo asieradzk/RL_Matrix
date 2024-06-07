@@ -1,12 +1,14 @@
 ﻿using RLMatrix.Agents.DQN.Domain;
+using RLMatrix.Agents.PPO.Implementations;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RLMatrix
+namespace RLMatrix.Agents.Common
 {
     public interface IDiscreteRolloutAgent<TState>
     {
@@ -14,15 +16,16 @@ namespace RLMatrix
     }
 
 
-    public class BaseRolloutAgent<TState> : IDiscreteRolloutAgent<TState>
+    public class LocalDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>
     {
         protected readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
         protected readonly Dictionary<Guid, Episode<TState>> _ennvGuidPairs;
         //This can be a remote proxy instead for distributed training
         protected readonly IDiscreteProxy<TState> _agent;
-        public DQNAgentOptions _options;
+        protected readonly IRLChartService? _chartService;
 
-        public BaseRolloutAgent(DQNAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
+
+        public LocalDiscreteRolloutAgent(DQNAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
         {
             _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
             _ennvGuidPairs = new();
@@ -30,14 +33,25 @@ namespace RLMatrix
             {
                 _ennvGuidPairs[env.Key] = new Episode<TState>();
             }
-            _agent = CreateAgent(options, environments.FirstOrDefault());
-            _options = options;
+            _chartService = options.DisplayPlot;
+            _agent = new LocalDiscreteQAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
+
         }
 
-        protected IDiscreteProxy<TState> CreateAgent(DQNAgentOptions options, IEnvironmentAsync<TState> env)
+        public LocalDiscreteRolloutAgent(PPOAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
         {
-            return new LocalDiscreteQAgent<TState>(options, env.actionSize, env.stateSize);
+            _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
+            _ennvGuidPairs = new();
+            foreach (var env in _environments)
+            {
+                _ennvGuidPairs[env.Key] = new Episode<TState>();
+            }
+            _chartService = options.DisplayPlot;
+            _agent = new LocalDiscretePPOAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
+
         }
+
+
         List<double> chart = new();
         public async Task Step(bool isTraining = true)
         {
@@ -104,10 +118,10 @@ namespace RLMatrix
                 }
             }
 
-            if (_options.DisplayPlot != null)
+            if (_chartService != null)
             {
                 chart.AddRange(rewards);
-                _options.DisplayPlot.CreateOrUpdateChart(chart);
+                _chartService.CreateOrUpdateChart(chart);
             }
 
             if (transitionsToShip.Count > 0)
@@ -115,9 +129,9 @@ namespace RLMatrix
                 await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
             }
 
-            
 
-            
+
+
             await _agent.OptimizeModelAsync();
 
         }
@@ -165,22 +179,22 @@ namespace RLMatrix
             public void AddTransition(T state, bool isDone, int[] discreteACtions, float reward)
             {
                 Guid? nextGuid = null;
-                if(guidCache == null)
+                if (guidCache == null)
                 {
                     guidCache = Guid.NewGuid();
                     cumulativeReward = 0;
                 }
 
-                if(!isDone)
+                if (!isDone)
                 {
                     nextGuid = Guid.NewGuid();
                 }
-                var transition = new TransitionPortable<T>((Guid)guidCache, state, discreteACtions, null, reward, nextGuid);
+                var transition = new TransitionPortable<T>((Guid)guidCache, state, discreteACtions, new float[0], reward, nextGuid);
                 TempBuffer.Add(transition);
                 cumulativeReward += reward;
                 guidCache = nextGuid;
 
-                if(isDone)
+                if (isDone)
                 {
                     CompletedEpisodes.AddRange(TempBuffer);
                     TempBuffer.Clear();

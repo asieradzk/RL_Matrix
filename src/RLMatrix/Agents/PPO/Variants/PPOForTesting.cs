@@ -8,7 +8,7 @@ using static TorchSharp.torch;
 using TorchSharp;
 using TorchSharp.Modules;
 using RLMatrix.Memories;
-using RLMatrix.Agents.DQN.Domain;
+using RLMatrix.Agents.Common;
 
 namespace RLMatrix.Agents.PPO.Variants
 {
@@ -19,9 +19,10 @@ namespace RLMatrix.Agents.PPO.Variants
 
         }
 
-        public void ImplantMemory(EpisodicReplayMemory<T> memory)
+        public void ImplantMemory(ReplayMemory<T> memory)
         {
-            myReplayBuffer = memory;
+            throw new NotImplementedException();
+          //  myReplayBuffer = memory;
         }
 
         static float[] ConvertIntArrayToFloatArray(int[] intArray)
@@ -129,7 +130,8 @@ namespace RLMatrix.Agents.PPO.Variants
 
             for (int iteration = 0; iteration < 20; iteration++)
             {
-                var transitions = myReplayBuffer.SamplePortionOfMemory((iteration) * 5, 5);
+                throw new NotImplementedException();
+             //   var transitions = myReplayBuffer.SamplePortionOfMemory((iteration) * 5, 5);
              //   Retrain(initializationEpochs + ((1+ iteration)/10), learningRate * ((1+ iteration)/10), transitions.ToArray().ToList());
             }
         }
@@ -137,8 +139,8 @@ namespace RLMatrix.Agents.PPO.Variants
         public void RetrainFromMemoryByReward(int initializationEpochs, double learningRate, int topPercent = 25)
         {
                //Sweeps from lowest to highest in 5% chunks, improving the epochs and learning rate towards final values
-
-            var transitions = myReplayBuffer.SamplePortionOfMemoryByRewards(topPercent);
+               throw new NotImplementedException();
+           // var transitions = myReplayBuffer.SamplePortionOfMemoryByRewards(topPercent);
           //  Retrain(initializationEpochs, learningRate, transitions.ToArray().ToList());
 
             
@@ -172,7 +174,7 @@ namespace RLMatrix.Agents.PPO.Variants
                 batchStates[i] = transition.state;
             }
 
-            stateBatch = QOptimizerUtils<T>.StateBatchToTensor(batchStates, device);
+            stateBatch = Utilities<T>.StateBatchToTensor(batchStates, device);
             rewardBatch = torch.tensor(batchRewards, device: device);
             doneBatch = torch.tensor(batchDone, device: device);
             discreteActionBatch = torch.tensor(flatDiscreteActions, new long[] { length, fixedDiscreteActionSize }, torch.int64, device: device);

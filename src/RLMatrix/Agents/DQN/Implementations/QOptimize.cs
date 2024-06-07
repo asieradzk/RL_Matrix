@@ -1,4 +1,5 @@
-﻿using RLMatrix.Memories;
+﻿using RLMatrix.Agents.Common;
+using RLMatrix.Memories;
 using TorchSharp;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
@@ -49,7 +50,6 @@ namespace RLMatrix.Agents.DQN.Domain
             myOptions = options;
             myDevice = device;
             ActionSizes = actionSizes;
-            lrScheduler ??= new optim.lr_scheduler.impl.CyclicLR(Optimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
             LRScheduler = lrScheduler;
             myGAIL = GAIL;
 
@@ -64,8 +64,8 @@ namespace RLMatrix.Agents.DQN.Domain
             if (ReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-            ReadOnlySpan<TransitionInMemory<T>> transitions = ReplayBuffer.Sample();
-            QOptimizerUtils<T>.CreateTensorsFromTransitions(ref myDevice, ref transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
+            var transitions = ReplayBuffer.Sample(myOptions.BatchSize);
+            Utilities<T>.CreateTensorsFromTransitions(ref myDevice, transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
             if (myGAIL != null)
             {
                 myGAIL.OptimiseDiscriminator(ReplayBuffer);
@@ -74,7 +74,7 @@ namespace RLMatrix.Agents.DQN.Domain
             Tensor qValuesAllHeads = QValuesCalculator.ComputeQValues(stateBatch, PolicyNet);
             Tensor stateActionValues = StateActionValueExtractor.ExtractStateActionValues(qValuesAllHeads, actionBatch);
             Tensor nextStateValues = NextStateValuesCalculator.ComputeNextStateValues(nonFinalNextStates, TargetNet, PolicyNet, myOptions, ActionSizes, myDevice);
-            Tensor expectedStateActionValues = ExpectedStateActionValuesCalculator.ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, myOptions, ref transitions, ActionSizes, myDevice);
+            Tensor expectedStateActionValues = ExpectedStateActionValuesCalculator.ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, myOptions, transitions, ActionSizes, myDevice);
 
             Tensor loss = LossCalculator.ComputeLoss(stateActionValues, expectedStateActionValues);
             UpdateModel(loss);
@@ -90,7 +90,7 @@ namespace RLMatrix.Agents.DQN.Domain
         protected virtual void UpdatePrioritizedReplayMemory(PrioritizedReplayMemory<T> prioritizedReplayBuffer, Tensor stateActionValues, Tensor detachedExpectedStateActionValues, Span<int> sampledIndices)
         {
             Tensor tdErrors = (stateActionValues - detachedExpectedStateActionValues).abs();
-            float[] errors = QOptimizerUtils<T>.ExtractTensorData(tdErrors);
+            float[] errors = Utilities<T>.ExtractTensorData(tdErrors);
 
             for (int i = 0; i < sampledIndices.Length; i++)
             {

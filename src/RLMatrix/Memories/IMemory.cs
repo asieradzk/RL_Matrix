@@ -3,17 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.IO;
+using RLMatrix.Agents.Common;
 
 namespace RLMatrix.Memories
 {
     public interface IMemory<TState>
     {
         int Length { get; }
+        public int NumEpisodes { get;}
         void Push(TransitionInMemory<TState> transition);
-        void Push (IEnumerable<TransitionInMemory<TState>> transitions);
-        ReadOnlySpan<TransitionInMemory<TState>> Sample();
-
-        ReadOnlySpan<TransitionInMemory<TState>> Sample(int batchSize);
+        void Push (IList<TransitionInMemory<TState>> transitions);
+        IList<TransitionInMemory<TState>> SampleEntireMemory();
+        IList<TransitionInMemory<TState>> Sample(int batchSize); 
+        void ClearMemory();
     }
 
     public interface IStorableMemory
@@ -33,10 +35,5 @@ namespace RLMatrix.Memories
     {
         void Push(List<TransitionInMemory<TState>> episode);
         void ClearMemory();
-    }
-
-    public interface IBatchMemory<TState> : IMemory<TState>
-    {
-        void PushBatch(ReadOnlySpan<TransitionInMemory<TState>> transitions);
     }
 }

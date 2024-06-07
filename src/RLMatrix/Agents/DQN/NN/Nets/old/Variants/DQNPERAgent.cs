@@ -1,4 +1,5 @@
 ﻿using OneOf;
+using RLMatrix.Agents.Common;
 using System;
 using TorchSharp;
 using TorchSharp.Modules;
@@ -16,7 +17,7 @@ namespace RLMatrix
         public DQNAgentPER(DQNAgentOptions opts, List<IEnvironment<T>> envs, IDQNNetProvider<T> netProvider = null)
             : base(opts, envs, netProvider)
         {
-            myReplayBuffer = new PrioritizedReplayMemory<T>(myOptions.MemorySize, myOptions.BatchSize);
+            myReplayBuffer = new PrioritizedReplayMemory<T>(myOptions.MemorySize);
         }
 
         public override unsafe void OptimizeModel()
@@ -24,7 +25,7 @@ namespace RLMatrix
             if (myReplayBuffer.Length < myOptions.BatchSize)
                 return;
 
-            ReadOnlySpan<TransitionInMemory<T>> transitions = myReplayBuffer.Sample();
+            var transitions = myReplayBuffer.Sample(myOptions.BatchSize);
             ReadOnlySpan<int> sampledIndices = null;
 
             if (myReplayBuffer is PrioritizedReplayMemory<T> prioritizedReplayBuffer)
@@ -32,7 +33,7 @@ namespace RLMatrix
                 sampledIndices = prioritizedReplayBuffer.GetSampledIndices();
             }
 
-            CreateTensorsFromTransitions(ref transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
+            CreateTensorsFromTransitions(transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
 
             Tensor qValuesAllHeads = ComputeQValues(stateBatch);
             Tensor stateActionValues = ExtractStateActionValues(qValuesAllHeads, actionBatch);
@@ -60,9 +61,9 @@ namespace RLMatrix
             }
         }
 
-        public void CreateTensorsFromTransitions(ref ReadOnlySpan<TransitionInMemory<T>> transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch)
+        public void CreateTensorsFromTransitions(IEnumerable<TransitionInMemory<T>> transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch)
         {
-            int length = transitions.Length;
+            int length = transitions.Count();
             var fixedActionSize = myEnvironments[0].actionSize.Length;
 
             bool[] nonFinalMaskArray = new bool[length];
@@ -76,7 +77,7 @@ namespace RLMatrix
 
             for (int i = 0; i < length; i++)
             {
-                var transition = transitions[i];
+                var transition = transitions.ElementAt(i);
                 nonFinalMaskArray[i] = transition.nextState != null;
                 batchRewards[i] = transition.reward;
                 Array.Copy(transition.discreteActions, 0, flatMultiActions, flatMultiActionsIndex, transition.discreteActions.Length);

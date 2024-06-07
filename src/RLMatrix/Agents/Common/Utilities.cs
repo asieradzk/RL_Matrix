@@ -1,50 +1,45 @@
 ﻿using TorchSharp;
 using static TorchSharp.torch;
 
-namespace RLMatrix.Agents.DQN.Domain
+namespace RLMatrix.Agents.Common
 {
-    public static class QOptimizerUtils<T>
+    public static class Utilities<T>
     {
-        public static void CreateTensorsFromTransitions(ref Device device, ref ReadOnlySpan<TransitionInMemory<T>> transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch)
+
+        //TODO: this is DQN specific so maybe should be moved to Q namespace/class
+        public static void CreateTensorsFromTransitions(ref Device device, IList<TransitionInMemory<T>> transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch)
         {
-            int length = transitions.Length;
+            int length = transitions.Count;
             var fixedActionSize = transitions[0].discreteActions.Length;
-            
 
             // Pre-allocate arrays based on the known batch size
             bool[] nonFinalMaskArray = new bool[length];
             float[] batchRewards = new float[length];
-            int[] flatMultiActions = new int[length * fixedActionSize];
+            long[,] flatMultiActions = new long[length, fixedActionSize];
             T[] batchStates = new T[length];
             T?[] batchNextStates = new T?[length];
 
-            int flatMultiActionsIndex = 0;
-            int nonFinalNextStatesCount = 0;
-
-
             for (int i = 0; i < length; i++)
             {
-                var transition = transitions[i];
+                var transition = transitions.ElementAt(i);
                 nonFinalMaskArray[i] = transition.nextState != null;
                 batchRewards[i] = transition.reward;
-                Array.Copy(transition.discreteActions, 0, flatMultiActions, flatMultiActionsIndex, transition.discreteActions.Length);
-                flatMultiActionsIndex += transition.discreteActions.Length; // Assuming a fixed length for all actions
+
+                for (int j = 0; j < fixedActionSize; j++)
+                {
+                    flatMultiActions[i, j] = transition.discreteActions[j];
+                }
 
                 batchStates[i] = transition.state;
                 batchNextStates[i] = transition.nextState;
-
-                if (transition.nextState != null)
-                {
-                    nonFinalNextStatesCount++;
-                }
             }
 
             stateBatch = StateBatchToTensor(batchStates, device);
-            nonFinalMask = torch.tensor(nonFinalMaskArray, device: device);
-            rewardBatch = torch.tensor(batchRewards, device: device);
-            actionBatch = torch.tensor(flatMultiActions, new long[] { length, fixedActionSize }, torch.int64, device: device); // Reshape based on actual action size
+            nonFinalMask = tensor(nonFinalMaskArray, device: device);
+            rewardBatch = tensor(batchRewards, device: device);
+            actionBatch = tensor(flatMultiActions, dtype: int64, device: device);
 
-
+            int nonFinalNextStatesCount = batchNextStates.Count(state => state != null);
             if (nonFinalNextStatesCount > 0)
             {
                 T[] nonFinalNextStatesArray = new T[nonFinalNextStatesCount];
@@ -60,10 +55,9 @@ namespace RLMatrix.Agents.DQN.Domain
             }
             else
             {
-                nonFinalNextStates = torch.zeros(new long[] { 1, stateBatch.shape[1] }, device: device);
+                nonFinalNextStates = zeros(new long[] { 1, stateBatch.shape[1] }, device: device);
             }
         }
-
         public static void PrintTState(T state)
         {
             switch (state)
@@ -77,13 +71,13 @@ namespace RLMatrix.Agents.DQN.Domain
                 default:
                     throw new InvalidCastException("State must be either float[] or float[,]");
             }
-             static void PrintFloatArrayState(float[] stateArray)
+            static void PrintFloatArrayState(float[] stateArray)
             {
                 Console.WriteLine("Float Array State:");
                 Console.WriteLine(string.Join(", ", stateArray));
             }
 
-             static void PrintFloatMatrixState(float[,] stateMatrix)
+            static void PrintFloatMatrixState(float[,] stateMatrix)
             {
                 Console.WriteLine("Float Matrix State:");
                 int rows = stateMatrix.GetLength(0);
@@ -161,12 +155,12 @@ namespace RLMatrix.Agents.DQN.Domain
                 offset += state.Length;
             }
             var batchShape = new long[] { states.Length, states[0].Length };
-            return torch.tensor(batchData, batchShape, device: device);
+            return tensor(batchData, batchShape, device: device);
         }
 
         public static Tensor HandleFloatMatrixStates(float[][,] states, Device device)
         {
-         
+
             int d1 = states[0].GetLength(0);
             int d2 = states[0].GetLength(1);
             float[] batchData = new float[states.Length * d1 * d2];
@@ -182,7 +176,7 @@ namespace RLMatrix.Agents.DQN.Domain
             }
 
             var batchShape = new long[] { states.Length, d1, d2 };
-            var result = torch.tensor(batchData, batchShape, device: device);
+            var result = tensor(batchData, batchShape, device: device);
             return result;
         }
 

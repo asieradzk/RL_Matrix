@@ -8,12 +8,13 @@ using static TorchSharp.torch;
 using TorchSharp.Modules;
 using TorchSharp;
 using static TorchSharp.torch.optim;
-using RLMatrix;
 using OneOf;
 using RLMatrix.Memories;
 using System.Security;
 using System.Net.Http.Headers;
-using RLMatrix.Agents.DQN.Domain;
+using System.Runtime.Intrinsics.X86;
+using System.Runtime.Intrinsics;
+using RLMatrix.Agents.Common;
 
 namespace RLMatrix
 {
@@ -26,7 +27,7 @@ namespace RLMatrix
         protected PPOCriticNet myCriticNet;
         protected OptimizerHelper myActorOptimizer;
         protected OptimizerHelper myCriticOptimizer;
-        protected EpisodicReplayMemory<T> myReplayBuffer;
+        protected ReplayMemory<T> myReplayBuffer;
         protected int episodeCounter = 0;
         protected GAIL<T> myGAIL;
 
@@ -84,7 +85,7 @@ namespace RLMatrix
             myCriticOptimizer = optim.Adam(myCriticNet.parameters(), myOptions.LR, amsgrad: true);
 
             //TODO: I think I forgot to make PPO specific memory.
-            myReplayBuffer = new EpisodicReplayMemory<T>(myOptions.MemorySize);
+            myReplayBuffer = new ReplayMemory<T>(myOptions.MemorySize);
 
             if (myOptions.DisplayPlot != null)
             {
@@ -359,11 +360,15 @@ namespace RLMatrix
                     }
                     else
                     {
-                        //statesHistory.Add(currentState);
-                        //action = myAgent.SelectAction(statesHistory);
+                     //   statesHistory.Add(currentState);
+                       // action = myAgent.SelectAction(statesHistory);
+                        //memoryState = action.Item1;
+                       
                         var result = myAgent.SelectAction(currentState, memoryState);
+
                         action = result.Item1;
                         memoryState = (result.Item2);
+                        memoryState = memoryState?.detach();
 
                     }
                     var reward = myEnv.Step(action.Item1, action.Item2);
@@ -375,6 +380,7 @@ namespace RLMatrix
                     {
                         nextGuid = null;
                         nextState = default;
+                        
                     }
                     else
                     {
@@ -407,237 +413,322 @@ namespace RLMatrix
         }
         #endregion
 
-        public static void CreateTensorsFromTransitions(ref Device device, ref ReadOnlySpan<TransitionInMemory<T>> transitions, out Tensor stateBatch, out Tensor discreteActionBatch, out Tensor continuousActionBatch, out Tensor rewardBatch, out Tensor doneBatch)
+        public static unsafe void CreateTensorsFromTransitions(ref Device device, IList<TransitionInMemory<T>> transitions, bool useRNN, out Tensor stateBatch, out Tensor actionBatch)
         {
-            int length = transitions.Length;
+            int length = transitions.Count;
             var fixedDiscreteActionSize = transitions[0].discreteActions.Length;
             var fixedContinuousActionSize = transitions[0].continuousActions.Length;
 
             // Pre-allocate arrays based on the known batch size
-            float[] batchRewards = new float[length];
-            int[] flatDiscreteActions = new int[length * fixedDiscreteActionSize];
-            float[] flatContinuousActions = new float[length * fixedContinuousActionSize];
-            T[] batchStates = new T[length];
-            int[] batchDone = new int[length];
-
-            int flatDiscreteActionsIndex = 0;
-            int flatContinuousActionsIndex = 0;
-
-            for (int i = 0; i < length; i++)
+            transitions.UnpackTransitionInMemory(out T[] batchStates, out int[,] batchDiscreteActions, out float[,] batchContinuousActions);
+            stateBatch = Utilities<T>.StateBatchToTensor(batchStates, device);
+            using (var discreteActionBatch = torch.tensor(batchDiscreteActions, torch.int64, device: device))
+            using (var continuousActionBatch = torch.tensor(batchContinuousActions, device: device))
             {
-                var transition = transitions[i];
-                batchRewards[i] = transition.reward;
-                batchDone[i] = transition.nextState == null ? 1 : 0;
-                Array.Copy(transition.discreteActions, 0, flatDiscreteActions, flatDiscreteActionsIndex, fixedDiscreteActionSize);
-                flatDiscreteActionsIndex += fixedDiscreteActionSize;
-                Array.Copy(transition.continuousActions, 0, flatContinuousActions, flatContinuousActionsIndex, fixedContinuousActionSize);
-                flatContinuousActionsIndex += fixedContinuousActionSize;
-                batchStates[i] = transition.state;
+                actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
             }
-
-            stateBatch = QOptimizerUtils<T>.StateBatchToTensor(batchStates, device);
-            rewardBatch = torch.tensor(batchRewards, device: device);
-            doneBatch = torch.tensor(batchDone, device: device);
-            discreteActionBatch = torch.tensor(flatDiscreteActions, new long[] { length, fixedDiscreteActionSize }, torch.int64, device: device);
-            continuousActionBatch = torch.tensor(flatContinuousActions, new long[] { length, fixedContinuousActionSize }, device: device);
         }
-        public virtual void OptimizeModel()
+
+        private static List<List<TransitionInMemory<T>>> PadTransitions(IList<TransitionInMemory<T>> transitions, Device device, out Tensor mask)
         {
-            if(myOptions.UseRNN && myOptions.BatchSize > 1)
+            int length = transitions.Count;
+            var fixedDiscreteActionSize = transitions[0].discreteActions.Length;
+            var fixedContinuousActionSize = transitions[0].continuousActions.Length;
+            var firstTransitions = transitions.ToArray()
+                .Where(t => t.previousTransition == null)
+                .Select(t => t)
+                .ToList();
+
+            Dictionary<TransitionInMemory<T>, int> sequenceLengths = new Dictionary<TransitionInMemory<T>, int>();
+            foreach (var transition in firstTransitions)
             {
-                throw new ArgumentException("Batch size larter than 1 is not yet supported with RNN");
+                int sequenceLength = CalculateSequenceLength(transition);
+                sequenceLengths.Add(transition, sequenceLength);
             }
 
-            if (myReplayBuffer.Length < myOptions.BatchSize)
+            var longestSequence = sequenceLengths.Values.Max();
+
+            List<List<TransitionInMemory<T>>> paddedSequences = new List<List<TransitionInMemory<T>>>();
+            foreach (var transition in firstTransitions)
             {
-                return;
+                List<TransitionInMemory<T>> paddedSequence = new List<TransitionInMemory<T>>();
+                AddInitialSequence(transition, paddedSequence);
+                PadSequence(paddedSequence[paddedSequence.Count - 1], longestSequence, sequenceLengths[transition], paddedSequence);
+                paddedSequences.Add(paddedSequence);
             }
 
-            //TODO: implement SPAN stuff
-            var transitions = myReplayBuffer.SampleEntireMemory();
-            CreateTensorsFromTransitions(ref myDevice, ref transitions, out var stateBatch, out var discreteActionBatch, out var continuousActionBatch, out var rewardBatch, out var doneBatch);
-            Tensor actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
 
-            Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze().detach();
-            Tensor valueOld = myCriticNet.forward(stateBatch).detach();
+            #region mask
+            mask = CreateMask(paddedSequences, sequenceLengths, device);
+            return paddedSequences;
 
-
-            var discountedRewards = RewardDiscount(ref transitions);
-            //var advantages = AdvantageDiscountPrevious(rewardBatch, valueOld, doneBatch);
-            var advantages = AdvantageDiscount(ref transitions, valueOld);
-
-        
-            if (policyOld.dim() > 1)
+            Tensor CreateMask(List<List<TransitionInMemory<T>>> paddedSequences, Dictionary<TransitionInMemory<T>, int> sequenceLengths, Device device)
             {
-                advantages = advantages.unsqueeze(1);
+                List<Tensor> maskList = new List<Tensor>();
+                foreach (var sequence in paddedSequences)
+                {
+                    var originalLength = sequenceLengths[sequence[0]];
+                    var paddedLength = sequence.Count;
+                    bool[] maskData = Enumerable.Repeat(true, originalLength)
+                                                .Concat(Enumerable.Repeat(false, paddedLength - originalLength))
+                                                .ToArray();
+                    maskList.Add(torch.tensor(maskData)); //.unsqueeze
+                }
+
+                var mask = torch.cat(maskList.ToArray(), dim: 0).to(device);
+                return mask;
+
+            }
+            #endregion
+
+
+            int CalculateSequenceLength(TransitionInMemory<T> transition)
+            {
+                if (transition.nextTransition == null)
+                    return 1;
+
+                return 1 + CalculateSequenceLength(transition.nextTransition);
             }
 
-            for (int i = 0; i < myOptions.PPOEpochs; i++)
+            void AddInitialSequence(TransitionInMemory<T> transition, List<TransitionInMemory<T>> paddedSequence)
             {
-                // Calculate new policy and value estimates
-                Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze();
-                Tensor values = myCriticNet.forward(stateBatch);;
-                // Policy loss calculation
-                Tensor ratios = torch.exp(policy - policyOld);
+                while (transition != null)
+                {
+                    paddedSequence.Add(transition);
+                    transition = transition.nextTransition;
+                }
+            }
+
+            static TransitionInMemory<T> PadSequence(TransitionInMemory<T> transition, int targetLength, int currentLength, List<TransitionInMemory<T>> paddedSequence)
+            {
+               
+                if (currentLength >= targetLength)
+                    return transition;
+
+                var paddedTransition = new TransitionInMemory<T>(
+                    transition.state,
+                    transition.discreteActions,
+                    transition.continuousActions,
+                    0f,
+                    transition.state,
+                    null,
+                    transition
+                );
+
+                transition.nextTransition = paddedTransition;
+                paddedSequence.Add(paddedTransition);
+
+                var result = PadSequence(paddedTransition, targetLength, currentLength + 1, paddedSequence);
+                return result;
+            }
+        }
 
 
+        void OptimizeModelRNN()
+        {
+            using (var scope = torch.NewDisposeScope())
+            {
+                var paddedTransitions = PadTransitions(myReplayBuffer.SampleEntireMemory(), myDevice, out var mask);
 
-                Tensor surr1 = ratios * advantages;
-                Tensor surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages;
-                Tensor entropy = myActorNet.ComputeEntropy(stateBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count());
-                Tensor actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
+                List<Tensor> stateBatches = new List<Tensor>();
+                List<Tensor> actionBatches = new List<Tensor>();
 
-                // Optimize policy network
-                myActorOptimizer.zero_grad();
-                actorLoss.backward();
-                torch.nn.utils.clip_grad_norm_(myActorNet.parameters(), myOptions.ClipGradNorm);
-                myActorOptimizer.step();
+                foreach (var sequence in paddedTransitions)
+                {
+                    CreateTensorsFromTransitions(ref myDevice, sequence, myOptions.UseRNN, out var stateBatchEpisode, out var actionBatchEpisode);
+                    stateBatches.Add(stateBatchEpisode);
+                    actionBatches.Add(actionBatchEpisode);
+                }
 
-                // Clipped value function loss 
+                Tensor stateBatch = torch.stack(stateBatches.ToArray(), dim: 0);
+                Tensor actionBatch = torch.cat(actionBatches.ToArray(), dim: 0);
 
-                Tensor valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange);
-                Tensor valueLoss1 = torch.pow(values - discountedRewards, 2);
-                Tensor valueLoss2 = torch.pow(valueClipped - discountedRewards, 2);
-                Tensor criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
+                Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).detach();
+                Tensor valueOld = myCriticNet.forward(stateBatch).detach();
+                Tensor maskedPolicyOld = policyOld * mask;
+                Tensor maskedValueOld = valueOld * mask;
 
-                // Optimize value network (updated to use the new criticLoss)
-                myCriticOptimizer.zero_grad();
-                criticLoss.backward();
-                torch.nn.utils.clip_grad_norm_(myCriticNet.parameters(), myOptions.ClipGradNorm);
-                myCriticOptimizer.step();
+                List<Tensor> discountedRewardsList = new List<Tensor>();
+                List<Tensor> advantagesList = new List<Tensor>();
+
+                List<TransitionInMemory<T>> paddedTransitionsSummed = paddedTransitions.SelectMany(t => t).ToList();
+                var (maskedDiscountedRewards, maskedAdvantages) = DiscountedRewardsAndAdvantages(paddedTransitionsSummed, maskedValueOld);
+                maskedAdvantages *= mask;
+                maskedDiscountedRewards *= mask;
+
+
+                for (int i = 0; i < myOptions.PPOEpochs; i++)
+                {
+                    using (var actorScope = torch.NewDisposeScope())
+                    {
+                        (Tensor policy, Tensor entropy) = myActorNet.get_log_prob_entropy(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count());
+                        policy *= mask;  // Apply mask to policy
+                      //  entropy *= mask;  // Apply mask to entropy
+
+                        Tensor ratios = torch.exp(policy - maskedPolicyOld);
+                        Tensor surr1 = ratios * maskedAdvantages;
+                        Tensor surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * maskedAdvantages;
+
+                        // Select the non-masked surrogate values
+                        Tensor surr = torch.masked_select(torch.min(surr1, surr2), mask.to_type(ScalarType.Bool));
+
+                        // Select the non-masked entropy values
+                        Tensor maskedEntropy = torch.masked_select(entropy, mask.to_type(ScalarType.Bool));
+
+                        // Calculate the mean of the non-masked surrogate and entropy values
+                        Tensor actorLoss = -surr.mean() - myOptions.EntropyCoefficient * maskedEntropy.mean();
+
+                        myActorOptimizer.zero_grad();
+                        actorLoss.backward();
+                        torch.nn.utils.clip_grad_norm_(myActorNet.parameters(), myOptions.ClipGradNorm);
+                        myActorOptimizer.step();
+                    }
+
+                    using (var criticScope = torch.NewDisposeScope())
+                    {
+                        Tensor values = myCriticNet.forward(stateBatch);
+                        values *= mask;  // Apply mask to values
+                        Tensor valueClipped = maskedValueOld + torch.clamp(values - maskedValueOld, -myOptions.VClipRange, myOptions.VClipRange);
+                        Tensor valueLoss1 = torch.pow(values - maskedDiscountedRewards, 2);
+                        Tensor valueLoss2 = torch.pow(valueClipped - maskedDiscountedRewards, 2);
+
+                        // Select the non-masked loss values
+                        Tensor valueLoss = torch.masked_select(torch.max(valueLoss1, valueLoss2), mask.to_type(ScalarType.Bool));
+
+                        // Calculate the mean of the non-masked loss values
+                        Tensor criticLoss = myOptions.CValue * valueLoss.mean();
+
+                        myCriticOptimizer.zero_grad();
+                        criticLoss.backward();
+                        torch.nn.utils.clip_grad_norm_(myCriticNet.parameters(), myOptions.ClipGradNorm);
+                        myCriticOptimizer.step();
+                    }
+                }
             }
 
             myReplayBuffer.ClearMemory();
         }
 
-        Tensor RewardDiscount(ref ReadOnlySpan<TransitionInMemory<T>> transitions)
-        {
-            var batchSize = transitions.Length;
 
-            if (batchSize == 1)
+        public virtual void OptimizeModel()
+        {
+            if (myOptions.UseRNN && myOptions.BatchSize > 1)
             {
-                return torch.tensor(transitions[0].reward).to(myDevice);
+              //  throw new ArgumentException("Batch size larger than 1 is not yet supported with RNN");
             }
 
-            // Initialize tensors
-            Tensor returns = torch.zeros(batchSize).to(myDevice);
-
-            // Find all the last transitions using LINQ
-            var lastTransitions = transitions.ToArray()
-                .Where(t => t.nextTransition == null)
-                .Select((t, i) => (Transition: t, Index: i))
-                .ToList();
-
-            foreach (var (lastTransition, endIndex) in lastTransitions)
+            if (myReplayBuffer.NumEpisodes < myOptions.BatchSize)
             {
-                double discountedReward = 0;
-                var currentTransition = lastTransition;
-                int transitionIndex = 0;
+                return;
+            }
 
-                while (currentTransition != null)
+            if (myOptions.UseRNN)
+            {
+                OptimizeModelRNN();
+                return;
+            }
+
+            using (var scope = torch.NewDisposeScope())
+            {
+                var transitions = myReplayBuffer.SampleEntireMemory();
+                //ref transitions because it may be padded in case of RNN with unequal sequence lengths
+                CreateTensorsFromTransitions(ref myDevice, transitions, myOptions.UseRNN, out var stateBatch, out var actionBatch);
+
+                Tensor policyOld = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).detach();
+                Tensor valueOld = myCriticNet.forward(stateBatch).detach();
+
+                (var discountedRewards, var advantages) = DiscountedRewardsAndAdvantages(transitions, valueOld);
+
+                if (policyOld.dim() > 1)
                 {
-                    discountedReward = currentTransition.reward + myOptions.Gamma * discountedReward;
-                    returns[endIndex - transitionIndex] = (float)discountedReward;
+                    advantages = advantages.unsqueeze(1);
+                }
 
-                    currentTransition = currentTransition.previousTransition;
-                    transitionIndex++;
+                for (int i = 0; i < myOptions.PPOEpochs; i++)
+                {
+                    using (var actorScope = torch.NewDisposeScope())
+                    {
+                        //Tensor policy = myActorNet.get_log_prob(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count()).squeeze();
+                        //Tensor entropy = myActorNet.ComputeEntropy(stateBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count());
+
+                        (Tensor policy, Tensor entropy) = myActorNet.get_log_prob_entropy(stateBatch, actionBatch, myEnvironments[0].actionSize.Count(), myEnvironments[0].continuousActionBounds.Count());
+                        Tensor ratios = torch.exp(policy - policyOld);
+                        Tensor surr1 = ratios * advantages;
+                        Tensor surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages;
+                        Tensor actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
+
+                        myActorOptimizer.zero_grad();
+                        actorLoss.backward();
+                        torch.nn.utils.clip_grad_norm_(myActorNet.parameters(), myOptions.ClipGradNorm);
+                        myActorOptimizer.step();
+                    }
+
+                    using (var criticScope = torch.NewDisposeScope())
+                    {
+                        Tensor values = myCriticNet.forward(stateBatch);
+                        Tensor valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange);
+                        Tensor valueLoss1 = torch.pow(values - discountedRewards, 2);
+                        Tensor valueLoss2 = torch.pow(valueClipped - discountedRewards, 2);
+                        Tensor criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
+
+                        myCriticOptimizer.zero_grad();
+                        criticLoss.backward();
+                        torch.nn.utils.clip_grad_norm_(myCriticNet.parameters(), myOptions.ClipGradNorm);
+                        myCriticOptimizer.step();
+                    }
                 }
             }
 
-            return returns;
+            myReplayBuffer.ClearMemory();
         }
-
-        Tensor AdvantageDiscount(ref ReadOnlySpan<TransitionInMemory<T>> transitions, Tensor values)
+        (Tensor, Tensor) DiscountedRewardsAndAdvantages(IList<TransitionInMemory<T>> transitions, Tensor values)
         {
-
-            var batchSize = transitions.Length;
+            var batchSize = transitions.Count();
 
             if (batchSize == 1)
             {
-                return torch.tensor(transitions[0].reward).to(myDevice);
+                return (torch.tensor(transitions.First().reward).to(myDevice), torch.tensor(transitions.First().reward).to(myDevice));
             }
 
+            float[] discountedRewards = new float[batchSize];
             float[] advantages = new float[batchSize];
-            float[] valueArray = QOptimizerUtils<T>.ExtractTensorData(values);  
+            float[] valueArray = Utilities<T>.ExtractTensorData(values);
 
-            // Find all the last transitions using LINQ
             var lastTransitions = transitions.ToArray()
                 .Where(t => t.nextTransition == null)
-                .Select(t => (t))
+                .Select(t => t)
                 .ToList();
 
-            foreach( var lastTransition in lastTransitions)
+            foreach (var lastTransition in lastTransitions)
             {
+                double discountedReward = 0;
                 float runningAdd = 0;
                 var currentTransition = lastTransition;
                 int transitionIndex = transitions.IndexOf(currentTransition);
 
                 while (currentTransition != null)
                 {
+                    discountedReward = currentTransition.reward + myOptions.Gamma * discountedReward;
+                    discountedRewards[transitionIndex] = (float)discountedReward;
+
                     float nextValue = currentTransition.nextTransition != null ? valueArray[transitionIndex + 1] : 0f;
                     float tdError = currentTransition.reward + myOptions.Gamma * nextValue - valueArray[transitionIndex];
                     runningAdd = tdError + myOptions.Gamma * myOptions.GaeLambda * runningAdd;
-
                     advantages[transitionIndex] = runningAdd;
 
                     currentTransition = currentTransition.previousTransition;
                     if (currentTransition != null)
-                    transitionIndex = transitions.IndexOf(currentTransition);
+                        transitionIndex = transitions.IndexOf(currentTransition);
                 }
             }
 
-            // Convert the advantages array to a tensor and normalize it
+            Tensor discountedRewardsTensor = torch.tensor(discountedRewards).to(myDevice);
             Tensor advantagesTensor = torch.tensor(advantages).to(myDevice);
             advantagesTensor = (advantagesTensor - advantagesTensor.mean()) / (advantagesTensor.std() + 1e-10);
 
-            return advantagesTensor;
+
+            return (discountedRewardsTensor, advantagesTensor);
         }
-
-        Tensor AdvantageDiscountPrevious(Tensor rewards, Tensor values, Tensor dones)
-        {
-            var batchSize = rewards.size(0);
-
-            if (batchSize == 1)
-            {
-                return rewards;
-            }
-
-            // Initialize tensors
-            Tensor advantages = torch.zeros_like(rewards).to(myDevice);
-            Tensor runningAdd = torch.tensor(0).to(myDevice);
-
-            Tensor nextValue = torch.tensor(0).to(myDevice);  // This is V(s_{t+1}), initialized to 0 for the last timestep.
-
-            // Iterate downwards through the batch
-            for (long t = batchSize - 1; t >= 0; t--)
-            {
-                // Check if the current step is the end of an episode
-                if (dones[t].item<int>() == 1)
-                {
-                    nextValue = torch.tensor(0).to(myDevice);  // Reset to 0 if the episode is done.
-                    runningAdd = torch.tensor(0).to(myDevice); // Reset to 0 if the episode is done.
-                }
-
-                // Calculate the temporal difference (TD) error
-                Tensor tdError = rewards[t] + myOptions.Gamma * nextValue * (1 - dones[t]) - values[t];
-
-                // Update the running sum of discounted advantages
-                runningAdd = runningAdd * myOptions.Gamma * myOptions.GaeLambda + tdError;
-
-                // Store the advantage value for the current step
-                advantages[t] = runningAdd.reshape(advantages[t].shape);
-
-
-                // Update nextValue for the next iteration (going backward)
-                nextValue = values[t];
-            }
-
-
-            // Normalize the advantages
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10);
-            return advantages;
-        }
-
         protected T DeepCopy(T input)
         {
             if (!typeof(T).IsArray)

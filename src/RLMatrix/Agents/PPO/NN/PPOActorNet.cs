@@ -23,30 +23,43 @@ namespace RLMatrix
         public Tensor get_log_prob(Tensor states, Tensor actions, int discreteActions, int contActions)
         {
             Tensor logits = forward(states);
-
             var discreteLogProbs = new List<Tensor>();
             var continuousLogProbs = new List<Tensor>();
-            
-            int numDiscreteActions = discreteActions;
-            for (int i = 0; i < numDiscreteActions; i++)
+
+            // Discrete action log probabilities
+            for (int i = 0; i < discreteActions; i++)
             {
                 Tensor actionLogits = logits.select(1, i);
                 Tensor actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1);
                 discreteLogProbs.Add(torch.nn.functional.log_softmax(actionLogits, dim: 1).gather(dim: 1, index: actionTaken));
+                actionLogits.Dispose();
+                actionTaken.Dispose();
             }
 
-            int numContinuousActions = contActions; // assuming continuousStds and continuousMeans have the same count
-            for (int i = 0; i < numContinuousActions; i++)
+            // Continuous action log probabilities
+            for (int i = 0; i < contActions; i++)
             {
-                Tensor mean = logits.select(1, numDiscreteActions + i);
-                Tensor log_std = logits.select(1, numDiscreteActions + numContinuousActions + i);
-                Tensor actionTaken = actions.select(1, numDiscreteActions + i);
+                Tensor mean = logits.select(1, discreteActions + i);
+                Tensor log_std = logits.select(1, discreteActions + contActions + i);
+                Tensor actionTaken = actions.select(1, discreteActions + i);
                 Tensor log_prob = (-0.5 * torch.pow((actionTaken - mean) / torch.exp(log_std), 2) - log_std - 0.5 * Math.Log(2 * Math.PI)).sum(1, keepdim: true);
                 continuousLogProbs.Add(log_prob);
+                mean.Dispose();
+                log_std.Dispose();
+                actionTaken.Dispose();
+                log_prob.Dispose();
             }
 
-            return torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1);
+            // Combine discrete and continuous log probabilities
+            var res = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1).squeeze();
+            foreach (var tensor in discreteLogProbs.Concat(continuousLogProbs))
+            {
+                tensor.Dispose();
+            }
+            logits.Dispose();
+            return res;
         }
+
 
         public Tensor ComputeEntropy(Tensor states, int discreteActions, int continuousActions)
         {
@@ -62,8 +75,10 @@ namespace RLMatrix
                 Tensor logProbs = torch.log(actionProbs + 1e-10);  // Add a small constant for numerical stability
                 Tensor entropy = -(actionProbs * logProbs).sum(1, keepdim: true);
                 discreteEntropies.Add(entropy);
+             //   actionProbs.Dispose();
+             //   logProbs.Dispose();
+             //   discreteEntropies.Add(entropy);
             }
-
 
             // Continuous action entropy
             for (int i = 0; i < continuousActions; i++)
@@ -71,6 +86,8 @@ namespace RLMatrix
                 Tensor log_std = logits.select(1, discreteActions + i);
                 Tensor entropy = 0.5 + 0.5 * Math.Log(2 * Math.PI) + log_std;  // The entropy for a Gaussian distribution
                 continuousEntropies.Add(entropy);
+              //  log_std.Dispose();
+                
             }
 
             // Combine the entropies
@@ -90,10 +107,79 @@ namespace RLMatrix
             {
                 totalEntropy /= (discreteEntropies.Count + continuousEntropies.Count);
             }
+
+            foreach (var tensor in discreteEntropies.Concat(continuousEntropies))
+            {
+              //  tensor.Dispose();
+            }
+
             return totalEntropy;
         }
 
+        public (Tensor logprobs, Tensor entropy) get_log_prob_entropy(Tensor states, Tensor actions, int discreteActions, int contActions)
+        {
+            Tensor logits = forward(states);
 
+            var discreteLogProbs = new List<Tensor>();
+            var continuousLogProbs = new List<Tensor>();
+            var discreteEntropies = new List<Tensor>();
+            var continuousEntropies = new List<Tensor>();
+
+            // Discrete action log probabilities and entropy
+            for (int i = 0; i < discreteActions; i++)
+            {
+                Tensor actionLogits = logits.select(1, i);
+                Tensor actionProbs = torch.nn.functional.softmax(actionLogits, dim: 1);
+                Tensor actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1);
+                discreteLogProbs.Add(torch.log(actionProbs).gather(dim: 1, index: actionTaken));
+                discreteEntropies.Add(-(actionProbs * torch.log(actionProbs + 1e-10)).sum(1, keepdim: true));
+             //   actionLogits.Dispose();
+              //  actionProbs.Dispose();
+              //  actionTaken.Dispose();
+            }
+
+            // Continuous action log probabilities and entropy
+            for (int i = 0; i < contActions; i++)
+            {
+                Tensor mean = logits.select(1, discreteActions + i);
+                Tensor log_std = logits.select(1, discreteActions + contActions + i);
+                Tensor actionTaken = actions.select(1, discreteActions + i);
+                Tensor log_prob = (-0.5 * torch.pow((actionTaken - mean) / torch.exp(log_std), 2) - log_std - 0.5 * Math.Log(2 * Math.PI)).sum(1, keepdim: true);
+                continuousLogProbs.Add(log_prob);
+                continuousEntropies.Add(0.5 + 0.5 * Math.Log(2 * Math.PI) + log_std);
+             //   mean.Dispose();
+             //   log_std.Dispose();
+             //   actionTaken.Dispose();
+             //   log_prob.Dispose();
+            }
+
+            // Combine discrete and continuous log probabilities and entropies
+            Tensor logProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1).squeeze();           
+
+            Tensor totalEntropy = torch.tensor(0.0f).to(states.device);
+
+            if (discreteEntropies.Count > 0)
+            {
+                totalEntropy += torch.cat(discreteEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
+            }
+
+            if (continuousEntropies.Count > 0)
+            {
+                totalEntropy += torch.cat(continuousEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
+            }
+
+            if (discreteEntropies.Count + continuousEntropies.Count > 0)
+            {
+                totalEntropy /= (discreteEntropies.Count + continuousEntropies.Count);
+            }
+
+            foreach (var tensor in discreteLogProbs.Concat(continuousLogProbs).Concat(discreteEntropies).Concat(continuousEntropies))
+            {
+               // tensor.Dispose();
+            }
+
+            return (logProbs, totalEntropy);
+        }
     }
 
     public class PPOActorNet1D : PPOActorNet
@@ -102,7 +188,8 @@ namespace RLMatrix
         private readonly ModuleList<Module<Tensor, Tensor>> discreteHeads = new();
         private readonly ModuleList<Module<Tensor, Tensor>> continuousHeadsMean = new();
         private readonly ModuleList<Module<Tensor, Tensor>> continuousHeadsLogStd = new();
-        private readonly GRU lstmLayer;
+        private GRU lstmLayer;
+        //private readonly GRU lstmLayer;
         private readonly int hiddenSize;
         private readonly bool useRnn;
 
@@ -112,12 +199,14 @@ namespace RLMatrix
 
             this.useRnn = useRNN;
             this.hiddenSize = width;
+         
 
             if (useRnn)
             {
                 // Initialize LSTM layer if useRnn is true
-                lstmLayer = nn.GRU(inputs, hiddenSize, depth, batchFirst: true);
-                width = hiddenSize; // The output of LSTM layer is now the input for the heads
+                lstmLayer = nn.GRU(inputs, hiddenSize, depth, batchFirst: true, dropout: 0.05f);
+                // width = hiddenSize; // The output of LSTM layer is now the input for the heads
+               
             }
 
             // Base layers
@@ -174,8 +263,12 @@ namespace RLMatrix
 
         public override Tensor forward(Tensor x)
         {
-           
             if (x.dim() == 1)
+            {
+                x = x.unsqueeze(0);
+            }
+
+            if(useRnn && x.dim() == 2)
             {
                 x = x.unsqueeze(0);
             }
@@ -184,11 +277,12 @@ namespace RLMatrix
             // Apply the first fc module
             if (useRnn)
             {
-                x = x.unsqueeze(0);
-                // Apply LSTM layer if useRnn is true
-                x = lstmLayer.forward(x, null).Item1;
-                x = x.squeeze(0);
+
+                var res = lstmLayer.forward(x, null);
+                x = res.Item1;
+                x = x.reshape(new long[] { -1, x.size(2) });
                 x = functional.tanh(fcModules.First().forward(x));
+        
             }
             else
             {
@@ -204,7 +298,6 @@ namespace RLMatrix
             }
 
             var result = ApplyHeads(x);
-          
             return result;
         }
         public override (Tensor, Tensor) forward(Tensor x, Tensor? state)
@@ -217,12 +310,18 @@ namespace RLMatrix
             Tensor resultHiddenState = null;
             if (useRnn)
             {
+                if (state is null)
+                {
+                  //  state = torch.zeros(new long[] { 4, x.size(0), hiddenSize }, requires_grad: false).to(x.device);
+                }
+
+
                 x = x.unsqueeze(0);
                 // Apply LSTM layer if useRnn is true
                 (Tensor, Tensor) lstmResult;
-                lstmResult = lstmLayer.forward(x, state);
+                lstmResult = lstmLayer.forward(x, state);              
                 x = lstmResult.Item1;
-                resultHiddenState = lstmResult.Item2;
+                resultHiddenState = lstmResult.Item2.detach().alias();
 
 
                 x = x.squeeze(0);
@@ -240,7 +339,6 @@ namespace RLMatrix
             }
 
             var result = ApplyHeads(x);
-
             return (result, resultHiddenState);
         }
 
@@ -310,15 +408,16 @@ namespace RLMatrix
             this.useRNN = useRNN;
 
             var smallestDim = Math.Min(h, w);
+            var padding = smallestDim / 2;
 
-            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1));
+            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1), padding: (padding, padding));
 
-            long output_height = CalculateConvOutputSize(h, smallestDim);
-            long output_width = CalculateConvOutputSize(w, smallestDim);
+            long output_height = CalculateConvOutputSize(h, smallestDim, stride: 1, padding: padding);
+            long output_width = CalculateConvOutputSize(w, smallestDim, stride: 1, padding: padding);
             linear_input_size = output_height * output_width * width;
 
             flatten = Flatten();
-            if(useRNN)
+            if (useRNN)
             {
                 GRULayer = nn.GRU(linear_input_size, width, depth, batchFirst: true);
                 fcModules.Add(Linear(width, width));
@@ -327,7 +426,7 @@ namespace RLMatrix
             {
                 fcModules.Add(Linear(linear_input_size, width));
             }
-            
+
             for (int i = 1; i < depth; i++)
             {
                 fcModules.Add(Linear(width, width));
@@ -346,7 +445,6 @@ namespace RLMatrix
 
             RegisterComponents();
         }
-
         public override Tensor forward(Tensor x)
         {
             if (x.dim() == 2)
@@ -357,13 +455,22 @@ namespace RLMatrix
             {
                 x = x.unsqueeze(1);
             }
+
+            var batchength = x.size(0);
+            var sequencLength = x.size(1);
+
+            if(useRNN && x.dim() == 4)
+            {
+                x = x.reshape(new long[] { batchength * sequencLength, 1, x.size(2), x.size(3) });
+            }
+
             x = functional.tanh(conv1.forward(x));
             x = flatten.forward(x);
             if (useRNN)
             {
-                x = x.unsqueeze(0);
+                x = x.reshape(new long[] { batchength, sequencLength, x.size(1) });
                 x = GRULayer.forward(x, null).Item1;
-                x = x.squeeze(0);
+                x = x.reshape(new long[] { -1, x.size(2) });
             }
             
 
@@ -390,7 +497,8 @@ namespace RLMatrix
                 continuousOutputs.Add(functional.softplus(stdModule.forward(x)));
             }
 
-            return stack(discreteOutputs.Concat(continuousOutputs).ToArray(), dim: 1);
+            var res = stack(discreteOutputs.Concat(continuousOutputs).ToArray(), dim: 1);
+            return res;
         }
 
         protected override void Dispose(bool disposing)

@@ -97,16 +97,23 @@ namespace RLMatrix
         private readonly int width;
         private long linear_input_size;
 
+        private long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
+        {
+            return ((inputSize - kernelSize + 2 * padding) / stride) + 1;
+        }
+
         public DuelingDQN2D(string name, long h, long w, int[] actionSizes, int width, int depth = 3, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
         {
             if (depth < 1) throw new ArgumentOutOfRangeException("Depth must be 1 or greater.");
             this.width = width;
 
             var smallestDim = Math.Min(h, w);
-            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1));
+            var padding = smallestDim / 2;
 
-            long output_height = CalculateConvOutputSize(h, smallestDim);
-            long output_width = CalculateConvOutputSize(w, smallestDim);
+            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1), padding: (padding, padding));
+
+            long output_height = CalculateConvOutputSize(h, smallestDim, stride: 1, padding: padding);
+            long output_width = CalculateConvOutputSize(w, smallestDim, stride: 1, padding: padding);
             linear_input_size = output_height * output_width * width;
             flatten = Flatten();
 
@@ -186,9 +193,5 @@ namespace RLMatrix
             base.Dispose(disposing);
         }
 
-        private long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
-        {
-            return ((inputSize - kernelSize + 2 * padding) / stride) + 1;
-        }
     }
 }

@@ -1,4 +1,5 @@
-﻿using RLMatrix.Agents.DQN.Domain;
+﻿using RLMatrix.Agents.Common;
+using RLMatrix.Agents.DQN.Domain;
 using RLMatrix.Memories;
 using TorchSharp;
 using TorchSharp.Modules;
@@ -59,9 +60,9 @@ namespace RLMatrix
 
     public class BaseComputeNStepReturns<T> : IComputeNStepReturns<T>
     {
-        public Tensor ComputeNStepReturns(ref ReadOnlySpan<TransitionInMemory<T>> transitions, DQNAgentOptions opts, Device device)
+        public Tensor ComputeNStepReturns(IList<TransitionInMemory<T>> transitions, DQNAgentOptions opts, Device device)
         {
-            int batchSize = transitions.Length;
+            int batchSize = transitions.Count;
             Tensor returns = torch.zeros(batchSize, device: device);
 
             for (int i = 0; i < batchSize; i++)
@@ -94,7 +95,7 @@ namespace RLMatrix
     {
         BaseComputeNStepReturns<T> computeNStepReturns = new BaseComputeNStepReturns<T>();
 
-        public Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, DQNAgentOptions opts, ref ReadOnlySpan<TransitionInMemory<T>> transitions, int[] ActionCount, Device device)
+        public Tensor ComputeExpectedStateActionValues(Tensor nextStateValues, Tensor rewardBatch, Tensor nonFinalMask, DQNAgentOptions opts, IList<TransitionInMemory<T>> transitions, int[] ActionCount, Device device)
         {
             Tensor maskedNextStateValues = zeros(new long[] { opts.BatchSize, ActionCount.Length }, device: device);
             maskedNextStateValues.masked_scatter_(nonFinalMask.unsqueeze(1), nextStateValues);
@@ -106,7 +107,7 @@ namespace RLMatrix
             else
             {
                 // Compute n-step returns
-                Tensor nStepRewards = computeNStepReturns.ComputeNStepReturns(ref transitions, opts, device);
+                Tensor nStepRewards = computeNStepReturns.ComputeNStepReturns(transitions, opts, device);
 
                 return (maskedNextStateValues * Math.Pow(opts.GAMMA, opts.NStepReturn)) + nStepRewards.unsqueeze(1);
             }

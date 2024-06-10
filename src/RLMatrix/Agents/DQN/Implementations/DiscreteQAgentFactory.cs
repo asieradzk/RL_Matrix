@@ -109,6 +109,25 @@ namespace RLMatrix
         private static Func<T[], ComposableQDiscreteAgent<T>, bool, int[][]> GetActionSelectFuncFromOptions(DQNAgentOptions opts)
         {
             //We fetch correct action selection algorithm based on permutation of options
+            if(opts.BatchedInputProcessing && opts.BoltzmannExploration)
+                return (opts.NoisyLayers, opts.CategoricalDQN) switch
+                {
+                    (false, false) => VanillaActionSelectionBatchedBoltzmann,
+                    (true, false) => NoisyActionSelectionBatchedBoltzmann,
+                    (false, true) => CategoricalActionSelectionBatchedBoltzmann,
+                    (true, true) => CategoricalNoisyActionSelectionBatchedBoltzmann,
+                };
+
+
+            if (opts.BatchedInputProcessing)
+            return (opts.NoisyLayers, opts.CategoricalDQN) switch
+            {
+                (false, false) => VanillaActionSelectionBatched,
+                (true, false) => NoisyActionSelectionBatched,
+                (false, true) => CategoricalActionSelectionBatched,
+                (true, true) => CategoricalNoisyActionSelectionBatched,
+            };
+
             return (opts.NoisyLayers, opts.CategoricalDQN) switch
             {
                 (false, false) => VanillaActionSelection,
@@ -119,8 +138,7 @@ namespace RLMatrix
         }
 
 
-        //TODO: All these can be batched to get actions for multiple consumers in single gpu pass
-        //This is not implemented yet because it causes multiple environemtns to behave identical - since their initial observation and random roll/noise are the same
+        #region UnbatchedActionSelection
         private static int[][] VanillaActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
         {
             int[][] actions = new int[states.Length][];
@@ -203,6 +221,271 @@ namespace RLMatrix
 
             return result;
         }
+        #endregion
+
+        #region BatchedActionSelection
+        private static int[][] VanillaActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        {
+            double epsThreshold = agent.Options.EPS_END + (agent.Options.EPS_START - agent.Options.EPS_END) *
+                Math.Exp(-1.0 * agent.episodeCount / agent.Options.EPS_DECAY);
+
+            Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
+            Tensor qValuesAllHeads;
+
+            using (torch.no_grad())
+            {
+                qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0]);
+            }
+
+            int[][] actions = new int[states.Length][];
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                if (agent.Random.NextDouble() > epsThreshold || !isTraining)
+                {
+                    Tensor bestActions = qValuesAllHeads[i].argmax(dim: -1).squeeze().to(ScalarType.Int32);
+                    actions[i] = bestActions.data<int>().ToArray();
+                }
+                else
+                {
+                    actions[i] = RandomActions(agent.ActionSizes, agent.Random);
+                }
+            }
+
+            return actions;
+        }
+
+        private static int[][] NoisyActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        {
+            if (isTraining)
+            {
+                agent.policyNet.train();
+                agent.ResetNoisyLayers();
+            }
+            else
+            {
+                agent.policyNet.eval();
+            }
+
+            Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
+            Tensor qValuesAllHeads;
+
+            using (torch.no_grad())
+            {
+                qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0]);
+            }
+
+            int[][] actions = new int[states.Length][];
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                Tensor bestActions = qValuesAllHeads[i].argmax(dim: -1).squeeze().to(ScalarType.Int32);
+                actions[i] = bestActions.data<int>().ToArray();
+            }
+
+            return actions;
+        }
+
+        private static int[][] CategoricalActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        {
+            Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
+            Tensor qValuesAllHeads;
+
+            using (torch.no_grad())
+            {
+                qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0], agent.Options.NumAtoms);
+            }
+
+            Tensor expectedQValues = (qValuesAllHeads * agent.support).sum(dim: -1);
+
+            int[][] actions = new int[states.Length][];
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                Tensor bestActions = expectedQValues[i].argmax(dim: -1).squeeze().to(ScalarType.Int32);
+                actions[i] = bestActions.data<int>().ToArray();
+            }
+
+            return actions;
+        }
+
+        private static int[][] CategoricalNoisyActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        {
+            if (isTraining)
+            {
+                agent.policyNet.train();
+                agent.ResetNoisyLayers();
+            }
+            else
+            {
+                agent.policyNet.eval();
+            }
+
+            Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
+            Tensor qValuesAllHeads;
+
+            using (torch.no_grad())
+            {
+                qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0], agent.Options.NumAtoms);
+            }
+
+            Tensor expectedQValues = (qValuesAllHeads * agent.support).sum(dim: -1);
+
+            int[][] actions = new int[states.Length][];
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                Tensor bestActions = expectedQValues[i].argmax(dim: -1).squeeze().to(ScalarType.Int32);
+                actions[i] = bestActions.data<int>().ToArray();
+            }
+
+            return actions;
+        }
+        #endregion
+
+        #region BatchedBoltzmannActionSelection
+        private static int[][] VanillaActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        {
+            double epsThreshold = agent.Options.EPS_END + (agent.Options.EPS_START - agent.Options.EPS_END) *
+                Math.Exp(-1.0 * agent.episodeCount / agent.Options.EPS_DECAY);
+
+            Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
+            Tensor qValuesAllHeads;
+
+            using (torch.no_grad())
+            {
+                qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0]);
+            }
+
+            int[][] actions = new int[states.Length][];
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                actions[i] = new int[agent.ActionSizes.Length];
+
+                for (int j = 0; j < agent.ActionSizes.Length; j++)
+                {
+                    if (agent.Random.NextDouble() > epsThreshold || !isTraining)
+                    {
+                        Tensor actionProbs = torch.softmax(qValuesAllHeads[i, j], dim: -1);
+                        Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
+                        actions[i][j] = (int)sampledAction.item<long>();
+                    }
+                    else
+                    {
+                        actions[i][j] = agent.Random.Next(0, agent.ActionSizes[j]);
+                    }
+                }
+            }
+
+            return actions;
+        }
+
+        private static int[][] NoisyActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        {
+            if (isTraining)
+            {
+                agent.policyNet.train();
+                agent.ResetNoisyLayers();
+            }
+            else
+            {
+                agent.policyNet.eval();
+            }
+
+            Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
+            Tensor qValuesAllHeads;
+
+            using (torch.no_grad())
+            {
+                qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0]);
+            }
+
+            int[][] actions = new int[states.Length][];
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                actions[i] = new int[agent.ActionSizes.Length];
+
+                for (int j = 0; j < agent.ActionSizes.Length; j++)
+                {
+                    Tensor actionProbs = torch.softmax(qValuesAllHeads[i, j], dim: -1);
+                    Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
+                    actions[i][j] = (int)sampledAction.item<long>();
+                }
+            }
+
+            return actions;
+        }
+
+        private static int[][] CategoricalActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        {
+            Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
+            Tensor qValuesAllHeads;
+
+            using (torch.no_grad())
+            {
+                qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0], agent.Options.NumAtoms);
+            }
+
+            Tensor expectedQValues = (qValuesAllHeads * agent.support).sum(dim: -1);
+
+            int[][] actions = new int[states.Length][];
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                actions[i] = new int[agent.ActionSizes.Length];
+
+                for (int j = 0; j < agent.ActionSizes.Length; j++)
+                {
+                    Tensor actionProbs = torch.softmax(expectedQValues[i, j], dim: -1);
+                    Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
+                    actions[i][j] = (int)sampledAction.item<long>();
+                }
+            }
+
+            return actions;
+        }
+
+        private static int[][] CategoricalNoisyActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        {
+            if (isTraining)
+            {
+                agent.policyNet.train();
+                agent.ResetNoisyLayers();
+            }
+            else
+            {
+                agent.policyNet.eval();
+            }
+
+            Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
+            Tensor qValuesAllHeads;
+
+            using (torch.no_grad())
+            {
+                qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0], agent.Options.NumAtoms);
+            }
+
+            Tensor expectedQValues = (qValuesAllHeads * agent.support).sum(dim: -1);
+
+            int[][] actions = new int[states.Length][];
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                actions[i] = new int[agent.ActionSizes.Length];
+
+                for (int j = 0; j < agent.ActionSizes.Length; j++)
+                {
+                    Tensor actionProbs = torch.softmax(expectedQValues[i, j], dim: -1);
+                    Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
+                    actions[i][j] = (int)sampledAction.item<long>();
+                }
+            }
+
+            return actions;
+        }
+        #endregion
 
         private static int[] ActionsFromState(T state, Module<Tensor, Tensor> policyNet, int[] ActionSizes, Device device)
         {

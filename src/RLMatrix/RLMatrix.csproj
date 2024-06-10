@@ -22,6 +22,12 @@
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <Compile Remove="nupkgs\**" />
+	  <EmbeddedResource Remove="nupkgs\**" />
+	  <None Remove="nupkgs\**" />
+	</ItemGroup>
+
   <ItemGroup>
 	 <None Include="..\..\icon.png" Pack="true" PackagePath="" />
 	  <None Include="..\..\README.md" Pack="true" PackagePath="" />
@@ -36,8 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Agents\PPO\Variants\" />
-    <Folder Include="Rollout\" />
+    <Folder Include="Agents\Networked\" />
   </ItemGroup>
 
 </Project>

@@ -3,9 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using RLMatrix;
-using RLMatrix.Agents.PPO.Variants;
 using RLMatrix.Agents;
 using RLMatrix.Godot.RLMatrix.Godot;
+using RLMatrix.Agents.Common;
 
 namespace RLMatrix.Godot
 {
@@ -14,8 +14,17 @@ namespace RLMatrix.Godot
     {
 
         internal List<IEnvironmentAsync<TState>> myEnvironments = new();
-        public IDiscreteRolloutAgent<TState> myAgent { get; set; }
-        protected abstract IDiscreteRolloutAgent<TState> CreateAgent(List<IEnvironmentAsync<TState>> environments);
+        public LocalDiscreteRolloutAgent<TState> myAgent { get; set; }
+        protected abstract LocalDiscreteRolloutAgent<TState> CreateAgent(List<IEnvironmentAsync<TState>> environments);
+
+        public void SaveModel(string path)
+        {
+            myAgent.Save(path);
+        }
+        public void LoadModel(string path)
+        {
+            myAgent.Load(path);
+        }
 
         public override void _Ready()
         {

@@ -2,7 +2,7 @@
 
 namespace RLMatrix.Agents.PPO.Implementations
 {
-    public interface IDiscretePPOAgent<T> : IDiscreteAgentCore<T>, IHasMemory<T>, IHasOptimizer<T>, ISelectActionsRecurrent<T> //TODO: ISP violation
+    public interface IDiscretePPOAgent<T> : IDiscreteAgentCore<T>, IHasMemory<T>, IHasOptimizer<T>, ISavable, ISelectActionsRecurrent<T> //TODO: ISP violation
     {
 
     }

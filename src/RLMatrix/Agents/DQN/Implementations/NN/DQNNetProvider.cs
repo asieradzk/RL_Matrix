@@ -1,6 +1,5 @@
 ﻿using OneOf;
 using RLMatrix;
-using RLMatrix.Agents.DQN.NN.RLMatrix;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,11 +42,6 @@ namespace RLMatrix
                     myNetworkTYpe = NetworkType.vanilla;
                     break;
             }
-        }
-
-        public DQNNET CreateCriticNet(IEnvironment<T> env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51)
-        {
-            return CreateCriticNet(new EnvSizeDTO<T> { actionSize = env.actionSize, stateSize = env.stateSize }, noisyLayers, noiseScale);
         }
 
 
@@ -106,7 +100,6 @@ namespace RLMatrix
 
     public interface IDQNNetProvider<T>
     {
-        public DQNNET CreateCriticNet(IEnvironment<T> env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51);
         public DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51);
     }
 }

@@ -7,6 +7,7 @@ using static TorchSharp.torch.nn;
 using static TorchSharp.torch;
 using TorchSharp;
 using TorchSharp.Modules;
+using static TorchSharp.torch.nn.utils.rnn;
 
 namespace RLMatrix
 {
@@ -17,12 +18,22 @@ namespace RLMatrix
         }
 
         public override abstract Tensor forward(Tensor x);
-        public abstract (Tensor, Tensor) forward(Tensor x, Tensor? state);
-
-
-        public Tensor get_log_prob(Tensor states, Tensor actions, int discreteActions, int contActions)
+        public abstract (Tensor, Tensor, Tensor) forward(Tensor x, Tensor? state, Tensor? state2);
+        public abstract Tensor forward(PackedSequence x);
+        public Tensor get_log_prob<StateTensor>(StateTensor states, Tensor actions, int discreteActions, int contActions)
         {
-            Tensor logits = forward(states);
+            Tensor logits;
+            switch(states)             {
+                case Tensor state:
+                    logits = forward(state);
+                    break;
+                case PackedSequence state:
+                    logits = forward(state);
+                    break;
+                default:
+                    throw new ArgumentException("Invalid state type");
+            }
+
             var discreteLogProbs = new List<Tensor>();
             var continuousLogProbs = new List<Tensor>();
 
@@ -61,9 +72,21 @@ namespace RLMatrix
         }
 
 
-        public Tensor ComputeEntropy(Tensor states, int discreteActions, int continuousActions)
+        public Tensor ComputeEntropy<StateTensor>(StateTensor states, int discreteActions, int continuousActions)
         {
-            Tensor logits = forward(states);
+            Tensor logits;
+            switch (states)
+            {
+                case Tensor state:
+                    logits = forward(state);
+                    break;
+                case PackedSequence state:
+                    logits = forward(state);
+                    break;
+                default:
+                    throw new ArgumentException("Invalid state type");
+            }
+
 
             var discreteEntropies = new List<Tensor>();
             var continuousEntropies = new List<Tensor>();
@@ -91,7 +114,7 @@ namespace RLMatrix
             }
 
             // Combine the entropies
-            Tensor totalEntropy = torch.tensor(0.0f).to(states.device);  // Initialize to zero tensor
+            Tensor totalEntropy = torch.tensor(0.0f).to(logits.device);  // Initialize to zero tensor
             if (discreteEntropies.Count > 0)
             {
                 totalEntropy += torch.cat(discreteEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
@@ -116,9 +139,20 @@ namespace RLMatrix
             return totalEntropy;
         }
 
-        public (Tensor logprobs, Tensor entropy) get_log_prob_entropy(Tensor states, Tensor actions, int discreteActions, int contActions)
+        public (Tensor logprobs, Tensor entropy) get_log_prob_entropy<StateTensor>(StateTensor states, Tensor actions, int discreteActions, int contActions)
         {
-            Tensor logits = forward(states);
+            Tensor logits;
+            switch (states)
+            {
+                case Tensor state:
+                    logits = forward(state);
+                    break;
+                case PackedSequence state:
+                    logits = forward(state);
+                    break;
+                default:
+                    throw new ArgumentException("Invalid state type");
+            }
 
             var discreteLogProbs = new List<Tensor>();
             var continuousLogProbs = new List<Tensor>();
@@ -156,7 +190,7 @@ namespace RLMatrix
             // Combine discrete and continuous log probabilities and entropies
             Tensor logProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1).squeeze();           
 
-            Tensor totalEntropy = torch.tensor(0.0f).to(states.device);
+            Tensor totalEntropy = torch.tensor(0.0f).to(logits.device);
 
             if (discreteEntropies.Count > 0)
             {
@@ -188,7 +222,7 @@ namespace RLMatrix
         private readonly ModuleList<Module<Tensor, Tensor>> discreteHeads = new();
         private readonly ModuleList<Module<Tensor, Tensor>> continuousHeadsMean = new();
         private readonly ModuleList<Module<Tensor, Tensor>> continuousHeadsLogStd = new();
-        private GRU lstmLayer;
+        private LSTM lstmLayer;
         //private readonly GRU lstmLayer;
         private readonly int hiddenSize;
         private readonly bool useRnn;
@@ -204,7 +238,7 @@ namespace RLMatrix
             if (useRnn)
             {
                 // Initialize LSTM layer if useRnn is true
-                lstmLayer = nn.GRU(inputs, hiddenSize, depth, batchFirst: true, dropout: 0.05f);
+                lstmLayer = nn.LSTM(inputs, hiddenSize, depth, batchFirst: true, dropout: 0.05f);
                 // width = hiddenSize; // The output of LSTM layer is now the input for the heads
                
             }
@@ -278,7 +312,7 @@ namespace RLMatrix
             if (useRnn)
             {
 
-                var res = lstmLayer.forward(x, null);
+                var res = lstmLayer.forward(x);
                 x = res.Item1;
                 x = x.reshape(new long[] { -1, x.size(2) });
                 x = functional.tanh(fcModules.First().forward(x));
@@ -300,37 +334,81 @@ namespace RLMatrix
             var result = ApplyHeads(x);
             return result;
         }
-        public override (Tensor, Tensor) forward(Tensor x, Tensor? state)
+        /*
+        public override (Tensor, Tensor, Tensor) forward(Tensor x, Tensor? state, Tensor? state2)
         {
             if (x.dim() == 1)
             {
                 x = x.unsqueeze(0);
             }
 
-            Tensor resultHiddenState = null;
-            if (useRnn)
+            // Create a PackedSequence with the input tensor
+            var packedSequence = pack_sequence(new[] { x });
+
+            (Tensor, Tensor)? stateTuple = null;
+            if (state is not null && state2 is not null)
             {
-                if (state is null)
-                {
-                  //  state = torch.zeros(new long[] { 4, x.size(0), hiddenSize }, requires_grad: false).to(x.device);
-                }
+                stateTuple = (state, state2);
+            }
 
+            // Call the LSTM layer with the PackedSequence and state tuple
+            var res = lstmLayer.call(packedSequence, stateTuple);
 
+            // Unpack the output PackedSequence
+            var lstmOutput = pad_packed_sequence(res.Item1, batch_first: true);
+            x = lstmOutput.Item1;
+
+            x = x.squeeze(0);
+
+            // Extract the hidden state and cell state from the LSTM output
+            var hiddenState = res.Item2;
+            var cellState = res.Item3;
+
+            x = functional.tanh(fcModules.First().forward(x));
+
+            // Apply the rest of the fc modules
+            foreach (var module in fcModules.Skip(1))
+            {
+                x = functional.tanh(module.forward(x));
+            }
+
+            // Apply the heads
+            var result = ApplyHeads(x);
+        
+            // Return the result tensor, hidden state, and cell state
+            return (result, hiddenState, cellState);
+        }
+        */
+        
+        
+        public override (Tensor, Tensor, Tensor) forward(Tensor x, Tensor? state, Tensor? state2)
+        {
+            if (x.dim() == 1)
+            {
                 x = x.unsqueeze(0);
-                // Apply LSTM layer if useRnn is true
-                (Tensor, Tensor) lstmResult;
-                lstmResult = lstmLayer.forward(x, state);              
-                x = lstmResult.Item1;
-                resultHiddenState = lstmResult.Item2.detach().alias();
-
-
-                x = x.squeeze(0);
-                x = functional.tanh(fcModules.First().forward(x));
             }
-            else
+
+            if (state is null)
             {
-                x = functional.tanh(fcModules.First().forward(x));
             }
+
+
+            x = x.unsqueeze(0);
+            (Tensor, Tensor, Tensor) lstmResult;
+            (Tensor, Tensor)? stateTuple = null;
+
+            if (state is not null && state2 is not null)
+            {
+                stateTuple = (state, state2);
+            }
+
+            lstmResult = lstmLayer.forward(x, stateTuple);
+            x = lstmResult.Item1;
+            var resultHiddenState = (lstmResult.Item2, lstmResult.Item3);
+
+
+            x = x.squeeze(0);
+            x = functional.tanh(fcModules.First().forward(x));
 
             // Apply the rest of the fc modules
             foreach (var module in fcModules.Skip(1))
@@ -339,7 +417,45 @@ namespace RLMatrix
             }
 
             var result = ApplyHeads(x);
-            return (result, resultHiddenState);
+            return (result, resultHiddenState.Item1, resultHiddenState.Item2);
+        }
+      
+        public override Tensor forward(PackedSequence x)
+        {
+            // Unpack the PackedSequence
+            var unpackedData = x.data;
+            var batchSizes = x.batch_sizes;
+
+            if (useRnn)
+            {
+                (var lstmOutput, _, _) = lstmLayer.call(x, null);
+                unpackedData = lstmOutput.data;
+                unpackedData = unpackedData.reshape(new long[] { -1, unpackedData.size(1) });
+                unpackedData = functional.tanh(fcModules.First().forward(unpackedData));
+            }
+            else
+            {
+                // Adjust for a single input
+                if (unpackedData.dim() == 1)
+                {
+                    unpackedData = unpackedData.unsqueeze(0);
+                }
+                if (unpackedData.dim() == 2)
+                {
+                    unpackedData = unpackedData.unsqueeze(0);
+                }
+                unpackedData = functional.tanh(fcModules.First().forward(unpackedData));
+            }
+
+            // Apply the rest of the fc modules
+            foreach (var module in fcModules.Skip(1))
+            {
+                unpackedData = functional.tanh(module.forward(unpackedData));
+            }
+
+            var result = ApplyHeads(unpackedData);
+
+            return result;
         }
 
         protected override void Dispose(bool disposing)
@@ -390,7 +506,7 @@ namespace RLMatrix
         private readonly ModuleList<Module<Tensor, Tensor>> discreteHeads = new();
         private readonly ModuleList<Module<Tensor, Tensor>> continuousMeans = new();
         private readonly ModuleList<Module<Tensor, Tensor>> continuousStds = new();
-        private readonly GRU GRULayer;
+        private readonly LSTM LSTMLayer;
         private int width;
         private long linear_input_size;
         private bool useRNN;
@@ -419,7 +535,7 @@ namespace RLMatrix
             flatten = Flatten();
             if (useRNN)
             {
-                GRULayer = nn.GRU(linear_input_size, width, depth, batchFirst: true);
+                LSTMLayer = nn.LSTM(linear_input_size, width, depth, batchFirst: true);
                 fcModules.Add(Linear(width, width));
             }
             else
@@ -469,7 +585,7 @@ namespace RLMatrix
             if (useRNN)
             {
                 x = x.reshape(new long[] { batchength, sequencLength, x.size(1) });
-                x = GRULayer.forward(x, null).Item1;
+                x = LSTMLayer.forward(x, null).Item1;
                 x = x.reshape(new long[] { -1, x.size(2) });
             }
             
@@ -505,6 +621,7 @@ namespace RLMatrix
         {
             if (disposing)
             {
+                LSTMLayer?.Dispose();
                 conv1.Dispose();
                 foreach (var module in fcModules.Concat(discreteHeads).Concat(continuousMeans).Concat(continuousStds))
                 {
@@ -518,7 +635,7 @@ namespace RLMatrix
         }
 
 
-        public override (Tensor, Tensor) forward(Tensor x, Tensor? state)
+        public override (Tensor, Tensor, Tensor) forward(Tensor x, Tensor? state, Tensor? state2)
         {
             if (x.dim() == 2)
             {
@@ -530,15 +647,18 @@ namespace RLMatrix
             }
             x = functional.tanh(conv1.forward(x));
             x = flatten.forward(x);
-            Tensor stateRes = null;
-            if (useRNN)
+            x = x.unsqueeze(0);
+
+            (Tensor, Tensor)? stateTuple = null;
+            if (state is not null && state2 is not null)
             {
-                x = x.unsqueeze(0);
-                var result = GRULayer.forward(x, state);
-                x = result.Item1.squeeze(0);
-                stateRes = result.Item2;
+                stateTuple = (state, state2);
             }
-            
+
+            var result = LSTMLayer.forward(x, stateTuple);
+            x = result.Item1.squeeze(0);
+            var stateRes = (result.Item2, result.Item3);
+
 
             foreach (var module in fcModules)
             {
@@ -563,7 +683,12 @@ namespace RLMatrix
                 continuousOutputs.Add(functional.softplus(stdModule.forward(x)));
             }
 
-            return (stack(discreteOutputs.Concat(continuousOutputs).ToArray(), dim: 1), stateRes);
+            return (stack(discreteOutputs.Concat(continuousOutputs).ToArray(), dim: 1), stateRes.Item1, stateRes.Item2);
+        }
+
+        public override Tensor forward(PackedSequence x)
+        {
+            throw new NotImplementedException();
         }
     }
 

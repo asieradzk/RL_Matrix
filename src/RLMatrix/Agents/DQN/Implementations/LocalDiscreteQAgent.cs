@@ -14,10 +14,27 @@ namespace RLMatrix
             _agent = agentComposer?.ComposeAgent(opts) ?? DiscreteQAgentFactory<T>.ComposeQAgent(opts, actionSizes, stateSizes);
         }
 
+        public ValueTask LoadAsync(string path)
+        {
+           _agent.Load(path);
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask OptimizeModelAsync()
         {
             _agent.OptimizeModel();
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask ResetStates(List<(Guid environmentId, bool dones)> environmentIds)
+        {
+            //ISP violation
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask SaveAsync(string path)
+        {
+            _agent.Save(path);
             return ValueTask.CompletedTask;
         }
 

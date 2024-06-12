@@ -6,40 +6,28 @@ namespace RLMatrix.Agents.PPO.Implementations
 {
     public class DiscreteRecurrentPPOAgent<T> : DiscretePPOAgent<T>
     {
-        public override (int[] actions, Tensor? memoryState)[] SelectActionsRecurrent((T state, Tensor? memoryState)[] states, bool isTraining)
+        public override (int[] actions, Tensor? memoryState, Tensor? memoryState2)[] SelectActionsRecurrent((T state, Tensor? memoryState, Tensor? memoryState2)[] states, bool isTraining)
         {
-            int[][] actions = new int[states.Length][];
-            float[][] continuousActions = new float[states.Length][];
-            Tensor[] memoryStates = new Tensor[states.Length];
-
+            (int[], Tensor, Tensor)[] result = new (int[], Tensor, Tensor)[states.Length];
             for (int i = 0; i < states.Length; i++)
             {
                 using (var scope = torch.no_grad())
                 {
                     Tensor stateTensor = Utilities<T>.StateToTensor(states[i].state, Device);
-                    var result = actorNet.forward(stateTensor, states[i].memoryState);
-
+                    var forwardResult = actorNet.forward(stateTensor, states[i].memoryState, states[i].memoryState2);
                     if (isTraining)
                     {
-                        // Discrete Actions
-                        actions[i] = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(result.Item1, ActionSizes);
-                        // Continuous Actions
-                        continuousActions[i] = PPOActionSelection<T>.SampleContinuousActions(result.Item1, ActionSizes, new (float, float)[0]);
+                        int[] discreteActions = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(forwardResult.Item1, ActionSizes);
+                        result[i] = (discreteActions, forwardResult.Item2, forwardResult.Item3);
                     }
                     else
                     {
-                        // Discrete Actions
-                        actions[i] = PPOActionSelection<T>.SelectGreedyDiscreteActions(result.Item1, ActionSizes);
-                        // Continuous Actions
-                        continuousActions[i] = PPOActionSelection<T>.SelectMeanContinuousActions(result.Item1, ActionSizes, new (float, float)[0]);
+                        int[] discreteActions = PPOActionSelection<T>.SelectGreedyDiscreteActions(forwardResult.Item1, ActionSizes);
+                        result[i] = (discreteActions, forwardResult.Item2, forwardResult.Item3);
                     }
-
-                    memoryStates[i] = result.Item2;
                 }
-
             }
-
-            return actions.Zip(memoryStates, (actions, memoryState) => (actions, memoryState)).ToArray();
+            return result;
         }
 
 

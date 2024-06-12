@@ -15,8 +15,14 @@ namespace RLMatrix.Agents.Common
         Task Step(bool isTraining = true);
     }
 
+    public interface ILocalSavable
+    {
+        ValueTask Save(string path);
+        ValueTask Load(string path);
+    }
 
-    public class LocalDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>
+
+    public class LocalDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>, ILocalSavable
     {
         protected readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
         protected readonly Dictionary<Guid, Episode<TState>> _ennvGuidPairs;
@@ -96,6 +102,8 @@ namespace RLMatrix.Agents.Common
             //Process episodes
             ConcurrentBag<TransitionPortable<TState>> transitionsToShip = new();
             ConcurrentBag<double> rewards = new();
+            var completedEpisodes = new List<(Guid environmentId, bool done)>();
+
             foreach (var env in _environments)
             {
                 var key = env.Key;
@@ -115,12 +123,16 @@ namespace RLMatrix.Agents.Common
                     }
                     rewards.Add(episode.cumulativeReward);
                     episode.CompletedEpisodes.Clear();
+                    completedEpisodes.Add((key, true));
                 }
             }
 
             if (_chartService != null)
             {
                 chart.AddRange(rewards);
+                //remove starting from 0 till it has less than 100 elements
+                chart.RemoveRange(0, Math.Max(0, chart.Count - 100));
+
                 _chartService.CreateOrUpdateChart(chart);
             }
 
@@ -131,7 +143,7 @@ namespace RLMatrix.Agents.Common
 
 
 
-
+            await _agent.ResetStates(completedEpisodes);
             await _agent.OptimizeModelAsync();
 
         }
@@ -168,6 +180,15 @@ namespace RLMatrix.Agents.Common
             return (environmentId, state);
         }
 
+        public ValueTask Save(string path)
+        {
+            return _agent.SaveAsync(path);
+        }
+
+        public ValueTask Load(string path)
+        {
+            return _agent.LoadAsync(path);
+        }
 
         public class Episode<T>
         {
@@ -201,6 +222,8 @@ namespace RLMatrix.Agents.Common
                 }
 
             }
+
+        
         }
 
     }

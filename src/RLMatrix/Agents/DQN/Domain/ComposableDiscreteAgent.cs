@@ -5,6 +5,7 @@ using RLMatrix.Memories;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
 using static TorchSharp.torch.nn;
+using static TorchSharp.torch.optim.lr_scheduler;
 using static TorchSharp.torchvision;
 
 namespace RLMatrix
@@ -16,7 +17,7 @@ namespace RLMatrix
 
     }
 
-    public class ComposableQDiscreteAgent<T> : IDiscreteAgentCore<T>, IHasMemory<T>, ISelectActions<T>, IHasOptimizer<T>
+    public class ComposableQDiscreteAgent<T> : IDiscreteAgentCore<T>, IHasMemory<T>, ISelectActions<T>, IHasOptimizer<T>, ISavable
     {
         public required Module<Tensor, Tensor> policyNet { get; set; }
         public required Module<Tensor, Tensor> targetNet { get; set; }
@@ -47,6 +48,76 @@ namespace RLMatrix
         public int[][] SelectActions(T[] states, bool isTraining)
         {
             return SelectActionsFunc(states, this, isTraining);
+        }
+
+        public void Save(string path)
+        {
+            // Check if path ends with "/", if not, append it
+            var modelPath = path.EndsWith(@"\") ? path : path + @"\";
+
+            // Save the policy network
+            string policyNetPath = GetNextAvailableModelPath(modelPath, "modelPolicy");
+            policyNet.save(policyNetPath);
+
+            // Save the target network
+            string targetNetPath = GetNextAvailableModelPath(modelPath, "modelTarget");
+            targetNet.save(targetNetPath);
+        }
+
+        private string GetNextAvailableModelPath(string modelPath, string modelName)
+        {
+            // Read all files in the directory
+            var files = Directory.GetFiles(modelPath);
+
+            // Find the highest number of files with the same name
+            int maxNumber = files
+                .Where(file => file.Contains(modelName))
+                .Select(file => Path.GetFileNameWithoutExtension(file).Split("_").LastOrDefault())
+                .Where(number => int.TryParse(number, out _))
+                .DefaultIfEmpty("0")
+                .Max(number => int.Parse(number));
+
+            // Append the next number to the model name
+            string nextModelPath = $"{modelPath}{modelName}_{maxNumber + 1}";
+
+            return nextModelPath;
+        }
+
+        public void Load(string path, LRScheduler scheduler = null)
+        {
+            // Check if path ends with "/", if not, append it
+            var modelPath = path.EndsWith(@"\") ? path : path + @"\";
+
+            // Load the policy network
+            string policyNetPath = GetLatestModelPath(modelPath, "modelPolicy");
+            string targetNetPath = GetLatestModelPath(modelPath, "modelTarget");
+            policyNet.load(policyNetPath, true);
+
+            // Load the target network
+           
+            targetNet.load(targetNetPath, true);
+
+            Optimizer.UpdateOptimizers(scheduler);
+
+        }
+
+        private string GetLatestModelPath(string modelPath, string modelName)
+        {
+            // Read all files in the directory
+            var files = Directory.GetFiles(modelPath);
+
+            // Find the highest number of files with the same name
+            int maxNumber = files
+                .Where(file => file.Contains(modelName))
+                .Select(file => Path.GetFileNameWithoutExtension(file).Split("_").LastOrDefault())
+                .Where(number => int.TryParse(number, out _))
+                .DefaultIfEmpty("0")
+                .Max(number => int.Parse(number));
+
+            // Get the latest model path
+            string latestModelPath = $"{modelPath}{modelName}_{maxNumber}";
+
+            return latestModelPath;
         }
     }
 

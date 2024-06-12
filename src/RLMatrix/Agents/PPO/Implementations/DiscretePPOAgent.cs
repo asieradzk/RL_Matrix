@@ -2,6 +2,8 @@
 using RLMatrix.Memories;
 using TorchSharp;
 using static TorchSharp.torch;
+using static TorchSharp.torch.optim;
+using static TorchSharp.torch.optim.lr_scheduler;
 
 namespace RLMatrix.Agents.PPO.Implementations
 {
@@ -98,9 +100,77 @@ namespace RLMatrix.Agents.PPO.Implementations
             return actions;
         }
 
-        public virtual (int[] actions, Tensor? memoryState)[] SelectActionsRecurrent((T state, Tensor? memoryState)[] states, bool isTraining)
+        public virtual (int[] actions, Tensor? memoryState, Tensor? memoryState2)[] SelectActionsRecurrent((T state, Tensor? memoryState, Tensor? memoryState2)[] states, bool isTraining)
         {
             throw new Exception("Using recurrent action selection with non recurrent agent, use int[][] SelectActions(T[] states, bool isTraining) signature instead");
+        }
+
+        public void Save(string path)
+        {
+            // Check if path ends with "/", if not, append it
+            var modelPath = path.EndsWith("/") ? path : path + "/";
+
+            // Save the policy network
+            string actorNetPath = GetNextAvailableModelPath(modelPath, "modelActor");
+            actorNet.save(actorNetPath);
+
+            // Save the target network
+            string criticNetPath = GetNextAvailableModelPath(modelPath, "modelCritic");
+            criticNet.save(criticNetPath);
+        }
+
+        private string GetNextAvailableModelPath(string modelPath, string modelName)
+        {
+            // Read all files in the directory
+            var files = Directory.GetFiles(modelPath);
+
+            // Find the highest number of files with the same name
+            int maxNumber = files
+                .Where(file => file.Contains(modelName))
+                .Select(file => Path.GetFileNameWithoutExtension(file).Split("_").LastOrDefault())
+                .Where(number => int.TryParse(number, out _))
+                .DefaultIfEmpty("0")
+                .Max(number => int.Parse(number));
+
+            // Append the next number to the model name
+            string nextModelPath = $"{modelPath}{modelName}_{maxNumber + 1}";
+
+            return nextModelPath;
+        }
+
+        public void Load(string path, LRScheduler scheduler = null)
+        {
+            // Check if path ends with "/", if not, append it
+            var modelPath = path.EndsWith("/") ? path : path + "/";
+
+            // Load the policy network
+            string actorNetPath = GetLatestModelPath(modelPath, "modelActor");
+            actorNet.load(actorNetPath, strict: true);
+
+            // Load the target network
+            string criticNetPath = GetLatestModelPath(modelPath, "modelCritic");
+            criticNet.load(criticNetPath, strict: true);
+
+            Optimizer.UpdateOptimizers(scheduler);
+        }
+
+        private string GetLatestModelPath(string modelPath, string modelName)
+        {
+            // Read all files in the directory
+            var files = Directory.GetFiles(modelPath);
+
+            // Find the highest number of files with the same name
+            int maxNumber = files
+                .Where(file => file.Contains(modelName))
+                .Select(file => Path.GetFileNameWithoutExtension(file).Split("_").LastOrDefault())
+                .Where(number => int.TryParse(number, out _))
+                .DefaultIfEmpty("0")
+                .Max(number => int.Parse(number));
+
+            // Get the latest model path
+            string latestModelPath = $"{modelPath}{modelName}_{maxNumber}";
+
+            return latestModelPath;
         }
     }
 }

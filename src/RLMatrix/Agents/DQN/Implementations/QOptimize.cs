@@ -54,6 +54,15 @@ namespace RLMatrix.Agents.DQN.Domain
             myGAIL = GAIL;
 
         }
+
+        public void UpdateOptimizers(LRScheduler scheduler)
+        {
+            Optimizer = torch.optim.Adam(PolicyNet.parameters(), lr: myOptions.LR, amsgrad: true);
+            scheduler ??= new optim.lr_scheduler.impl.CyclicLR(Optimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
+            LRScheduler = scheduler;
+        
+        }
+
         public void Optimize(IMemory<T> ReplayBuffer)
         {
             if (myGAIL != null && ReplayBuffer.Length > 0)

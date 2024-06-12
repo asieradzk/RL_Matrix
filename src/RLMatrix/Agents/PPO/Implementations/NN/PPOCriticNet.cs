@@ -7,6 +7,7 @@ using static TorchSharp.torch.nn;
 using static TorchSharp.torch;
 using TorchSharp.Modules;
 using TorchSharp;
+using static TorchSharp.torch.nn.utils.rnn;
 
 namespace RLMatrix
 {
@@ -17,13 +18,15 @@ namespace RLMatrix
         }
 
         public override abstract Tensor forward(Tensor x);
+
+        public abstract Tensor forward(PackedSequence x); 
     }
 
     public class PPOCriticNet1D : PPOCriticNet
     {
         private readonly ModuleList<Module<Tensor, Tensor>> fcModules = new();
         private readonly Module<Tensor, Tensor> head;
-        private RNN lstmLayer;
+        private LSTM lstmLayer;
         private int hiddenSize;
         private bool useRnn;
 
@@ -40,7 +43,7 @@ namespace RLMatrix
             if (useRnn)
             {
                 // Initialize LSTM layer if useRnn is true
-                lstmLayer = nn.RNN(inputs, hiddenSize, depth, batchFirst: true, dropout: 0.05f);
+                lstmLayer = nn.LSTM(inputs, hiddenSize, depth, batchFirst: true, dropout: 0.05f);
                 //width = hiddenSize; // The output of LSTM layer is now the input for the heads
             }
 
@@ -107,6 +110,44 @@ namespace RLMatrix
             return result;
         }
 
+        public override Tensor forward(PackedSequence x)
+        {
+            // Unpack the PackedSequence
+            var unpackedData = x.data;
+            var batchSizes = x.batch_sizes;
+
+            if (useRnn)
+            {
+                // Apply LSTM layer if useRnn is true
+                (var lstmOutput, _, _) = lstmLayer.call(x);
+                unpackedData = lstmOutput.data;
+                unpackedData = unpackedData.reshape(new long[] { unpackedData.size(0), unpackedData.size(1) });
+                unpackedData = functional.tanh(fcModules.First().forward(unpackedData));
+            }
+            else
+            {
+                // Adjust for a single input
+                if (unpackedData.dim() == 1)
+                {
+                    unpackedData = unpackedData.unsqueeze(0);
+                }
+                if (unpackedData.dim() == 2)
+                {
+                    unpackedData = unpackedData.unsqueeze(0);
+                }
+                unpackedData = functional.tanh(fcModules.First().forward(unpackedData));
+            }
+
+            foreach (var module in fcModules.Skip(1))
+            {
+                unpackedData = functional.tanh(module.forward(unpackedData));
+            }
+
+            var result = head.forward(unpackedData);
+
+            return result;
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
@@ -129,7 +170,7 @@ namespace RLMatrix
     {
         private Module<Tensor, Tensor> conv1, flatten, head;
         private readonly ModuleList<Module<Tensor, Tensor>> fcModules = new();
-        private GRU gruLayer; // GRU layer
+        private LSTM LSTMLayer; // GRU layer
         private int width;
         private long linear_input_size;
         private bool useRnn;
@@ -163,7 +204,7 @@ namespace RLMatrix
             if (useRnn)
             {
                 // Initialize GRU layer if useRnn is true
-                gruLayer = nn.GRU(linear_input_size, hiddenSize, depth, batchFirst: true, dropout: 0.1f);
+                LSTMLayer = nn.LSTM(linear_input_size, hiddenSize, depth, batchFirst: true, dropout: 0.1f);
                 linear_input_size = hiddenSize; // The output of GRU layer is now the input for the fully connected layers.
             }
 
@@ -211,7 +252,7 @@ namespace RLMatrix
             if (useRnn)
             {
                 x = x.reshape(new long[] { batchength, sequencLength, x.size(1) });
-                x = gruLayer.forward(x, null).Item1;
+                x = LSTMLayer.forward(x, null).Item1;
                 x = x.reshape(new long[] { -1, x.size(2) });
             }
 
@@ -231,7 +272,7 @@ namespace RLMatrix
                 // Dispose all created modules.
                 conv1.Dispose();
                 flatten.Dispose();
-                gruLayer?.Dispose();
+                LSTMLayer?.Dispose();
                 foreach (var module in fcModules)
                 {
                     module.Dispose();
@@ -241,6 +282,11 @@ namespace RLMatrix
             }
 
             base.Dispose(disposing);
+        }
+
+        public override Tensor forward(PackedSequence x)
+        {
+            throw new NotImplementedException();
         }
     }
 

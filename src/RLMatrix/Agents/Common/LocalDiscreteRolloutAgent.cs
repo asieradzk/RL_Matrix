@@ -21,13 +21,21 @@ namespace RLMatrix.Agents.Common
         ValueTask Load(string path);
     }
 
-
     public class LocalDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>, ILocalSavable
     {
         protected readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
         protected readonly Dictionary<Guid, Episode<TState>> _ennvPairs;
         protected readonly IDiscreteProxy<TState> _agent;
         protected readonly IRLChartService? _chartService;
+
+        public LocalDiscreteRolloutAgent(DQNAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
+        {
+            _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
+            _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
+            _chartService = options.DisplayPlot;
+            _agent = new LocalDiscreteQAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
+
+        }
 
         public LocalDiscreteRolloutAgent(PPOAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
         {

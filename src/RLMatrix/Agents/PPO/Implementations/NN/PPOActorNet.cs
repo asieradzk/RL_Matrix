@@ -20,10 +20,12 @@ namespace RLMatrix
         public override abstract Tensor forward(Tensor x);
         public abstract (Tensor, Tensor, Tensor) forward(Tensor x, Tensor? state, Tensor? state2);
         public abstract Tensor forward(PackedSequence x);
+
         public Tensor get_log_prob<StateTensor>(StateTensor states, Tensor actions, int discreteActions, int contActions)
         {
             Tensor logits;
-            switch(states)             {
+            switch (states)
+            {
                 case Tensor state:
                     logits = forward(state);
                     break;
@@ -40,37 +42,33 @@ namespace RLMatrix
             // Discrete action log probabilities
             for (int i = 0; i < discreteActions; i++)
             {
-                Tensor actionLogits = logits.select(1, i);
-                Tensor actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1);
-                discreteLogProbs.Add(torch.nn.functional.log_softmax(actionLogits, dim: 1).gather(dim: 1, index: actionTaken));
-                actionLogits.Dispose();
-                actionTaken.Dispose();
+                using (var actionLogits = logits.select(1, i))
+                using (var actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1))
+                {
+                    discreteLogProbs.Add(torch.nn.functional.log_softmax(actionLogits, dim: 1).gather(dim: 1, index: actionTaken));
+                }
             }
 
             // Continuous action log probabilities
             for (int i = 0; i < contActions; i++)
             {
-                Tensor mean = logits.select(1, discreteActions + i);
-                Tensor log_std = logits.select(1, discreteActions + contActions + i);
-                Tensor actionTaken = actions.select(1, discreteActions + i);
-                Tensor log_prob = (-0.5 * torch.pow((actionTaken - mean) / torch.exp(log_std), 2) - log_std - 0.5 * Math.Log(2 * Math.PI)).sum(1, keepdim: true);
-                continuousLogProbs.Add(log_prob);
-                mean.Dispose();
-                log_std.Dispose();
-                actionTaken.Dispose();
-                log_prob.Dispose();
+                using (var mean = logits.select(1, discreteActions + i))
+                using (var log_std = logits.select(1, discreteActions + contActions + i))
+                using (var actionTaken = actions.select(1, discreteActions + i))
+                {
+                    var log_prob = (-0.5 * torch.pow((actionTaken - mean) / torch.exp(log_std), 2) - log_std - 0.5 * Math.Log(2 * Math.PI)).sum(1, keepdim: true);
+                    continuousLogProbs.Add(log_prob);
+                }
             }
 
             // Combine discrete and continuous log probabilities
-            var res = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1).squeeze();
-            foreach (var tensor in discreteLogProbs.Concat(continuousLogProbs))
+            using (var combinedLogProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1))
             {
-                tensor.Dispose();
+                var res = combinedLogProbs.squeeze();
+                logits.Dispose();
+                return res;
             }
-            logits.Dispose();
-            return res;
         }
-
 
         public Tensor ComputeEntropy<StateTensor>(StateTensor states, int discreteActions, int continuousActions)
         {
@@ -87,56 +85,37 @@ namespace RLMatrix
                     throw new ArgumentException("Invalid state type");
             }
 
-
             var discreteEntropies = new List<Tensor>();
             var continuousEntropies = new List<Tensor>();
 
             // Discrete action entropy
             for (int i = 0; i < discreteActions; i++)
             {
-                Tensor actionProbs = logits.select(1, i);  // These are already probabilities
-                Tensor logProbs = torch.log(actionProbs + 1e-10);  // Add a small constant for numerical stability
-                Tensor entropy = -(actionProbs * logProbs).sum(1, keepdim: true);
-                discreteEntropies.Add(entropy);
-             //   actionProbs.Dispose();
-             //   logProbs.Dispose();
-             //   discreteEntropies.Add(entropy);
+                using (var actionProbs = logits.select(1, i))
+                using (var logProbs = torch.log(actionProbs + 1e-10))
+                {
+                    var entropy = -(actionProbs * logProbs).sum(1, keepdim: true);
+                    discreteEntropies.Add(entropy);
+                }
             }
 
             // Continuous action entropy
             for (int i = 0; i < continuousActions; i++)
             {
-                Tensor log_std = logits.select(1, discreteActions + i);
-                Tensor entropy = 0.5 + 0.5 * Math.Log(2 * Math.PI) + log_std;  // The entropy for a Gaussian distribution
-                continuousEntropies.Add(entropy);
-              //  log_std.Dispose();
-                
+                using (var log_std = logits.select(1, discreteActions + i))
+                {
+                    var entropy = 0.5 + 0.5 * Math.Log(2 * Math.PI) + log_std;
+                    continuousEntropies.Add(entropy);
+                }
             }
 
             // Combine the entropies
-            Tensor totalEntropy = torch.tensor(0.0f).to(logits.device);  // Initialize to zero tensor
-            if (discreteEntropies.Count > 0)
+            using (var combinedEntropies = torch.cat(discreteEntropies.Concat(continuousEntropies).ToArray(), dim: 1))
             {
-                totalEntropy += torch.cat(discreteEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
+                var totalEntropy = combinedEntropies.mean(new long[] { 1 }, true);
+                logits.Dispose();
+                return totalEntropy;
             }
-
-            if (continuousEntropies.Count > 0)
-            {
-                totalEntropy += torch.cat(continuousEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
-            }
-
-            // Normalize by the number of action heads if needed
-            if (discreteEntropies.Count + continuousEntropies.Count > 0)
-            {
-                totalEntropy /= (discreteEntropies.Count + continuousEntropies.Count);
-            }
-
-            foreach (var tensor in discreteEntropies.Concat(continuousEntropies))
-            {
-              //  tensor.Dispose();
-            }
-
-            return totalEntropy;
         }
 
         public (Tensor logprobs, Tensor entropy) get_log_prob_entropy<StateTensor>(StateTensor states, Tensor actions, int discreteActions, int contActions)
@@ -162,58 +141,39 @@ namespace RLMatrix
             // Discrete action log probabilities and entropy
             for (int i = 0; i < discreteActions; i++)
             {
-                Tensor actionLogits = logits.select(1, i);
-                Tensor actionProbs = torch.nn.functional.softmax(actionLogits, dim: 1);
-                Tensor actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1);
-                discreteLogProbs.Add(torch.log(actionProbs).gather(dim: 1, index: actionTaken));
-                discreteEntropies.Add(-(actionProbs * torch.log(actionProbs + 1e-10)).sum(1, keepdim: true));
-             //   actionLogits.Dispose();
-              //  actionProbs.Dispose();
-              //  actionTaken.Dispose();
+                using (var actionLogits = logits.select(1, i))
+                using (var actionProbs = torch.nn.functional.softmax(actionLogits, dim: 1))
+                using (var actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1))
+                {
+                    discreteLogProbs.Add(torch.log(actionProbs).gather(dim: 1, index: actionTaken));
+                    discreteEntropies.Add(-(actionProbs * torch.log(actionProbs + 1e-10)).sum(1, keepdim: true));
+                }
             }
 
             // Continuous action log probabilities and entropy
             for (int i = 0; i < contActions; i++)
             {
-                Tensor mean = logits.select(1, discreteActions + i);
-                Tensor log_std = logits.select(1, discreteActions + contActions + i);
-                Tensor actionTaken = actions.select(1, discreteActions + i);
-                Tensor log_prob = (-0.5 * torch.pow((actionTaken - mean) / torch.exp(log_std), 2) - log_std - 0.5 * Math.Log(2 * Math.PI)).sum(1, keepdim: true);
-                continuousLogProbs.Add(log_prob);
-                continuousEntropies.Add(0.5 + 0.5 * Math.Log(2 * Math.PI) + log_std);
-             //   mean.Dispose();
-             //   log_std.Dispose();
-             //   actionTaken.Dispose();
-             //   log_prob.Dispose();
+                using (var mean = logits.select(1, discreteActions + i))
+                using (var log_std = logits.select(1, discreteActions + contActions + i))
+                using (var actionTaken = actions.select(1, discreteActions + i))
+                {
+                    var log_prob = (-0.5 * torch.pow((actionTaken - mean) / torch.exp(log_std), 2) - log_std - 0.5 * Math.Log(2 * Math.PI)).sum(1, keepdim: true);
+                    continuousLogProbs.Add(log_prob);
+                    continuousEntropies.Add(0.5 + 0.5 * Math.Log(2 * Math.PI) + log_std);
+                }
             }
 
             // Combine discrete and continuous log probabilities and entropies
-            Tensor logProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1).squeeze();           
-
-            Tensor totalEntropy = torch.tensor(0.0f).to(logits.device);
-
-            if (discreteEntropies.Count > 0)
+            using (var combinedLogProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1))
+            using (var combinedEntropies = torch.cat(discreteEntropies.Concat(continuousEntropies).ToArray(), dim: 1))
             {
-                totalEntropy += torch.cat(discreteEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
+                var logProbs = combinedLogProbs.squeeze();
+                var totalEntropy = combinedEntropies.mean(new long[] { 1 }, true);
+                logits.Dispose();
+                return (logProbs, totalEntropy);
             }
-
-            if (continuousEntropies.Count > 0)
-            {
-                totalEntropy += torch.cat(continuousEntropies.ToArray(), dim: 1).mean(new long[] { 1 }, true);
-            }
-
-            if (discreteEntropies.Count + continuousEntropies.Count > 0)
-            {
-                totalEntropy /= (discreteEntropies.Count + continuousEntropies.Count);
-            }
-
-            foreach (var tensor in discreteLogProbs.Concat(continuousLogProbs).Concat(discreteEntropies).Concat(continuousEntropies))
-            {
-               // tensor.Dispose();
-            }
-
-            return (logProbs, totalEntropy);
         }
+
     }
 
     public class PPOActorNet1D : PPOActorNet

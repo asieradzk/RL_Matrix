@@ -279,6 +279,7 @@ namespace RLMatrix.Agents.PPO.Implementations
                 }
             }
 
+           
             myReplayBuffer.ClearMemory();
         }
 
@@ -371,12 +372,11 @@ namespace RLMatrix.Agents.PPO.Implementations
         }
 
 
-        public void Optimize(IMemory<T> replayBuffer)
+       public void Optimize(IMemory<T> replayBuffer)
         {
-
             if (myOptions.UseRNN && myOptions.BatchSize > 1)
             {
-               // throw new ArgumentException("Batch size larger than 1 is not yet supported with RNN");
+                // throw new ArgumentException("Batch size larger than 1 is not yet supported with RNN");
             }
 
             if (myGAIL != null && replayBuffer.Length > 0)
@@ -389,64 +389,65 @@ namespace RLMatrix.Agents.PPO.Implementations
 
             if (myOptions.UseRNN)
             {
-                //(padding + masking)
+                // (padding + masking)
                 OptimizeModelRNN(replayBuffer);
                 actorLrScheduler.step();
                 criticLrScheduler.step();
-                //OptimizeRNNPacked(replayBuffer); //broken
+                // OptimizeRNNPacked(replayBuffer); //broken
                 return;
             }
-
-
 
             using (var scope = torch.NewDisposeScope())
             {
                 var transitions = replayBuffer.SampleEntireMemory();
                 CreateTensorsFromTransitions(myDevice, transitions, out var stateBatch, out var actionBatch);
 
-                Tensor policyOld = actorNet.get_log_prob(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count()).detach();
-                Tensor valueOld = criticNet.forward(stateBatch).detach();
-
-                (var discountedRewards, var advantages) = DiscountedRewardsAndAdvantages(transitions, valueOld);
-
-                if (policyOld.dim() > 1)
+                using (var policyOld = actorNet.get_log_prob(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count()).detach())
+                using (var valueOld = criticNet.forward(stateBatch).detach())
                 {
-                    advantages = advantages.unsqueeze(1);
-                }
+                    (var discountedRewards, var advantages) = DiscountedRewardsAndAdvantages(transitions, valueOld);
 
-                for (int i = 0; i < myOptions.PPOEpochs; i++)
-                {
-                    using (var actorScope = torch.NewDisposeScope())
+                    if (policyOld.dim() > 1)
                     {
-
-                        (Tensor policy, Tensor entropy) = actorNet.get_log_prob_entropy(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count());
-                        Tensor ratios = torch.exp(policy - policyOld);
-                        Tensor surr1 = ratios * advantages;
-                        Tensor surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages;
-                        Tensor actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
-
-                        actorOptimizer.zero_grad();
-                        actorLoss.backward();
-                        torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);
-                        actorOptimizer.step();
+                        advantages = advantages.unsqueeze(1);
                     }
 
-                    using (var criticScope = torch.NewDisposeScope())
+                    for (int i = 0; i < myOptions.PPOEpochs; i++)
                     {
-                        Tensor values = criticNet.forward(stateBatch);
-                        Tensor valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange);
-                        Tensor valueLoss1 = torch.pow(values - discountedRewards, 2);
-                        Tensor valueLoss2 = torch.pow(valueClipped - discountedRewards, 2);
-                        Tensor criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
+                        using (var actorScope = torch.NewDisposeScope())
+                        {
+                            (Tensor policy, Tensor entropy) = actorNet.get_log_prob_entropy(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count());
+                            using (var ratios = torch.exp(policy - policyOld))
+                            using (var surr1 = ratios * advantages)
+                            using (var surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages)
+                            {
+                                var actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
+                                actorOptimizer.zero_grad();
+                                actorLoss.backward();
+                                torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);
+                                actorOptimizer.step();
+                            }
+                        }
 
-                        criticOptimizer.zero_grad();
-                        criticLoss.backward();
-                        torch.nn.utils.clip_grad_norm_(criticNet.parameters(), myOptions.ClipGradNorm);
-                        criticOptimizer.step();
+                        using (var criticScope = torch.NewDisposeScope())
+                        {
+                            using (var values = criticNet.forward(stateBatch))
+                            using (var valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange))
+                            using (var valueLoss1 = torch.pow(values - discountedRewards, 2))
+                            using (var valueLoss2 = torch.pow(valueClipped - discountedRewards, 2))
+                            {
+                                var criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
+                                criticOptimizer.zero_grad();
+                                criticLoss.backward();
+                                torch.nn.utils.clip_grad_norm_(criticNet.parameters(), myOptions.ClipGradNorm);
+                                criticOptimizer.step();
+                            }
+                        }
                     }
                 }
             }
-            //TODO: Didnt check that default scheduler doesn't degrade training :)
+
+            // TODO: Didn't check that default scheduler doesn't degrade training :)
             actorLrScheduler.step();
             criticLrScheduler.step();
 

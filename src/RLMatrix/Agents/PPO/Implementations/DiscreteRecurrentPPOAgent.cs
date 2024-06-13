@@ -19,12 +19,15 @@ namespace RLMatrix.Agents.PPO.Implementations
                     {
                         int[] discreteActions = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(forwardResult.Item1, ActionSizes);
                         result[i] = (discreteActions, forwardResult.Item2, forwardResult.Item3);
+                     
                     }
                     else
                     {
                         int[] discreteActions = PPOActionSelection<T>.SelectGreedyDiscreteActions(forwardResult.Item1, ActionSizes);
                         result[i] = (discreteActions, forwardResult.Item2, forwardResult.Item3);
                     }
+
+                    
                 }
             }
             return result;

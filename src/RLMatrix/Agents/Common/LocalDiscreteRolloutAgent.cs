@@ -25,40 +25,20 @@ namespace RLMatrix.Agents.Common
     public class LocalDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>, ILocalSavable
     {
         protected readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
-        protected readonly Dictionary<Guid, Episode<TState>> _ennvGuidPairs;
-        //This can be a remote proxy instead for distributed training
+        protected readonly Dictionary<Guid, Episode<TState>> _ennvPairs;
         protected readonly IDiscreteProxy<TState> _agent;
         protected readonly IRLChartService? _chartService;
-
-
-        public LocalDiscreteRolloutAgent(DQNAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
-        {
-            _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
-            _ennvGuidPairs = new();
-            foreach (var env in _environments)
-            {
-                _ennvGuidPairs[env.Key] = new Episode<TState>();
-            }
-            _chartService = options.DisplayPlot;
-            _agent = new LocalDiscreteQAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
-
-        }
 
         public LocalDiscreteRolloutAgent(PPOAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
         {
             _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
-            _ennvGuidPairs = new();
-            foreach (var env in _environments)
-            {
-                _ennvGuidPairs[env.Key] = new Episode<TState>();
-            }
+            _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
             _chartService = options.DisplayPlot;
             _agent = new LocalDiscretePPOAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
-
         }
 
-
         List<double> chart = new();
+
         public async Task Step(bool isTraining = true)
         {
             //GETS INITIAL STATES FOR ALL ENVS
@@ -70,12 +50,9 @@ namespace RLMatrix.Agents.Common
             }
             var stateResults = await Task.WhenAll(stateTaskList);
 
-
             //GETS ACTIONS FOR ALL DETERMINED STATES
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
             var actions = await _agent.SelectActionsBatchAsync(payload);
-
-
 
             //STEPS ALL ENVS AND GETS REWARDS AND DONES
             List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new();
@@ -88,7 +65,6 @@ namespace RLMatrix.Agents.Common
             }
 
             await Task.WhenAll(rewardTaskList);
-
 
             //GETS NEXT STATES FOR ALL ENVS
             List<Task<(Guid environmentId, TState state)>> nextStateTaskList = new();
@@ -107,8 +83,9 @@ namespace RLMatrix.Agents.Common
             foreach (var env in _environments)
             {
                 var key = env.Key;
-                var episode = _ennvGuidPairs[key];
-                var state = stateResults.First(x => x.environmentId == key).state;
+                var episode = _ennvPairs[key];
+                var stateResult = stateResults.First(x => x.environmentId == key);
+                var state = stateResult.state;
                 var action = actions[key];
                 var stepResult = rewardTaskList.First(x => x.Result.environmentId == key).Result;
                 var reward = stepResult.reward.Item1;
@@ -141,18 +118,15 @@ namespace RLMatrix.Agents.Common
                 await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
             }
 
-
-
             await _agent.ResetStates(completedEpisodes);
             await _agent.OptimizeModelAsync();
-
         }
-
 
         public async ValueTask<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos)
         {
             return await _agent.SelectActionsBatchAsync(stateInfos);
         }
+
         private TState DeepCopy(TState input)
         {
             if (input is float[] array1D)
@@ -172,10 +146,9 @@ namespace RLMatrix.Agents.Common
                 throw new InvalidOperationException("This method can only be used with float[] or float[,].");
             }
         }
+
         private async Task<(Guid environmentId, TState state)> GetStateAsync(Guid environmentId, IEnvironmentAsync<TState> env)
         {
-            //TODO: is there a way to ensure that env doesnt give a reference type?
-            //Maybe TState is not suitable this opens up a discussion. It could be a OneOf
             var state = DeepCopy(await env.GetCurrentState());
             return (environmentId, state);
         }
@@ -197,7 +170,7 @@ namespace RLMatrix.Agents.Common
             private List<TransitionPortable<T>> TempBuffer = new();
             public List<TransitionPortable<T>> CompletedEpisodes = new();
 
-            public void AddTransition(T state, bool isDone, int[] discreteACtions, float reward)
+            public void AddTransition(T state, bool isDone, int[] discreteActions, float reward)
             {
                 Guid? nextGuid = null;
                 if (guidCache == null)
@@ -210,7 +183,7 @@ namespace RLMatrix.Agents.Common
                 {
                     nextGuid = Guid.NewGuid();
                 }
-                var transition = new TransitionPortable<T>((Guid)guidCache, state, discreteACtions, new float[0], reward, nextGuid);
+                var transition = new TransitionPortable<T>((Guid)guidCache, state, discreteActions, new float[0], reward, nextGuid);
                 TempBuffer.Add(transition);
                 cumulativeReward += reward;
                 guidCache = nextGuid;
@@ -220,11 +193,7 @@ namespace RLMatrix.Agents.Common
                     CompletedEpisodes.AddRange(TempBuffer);
                     TempBuffer.Clear();
                 }
-
             }
-
-        
         }
-
     }
 }

@@ -62,6 +62,11 @@ namespace RLMatrix.Godot
 
             public async Task<TState> GetCurrentState()
             {
+                if (await isDoneProvider())
+                {
+                    await Reset();
+                }
+                
                 return await observationProvider();
             }
 

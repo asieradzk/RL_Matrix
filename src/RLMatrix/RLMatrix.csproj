@@ -36,13 +36,17 @@
   <ItemGroup>
 	  <PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
 	  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-	  <PackageReference Include="OneOf" Version="3.0.263" />
+	  <PackageReference Include="OneOf" Version="3.0.271" />
 	  <PackageReference Include="TorchSharp-cuda-windows" Version="0.102.2" />
 	  <PackageReference Include="TorchVision" Version="0.102.2" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Agents\Networked\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RLMatrix.Common\RLMatrix.Common.csproj" />
   </ItemGroup>
 
 </Project>

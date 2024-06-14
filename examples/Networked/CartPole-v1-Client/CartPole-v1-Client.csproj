@@ -1,13 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>CartPole_v1_Client</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RLMatrix.Common\RLMatrix.Common.csproj" />
+    <ProjectReference Include="..\..\..\src\RLMatrix.Remote\RLMatrix.Remote.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,9 +1,11 @@
 ﻿namespace RLMatrix
 {
+
+
     /// <summary>
     /// Defines options for a PPO (Proximal Policy Optimization) Agent, a type of reinforcement learning agent.
     /// </summary>
-    public class PPOAgentOptions
+    public class PPOAgentOptions : IAgentOptions    
     {
         /// <summary>
         /// The number of episodes that will be in each training batch. When number of episodes is smaller than batch size no optimization will occur and agent accumulates expierneces until this number is greater or equal. The replay buffer is deleted after each optimization step.

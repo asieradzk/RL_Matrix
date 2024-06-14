@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net8.0;netstandard2.0</TargetFrameworks>
+		<Configurations>Debug;Release</Configurations>
+		<Platforms>AnyCPU</Platforms>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+		<DefineConstants>NET8_0</DefineConstants>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+		<DefineConstants>NETSTANDARD2_0</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<LangVersion>latest</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
+
+
+	<ItemGroup>
+    <PackageReference Include="OneOf" Version="3.0.271" />
+  </ItemGroup>
+
+</Project>

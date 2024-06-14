@@ -3,7 +3,7 @@
     /// <summary>
     /// Defines options for a DQN (Deep Q-Network) Agent, a type of reinforcement learning agent.
     /// </summary>
-    public class DQNAgentOptions
+    public class DQNAgentOptions : IAgentOptions
     {
         /// <summary>
         /// The number of experiences sampled from the memory buffer during each update step.

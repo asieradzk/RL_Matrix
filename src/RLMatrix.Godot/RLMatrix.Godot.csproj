@@ -29,7 +29,7 @@
 		<PackageReference Include="Godot.SourceGenerators" Version="4.2.1" />
 		<PackageReference Include="GodotSharp" Version="4.2.1" />
 		<PackageReference Include="GodotSharpEditor" Version="4.2.1" />
-		<PackageReference Include="OneOf" Version="3.0.263" />
+		<PackageReference Include="OneOf" Version="3.0.271" />
 		<PackageReference Include="RLMatrix" Version="0.2.1" />
 	</ItemGroup>
 

@@ -4,21 +4,22 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace RLMatrix.Agents.Common
 {
-    public interface IDiscreteRolloutAgent<TState>
-    {
-        Task Step(bool isTraining = true);
-    }
 
     public interface ILocalSavable
     {
         ValueTask Save(string path);
         ValueTask Load(string path);
+    }
+
+    public interface IRemoteSavable
+    {
+        ValueTask Save();
+        ValueTask Load();
     }
 
     public class LocalDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>, ILocalSavable

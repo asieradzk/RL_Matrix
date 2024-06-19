@@ -1,43 +1,66 @@
-﻿using RLMatrix.Agents.DQN.Domain;
-using RLMatrix.Agents.PPO.Implementations;
+﻿using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
+using OneOf;
+using RLMatrix.Agents.Common;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
+using RLMatrix.Common.Remote;
 
-namespace RLMatrix.Agents.Common
+namespace RLMatrix.Agents.SignalR
 {
-    public partial class LocalDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>
+    //TODO: DRY violation, this can be somehow married with DiscreteRolloutAgent
+    public class RemoteDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>
     {
-        protected readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
-        protected readonly Dictionary<Guid, Episode<TState>> _ennvPairs;
-        protected readonly IDiscreteProxy<TState> _agent;
-        protected readonly IRLChartService? _chartService;
+        private readonly HubConnection _connection;
+        private readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
+        private readonly Dictionary<Guid, Episode<TState>> _envPairs;
+        private readonly IRLChartService? _chartService;
 
-        public LocalDiscreteRolloutAgent(DQNAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments, IRLChartService chartService = null)
+        public RemoteDiscreteRolloutAgent(string hubUrl, IAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments, IRLChartService chartService = null)
         {
-            _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
-            _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
-            _chartService = chartService;
-            _agent = new LocalDiscreteQAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
+            _connection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .AddMessagePackProtocol()
+                .Build();
 
+
+            _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
+            _envPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
+            _chartService = chartService;
+            //cast options to concrete type
+            var optionsType = options.GetType();
+            if (optionsType == typeof(DQNAgentOptions))
+            {
+                InitializeAsync((DQNAgentOptions)options).GetAwaiter().GetResult();
+            }
+            else if (optionsType == typeof(PPOAgentOptions))
+            {
+                InitializeAsync((PPOAgentOptions)options).GetAwaiter().GetResult();
+            }
+            else
+            {
+                throw new ArgumentException("Invalid options type");
+            }
         }
 
-        public LocalDiscreteRolloutAgent(PPOAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments, IRLChartService chartService = null)
-        {
-            _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
-            _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
-            _chartService = chartService;
-            _agent = new LocalDiscretePPOAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
-        }
+        private async Task InitializeAsync(OneOf<DQNAgentOptions, PPOAgentOptions> options)
+        {   
+            await _connection.StartAsync();
 
+            var actionSizes = _environments.First().Value.actionSize;
+            var stateSizes = _environments.First().Value.stateSize;
+
+            var optsDTO = options.ToAgentOptionsDTO();
+            var stateSizesDTO = stateSizes.ToStateSizesDTO();
+
+            await _connection.InvokeAsync("Initialize", optsDTO, actionSizes, stateSizesDTO);
+        }
         List<double> chart = new();
-
         public async Task Step(bool isTraining = true)
         {
-            //GETS INITIAL STATES FOR ALL ENVS
             List<Task<(Guid environmentId, TState state)>> stateTaskList = new();
             foreach (var env in _environments)
             {
@@ -46,23 +69,20 @@ namespace RLMatrix.Agents.Common
             }
             var stateResults = await Task.WhenAll(stateTaskList);
 
-            //GETS ACTIONS FOR ALL DETERMINED STATES
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
-            var actions = await _agent.SelectActionsBatchAsync(payload);
+            var actions = await GetActionsBatchAsync(payload);
 
-            //STEPS ALL ENVS AND GETS REWARDS AND DONES
             List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new();
             foreach (var action in actions)
             {
                 var env = _environments[action.Key];
                 var rewardTask = env.Step(action.Value)
-                    .ContinueWith(t => (action.Key, t.Result));  // Ensure that the task returns a tuple with the Guid
+                    .ContinueWith(t => (action.Key, t.Result));
                 rewardTaskList.Add(rewardTask);
             }
 
             await Task.WhenAll(rewardTaskList);
 
-            //GETS NEXT STATES FOR ALL ENVS
             List<Task<(Guid environmentId, TState state)>> nextStateTaskList = new();
             foreach (var env in _environments)
             {
@@ -71,7 +91,6 @@ namespace RLMatrix.Agents.Common
             }
             var nextStateResults = await Task.WhenAll(nextStateTaskList);
 
-            //Process episodes
             ConcurrentBag<TransitionPortable<TState>> transitionsToShip = new();
             ConcurrentBag<double> rewards = new();
             var completedEpisodes = new List<(Guid environmentId, bool done)>();
@@ -79,7 +98,7 @@ namespace RLMatrix.Agents.Common
             foreach (var env in _environments)
             {
                 var key = env.Key;
-                var episode = _ennvPairs[key];
+                var episode = _envPairs[key];
                 var stateResult = stateResults.First(x => x.environmentId == key);
                 var state = stateResult.state;
                 var action = actions[key];
@@ -111,23 +130,26 @@ namespace RLMatrix.Agents.Common
 
             if (transitionsToShip.Count > 0)
             {
-                await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
+                await _connection.InvokeAsync("UploadTransitions", transitionsToShip.ToList().ToDTOList());
             }
 
-            await _agent.ResetStates(completedEpisodes);
-            await _agent.OptimizeModelAsync();
+            await _connection.InvokeAsync("ResetStates", completedEpisodes);
+            await _connection.InvokeAsync("OptimizeModel");
         }
 
         public async ValueTask<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos)
         {
-            return await _agent.SelectActionsBatchAsync(stateInfos);
+            var stateInfoDTOs = stateInfos.PackList();
+            var actionsDictionary = await _connection.InvokeAsync<Dictionary<Guid, int[]>>("SelectActions", stateInfoDTOs);
+
+            return actionsDictionary;
         }
 
         private TState DeepCopy(TState input)
         {
             if (input is float[] array1D)
             {
-                return (TState)(object)array1D.ToArray(); // Create a new array with the same elements
+                return (TState)(object)array1D.ToArray();
             }
             else if (input is float[,] array2D)
             {
@@ -149,14 +171,28 @@ namespace RLMatrix.Agents.Common
             return (environmentId, state);
         }
 
+        public async ValueTask Save()
+        {
+            await _connection.InvokeAsync("Save");
+        }
+
+        public async ValueTask Load()
+        {
+            await _connection.InvokeAsync("Load");
+        }
+
         public ValueTask Save(string path)
         {
-            return _agent.SaveAsync(path);
+            Console.WriteLine("Path not supported in remote agent.");
+            _connection.InvokeAsync("Save");
+            return ValueTask.CompletedTask;
         }
 
         public ValueTask Load(string path)
         {
-            return _agent.LoadAsync(path);
+            Console.WriteLine("Path not supported in remote agent.");
+            _connection.InvokeAsync("Load");
+            return ValueTask.CompletedTask;
         }
     }
 }

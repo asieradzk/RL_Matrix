@@ -42,10 +42,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Agents\Networked\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\RLMatrix.Common\RLMatrix.Common.csproj" />
   </ItemGroup>
 

@@ -1,9 +1,11 @@
-﻿namespace RLMatrix
+﻿using RLMatrix.Agents.Common;
+
+namespace RLMatrix
 {
     /// <summary>
     /// Defines options for a DQN (Deep Q-Network) Agent, a type of reinforcement learning agent.
     /// </summary>
-    public class DQNAgentOptions : IAgentOptions
+    public class DQNAgentOptions : RLMatrix.Agents.Common.IAgentOptions
     {
         /// <summary>
         /// The number of experiences sampled from the memory buffer during each update step.
@@ -168,11 +170,6 @@
         /// </summary>
         public float NoisyLayersScale { get; set; } = 0.00015f;
 
-        /// <summary>
-        /// Determines whether the agent's progress (i.e., reward over time) should be plotted.
-        /// Defaults to null.
-        /// </summary>
-        public IRLChartService? DisplayPlot { get; set; } = null;
 
         public DQNAgentOptions(
             int batchSize = 64,
@@ -192,7 +189,6 @@
             float priorityEpsilon = 0.01f,
             int softUpdateInterval = 1,
             int nStepReturn = 0,
-            IRLChartService? displayPlot = null,
             bool doubleDQN = false,
             bool duelingDQN = false,
             bool noisyLayers = false,
@@ -212,7 +208,6 @@
             LR = lr;
             Depth = depth;
             Width = width;
-            DisplayPlot = displayPlot;
             NumAtoms = numAtoms;
             GaussianNoiseStd = gaussianNoiseStd;
             VMin = vMin;

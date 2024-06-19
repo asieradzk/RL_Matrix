@@ -33,7 +33,6 @@ namespace RLMatrix
 
         public PPOActorNet CreateActorNet(DiscreteEnvSizeDTO env)
         {
-
             switch (typeof(T))
             {
                 case Type t when t == typeof(float[]):

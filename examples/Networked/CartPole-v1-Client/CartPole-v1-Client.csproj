@@ -1,15 +1,38 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <RootNamespace>CartPole_v1_Client</RootNamespace>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>exe</OutputType>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UseWindowsForms>true</UseWindowsForms>
+		<Nullable>enable</Nullable>
+		<LangVersion>12.0</LangVersion>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\src\RLMatrix.Remote\RLMatrix.Remote.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Gym.NET" Version="0.2.0" />
+		<PackageReference Include="Gym.NET.Environments" Version="0.2.0" />
+		<PackageReference Include="Gym.NET.Rendering.WinForm" Version="0.2.0" />
+		<PackageReference Include="HIC.System.Windows.Forms.DataVisualization" Version="1.0.1" />
+		<PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+		<PackageReference Include="TorchSharp-cuda-windows" Version="0.102.2" />
+		<PackageReference Include="TorchVision" Version="0.102.2" />
+		<PackageReference Include="WinForms.DataVisualization" Version="1.8.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\..\..\src\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj" />
+	  <ProjectReference Include="..\..\..\src\RLMatrix.Common\RLMatrix.Common.csproj" />
+	  <ProjectReference Include="..\..\..\src\RLMatrix.Remote\RLMatrix.Remote.csproj" />
+	  <ProjectReference Include="..\..\..\src\RLMatrix\RLMatrix.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Reference Include="RLMatrix.WinformsChart">
+	    <HintPath>..\..\..\src\RLMatrix.WinformsChart\bin\Debug\net6.0-windows\RLMatrix.WinformsChart.dll</HintPath>
+	  </Reference>
+	</ItemGroup>
+
+
 
 </Project>

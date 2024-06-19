@@ -65,33 +65,36 @@ namespace RLMatrix.Agents.DQN.Domain
 
         public void Optimize(IMemory<T> ReplayBuffer)
         {
-            if (myGAIL != null && ReplayBuffer.Length > 0)
+            using (var OptimizeScope = torch.NewDisposeScope())
             {
-                myGAIL.OptimiseDiscriminator(ReplayBuffer);
-            }
+                if (myGAIL != null && ReplayBuffer.Length > 0)
+                {
+                    myGAIL.OptimiseDiscriminator(ReplayBuffer);
+                }
 
-            if (ReplayBuffer.Length < myOptions.BatchSize)
-                return;
+                if (ReplayBuffer.Length < myOptions.BatchSize)
+                    return;
 
-            var transitions = ReplayBuffer.Sample(myOptions.BatchSize);
-            Utilities<T>.CreateTensorsFromTransitions(ref myDevice, transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
-            if (myGAIL != null)
-            {
-                myGAIL.OptimiseDiscriminator(ReplayBuffer);
-                rewardBatch = myGAIL.AugmentRewardBatch(stateBatch, actionBatch, rewardBatch);
-            }
-            Tensor qValuesAllHeads = QValuesCalculator.ComputeQValues(stateBatch, PolicyNet);
-            Tensor stateActionValues = StateActionValueExtractor.ExtractStateActionValues(qValuesAllHeads, actionBatch);
-            Tensor nextStateValues = NextStateValuesCalculator.ComputeNextStateValues(nonFinalNextStates, TargetNet, PolicyNet, myOptions, ActionSizes, myDevice);
-            Tensor expectedStateActionValues = ExpectedStateActionValuesCalculator.ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, myOptions, transitions, ActionSizes, myDevice);
+                var transitions = ReplayBuffer.Sample(myOptions.BatchSize);
+                Utilities<T>.CreateTensorsFromTransitions(ref myDevice, transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch);
+                if (myGAIL != null)
+                {
+                    myGAIL.OptimiseDiscriminator(ReplayBuffer);
+                    rewardBatch = myGAIL.AugmentRewardBatch(stateBatch, actionBatch, rewardBatch);
+                }
+                Tensor qValuesAllHeads = QValuesCalculator.ComputeQValues(stateBatch, PolicyNet);
+                Tensor stateActionValues = StateActionValueExtractor.ExtractStateActionValues(qValuesAllHeads, actionBatch);
+                Tensor nextStateValues = NextStateValuesCalculator.ComputeNextStateValues(nonFinalNextStates, TargetNet, PolicyNet, myOptions, ActionSizes, myDevice);
+                Tensor expectedStateActionValues = ExpectedStateActionValuesCalculator.ComputeExpectedStateActionValues(nextStateValues, rewardBatch, nonFinalMask, myOptions, transitions, ActionSizes, myDevice);
 
-            Tensor loss = LossCalculator.ComputeLoss(stateActionValues, expectedStateActionValues);
-            UpdateModel(loss);
-            LRScheduler.step();
-            if (ReplayBuffer is PrioritizedReplayMemory<T> prioritizedReplayBuffer)
-            {
-                var sampledIncides = prioritizedReplayBuffer.GetSampledIndices();
-                UpdatePrioritizedReplayMemory(prioritizedReplayBuffer, stateActionValues, expectedStateActionValues.detach(), sampledIncides);
+                Tensor loss = LossCalculator.ComputeLoss(stateActionValues, expectedStateActionValues);
+                UpdateModel(loss);
+                LRScheduler.step();
+                if (ReplayBuffer is PrioritizedReplayMemory<T> prioritizedReplayBuffer)
+                {
+                    var sampledIncides = prioritizedReplayBuffer.GetSampledIndices();
+                    UpdatePrioritizedReplayMemory(prioritizedReplayBuffer, stateActionValues, expectedStateActionValues.detach(), sampledIncides);
+                }
             }
 
 

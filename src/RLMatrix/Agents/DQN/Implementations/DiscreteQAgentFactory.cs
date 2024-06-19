@@ -76,8 +76,14 @@ namespace RLMatrix
                 Memory = GetMemoryFromOptions(options),
                 ActionSizes = ActionSizes,
                 ResetNoisyLayers = () => noisyLayers.ForEach(module => module.ResetNoise()),
-                SelectActionsFunc = GetActionSelectFuncFromOptions(options),
-                support = support
+                SelectActionsFunc = (states, agent, isTraining) =>
+                {
+                    using (var disposeScope = torch.NewDisposeScope())
+                    {
+                        return GetActionSelectFuncFromOptions(options)(states, agent, isTraining);
+                    }
+                },
+                support = support,
             };
 
 

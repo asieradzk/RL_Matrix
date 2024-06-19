@@ -1,8 +1,9 @@
 ﻿using System.Windows.Forms.DataVisualization.Charting;
+using RLMatrix.Agents.Common;
 
 namespace RLMatrix.WinformsChart
 {
-    public class WinformsChart : IRLChartService
+    public class WinformsChart : RLMatrix.Agents.Common.IRLChartService
     {
         public WinformsChart()
         {

@@ -1,4 +1,6 @@
-﻿namespace RLMatrix
+﻿using RLMatrix.Agents.Common;
+
+namespace RLMatrix
 {
 
 
@@ -75,11 +77,6 @@
         public float EntropyCoefficient;
 
         /// <summary>
-        /// Determines whether the agent's progress (i.e., reward over time) should be plotted. Defaults to null.
-        /// </summary>
-        public IRLChartService? DisplayPlot;
-
-        /// <summary>
         /// Determines whether the agent should use a recurrent neural network. Defaults to false.
         /// </summary>
         public bool UseRNN;
@@ -98,7 +95,6 @@
             int ppoEpochs = 2,
             float clipGradNorm = 0.5f,
             float entropyCoefficient = 0.1f,
-            IRLChartService? displayPlot = null,
             bool useRNN = false)
         {
             BatchSize = batchSize;
@@ -114,7 +110,6 @@
             PPOEpochs = ppoEpochs;
             ClipGradNorm = clipGradNorm;
             EntropyCoefficient = entropyCoefficient;
-            DisplayPlot = displayPlot;
             UseRNN = useRNN;
         }
     }

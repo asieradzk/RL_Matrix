@@ -31,15 +31,17 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BallBalance", "examples\God
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RLMatrix.Remote", "src\RLMatrix.Remote\RLMatrix.Remote.csproj", "{AAD3C71E-B5B8-4677-9C97-949CA3A77022}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RLMatrix.Common", "src\RLMatrix.Common\RLMatrix.Common.csproj", "{F00F1321-2910-4F6F-BA3A-5BEC270F2258}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RLMatrix.Common", "src\RLMatrix.Common\RLMatrix.Common.csproj", "{F00F1321-2910-4F6F-BA3A-5BEC270F2258}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RLMatrix.Server", "src\RLMatrix.Server\RLMatrix.Server.csproj", "{552E0777-D81A-4848-88AD-49E7FCA5C8B0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RLMatrix.Server", "src\RLMatrix.Server\RLMatrix.Server.csproj", "{552E0777-D81A-4848-88AD-49E7FCA5C8B0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Networked", "Networked", "{441B27E2-C9AA-4F7E-A47C-B2F649636DAD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CartPole-v1-Server", "examples\Networked\CartPole-v1-Server\CartPole-v1-Server.csproj", "{EE08C2FA-5531-406A-8EA0-FC4ADA364A14}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartPole-v1-Server", "examples\Networked\CartPole-v1-Server\CartPole-v1-Server.csproj", "{EE08C2FA-5531-406A-8EA0-FC4ADA364A14}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CartPole-v1-Client", "examples\Networked\CartPole-v1-Client\CartPole-v1-Client.csproj", "{18CE92C4-3546-440D-BD0C-EEA34474854C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartPole-v1-Client", "examples\Networked\CartPole-v1-Client\CartPole-v1-Client.csproj", "{18CE92C4-3546-440D-BD0C-EEA34474854C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RLMatrix.Common.Remote", "src\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj", "{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -137,6 +139,14 @@ Global
 		{18CE92C4-3546-440D-BD0C-EEA34474854C}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
 		{18CE92C4-3546-440D-BD0C-EEA34474854C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{18CE92C4-3546-440D-BD0C-EEA34474854C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -155,6 +165,7 @@ Global
 		{441B27E2-C9AA-4F7E-A47C-B2F649636DAD} = {1CBFC817-5DA3-4EA2-9703-000F9235F7B4}
 		{EE08C2FA-5531-406A-8EA0-FC4ADA364A14} = {441B27E2-C9AA-4F7E-A47C-B2F649636DAD}
 		{18CE92C4-3546-440D-BD0C-EEA34474854C} = {441B27E2-C9AA-4F7E-A47C-B2F649636DAD}
+		{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53} = {BFC4A676-39DF-4538-9A26-029CC69D283C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {BB52170A-37D7-4F03-8FC2-CE5B688C5F23}

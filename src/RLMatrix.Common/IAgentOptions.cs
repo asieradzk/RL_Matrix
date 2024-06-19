@@ -1,6 +1,7 @@
-﻿namespace RLMatrix
+﻿namespace RLMatrix.Agents.Common
 {
     public interface IAgentOptions
     {
+
     }
 }

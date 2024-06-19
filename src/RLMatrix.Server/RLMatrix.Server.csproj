@@ -7,12 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj" />
+    <ProjectReference Include="..\RLMatrix.Common\RLMatrix.Common.csproj" />
     <ProjectReference Include="..\RLMatrix\RLMatrix.csproj" />
   </ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.3" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.6" />
 	</ItemGroup>
 
 

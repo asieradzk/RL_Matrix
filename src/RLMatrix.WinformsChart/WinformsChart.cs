@@ -1,9 +1,14 @@
-﻿using System.Windows.Forms.DataVisualization.Charting;
+﻿using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 using RLMatrix.Agents.Common;
 
 namespace RLMatrix.WinformsChart
 {
-    public class WinformsChart : RLMatrix.Agents.Common.IRLChartService
+    public class WinformsChart : IRLChartService
     {
         public WinformsChart()
         {
@@ -12,88 +17,116 @@ namespace RLMatrix.WinformsChart
 
         public void CreateOrUpdateChart(List<double> episodeRewards)
         {
-            if(chartForm == null)
+            if (chartForm == null)
             {
                 CreateChartForm();
             }
-            
+
             episodeCounter = episodeRewards.Count;
             WaitChartFormReady();
-
             this.episodeRewards = episodeRewards;
             UpdateChart();
-
         }
 
-        #region plot
         Form chartForm;
         Chart chart;
         int episodeCounter;
         private ManualResetEvent chartFormReady = new ManualResetEvent(false);
+        private List<double> episodeRewards = new();
 
         private async void CreateChartForm()
         {
-            await Task.Run(() =>
+            try
             {
-                chartForm = new Form();
-                chart = new Chart();
-                chart.ChartAreas.Add(new ChartArea());
-                chartForm.Controls.Add(chart);
-                chart.Dock = DockStyle.Fill;
-
-                // Signal that the chartForm is ready
-                chartFormReady.Set();
-
-                Application.Run(chartForm);
-            });
+                await Task.Run(() =>
+                {
+                    chartForm = new Form();
+                    chart = new Chart();
+                    chart.ChartAreas.Add(new ChartArea());
+                    chartForm.Controls.Add(chart);
+                    chart.Dock = DockStyle.Fill;
+                    chartFormReady.Set();
+                    try
+                    {
+                        Application.Run(chartForm);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                });
+            }
+            catch (System.Exception)
+            {
+            }
         }
+
         private void WaitChartFormReady()
         {
-            // Wait until chartForm is ready
             chartFormReady.WaitOne();
         }
 
-
-        private List<double> episodeRewards = new();
         public void UpdateChart()
         {
             if (chart.InvokeRequired)
             {
-                // Invoke the method on the UI threads
                 chart.Invoke(new Action(() => UpdateChart()));
             }
             else
             {
-                // Clear the chart and add a new series
                 chart.Series.Clear();
-                var series = new Series();
-                series.ChartType = SeriesChartType.Line;
-                series.MarkerStyle = MarkerStyle.Circle;
-                series.MarkerSize = 8; // Set the marker size to a larger valu
+                var series = new Series
+                {
+                    ChartType = SeriesChartType.Line,
+                    MarkerStyle = MarkerStyle.Circle,
+                    MarkerSize = 8
+                };
 
-                // Add points to the series
                 for (int i = 0; i < episodeRewards.Count; i++)
                 {
                     series.Points.AddXY(i, episodeRewards[i]);
                 }
 
-                // Add the series to the chart
                 chart.Series.Add(series);
 
-                // Set autoscaling for the y-axis
-                chart.ChartAreas[0].AxisY.Minimum = episodeRewards?.Any() == true ? Math.Round(episodeRewards.Min()) : 0;
-                chart.ChartAreas[0].AxisY.Maximum = episodeRewards?.Any() == true ? Math.Round(episodeRewards.Max()) : 0;
-                chart.ChartAreas[0].AxisY.Interval = Math.Round((Math.Abs(chart.ChartAreas[0].AxisY.Maximum) + Math.Abs(chart.ChartAreas[0].AxisY.Minimum)) / 10);
+                double minY = episodeRewards.Any() ? episodeRewards.Min() : 0;
+                double maxY = episodeRewards.Any() ? episodeRewards.Max() : 1;
 
-                // Set the x-axis interval based on the number of data points
-                chart.ChartAreas[0].AxisX.Interval = 5;
+                if (Math.Abs(maxY - minY) < 0.001)
+                {
+                    minY -= 0.5;
+                    maxY += 0.5;
+                }
+
+                chart.ChartAreas[0].AxisY.Minimum = Math.Floor(minY);
+                chart.ChartAreas[0].AxisY.Maximum = Math.Ceiling(maxY);
+
+                double range = chart.ChartAreas[0].AxisY.Maximum - chart.ChartAreas[0].AxisY.Minimum;
+                chart.ChartAreas[0].AxisY.Interval = CalculateNiceInterval(range);
+
                 chart.ChartAreas[0].AxisX.Minimum = 0;
-                chart.ChartAreas[0].AxisX.Maximum = episodeCounter;
+                chart.ChartAreas[0].AxisX.Maximum = Math.Max(episodeCounter, 10);
+                chart.ChartAreas[0].AxisX.Interval = Math.Max(1, Math.Floor(episodeCounter / 10.0));
 
-                // Refresh the chart
                 chart.Invalidate();
             }
         }
-        #endregion
+
+        private double CalculateNiceInterval(double range)
+        {
+            double exponent = Math.Floor(Math.Log10(range));
+            double fraction = range / Math.Pow(10, exponent);
+
+            double niceFraction;
+            if (fraction < 1.5)
+                niceFraction = 1;
+            else if (fraction < 3)
+                niceFraction = 2;
+            else if (fraction < 7)
+                niceFraction = 5;
+            else
+                niceFraction = 10;
+
+            return niceFraction * Math.Pow(10, exponent - 1);
+        }
     }
 }

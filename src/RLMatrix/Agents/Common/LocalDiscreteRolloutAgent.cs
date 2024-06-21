@@ -48,7 +48,7 @@ namespace RLMatrix.Agents.Common
 
             //GETS ACTIONS FOR ALL DETERMINED STATES
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
-            var actions = await _agent.SelectActionsBatchAsync(payload);
+            var actions = await _agent.SelectActionsBatchAsync(payload, isTraining);
 
             //STEPS ALL ENVS AND GETS REWARDS AND DONES
             List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new();
@@ -87,7 +87,7 @@ namespace RLMatrix.Agents.Common
                 var reward = stepResult.reward.Item1;
                 var isDone = stepResult.reward.Item2;
                 var nextState = nextStateResults.First(x => x.environmentId == key).state;
-                episode.AddTransition(state, isDone, action, reward);
+                episode.AddTransition(state, isDone, action, null, reward);
                 if (isDone)
                 {
                     foreach (var transition in episode.CompletedEpisodes)
@@ -118,9 +118,9 @@ namespace RLMatrix.Agents.Common
             await _agent.OptimizeModelAsync();
         }
 
-        public async ValueTask<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos)
+        public async ValueTask<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
         {
-            return await _agent.SelectActionsBatchAsync(stateInfos);
+            return await _agent.SelectActionsBatchAsync(stateInfos, isTraining);
         }
 
         private TState DeepCopy(TState input)

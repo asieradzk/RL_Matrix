@@ -8,17 +8,16 @@ using static TorchSharp.torch.optim;
 
 namespace RLMatrix.Agents.PPO.Implementations
 {
-    public class LocalDiscretePPOAgent<T> : IDiscreteProxy<T>
+    public class LocalContinuousPPOAgent<T> : IContinuousProxy<T>
     {
-        private readonly IDiscretePPOAgent<T> _agent;
+        private readonly IContinuousPPOAgent<T> _agent;
         bool useRnn = false;
         private Dictionary<Guid, (Tensor?, Tensor?)?> memoriesStore = new();
 
-        //TODO: Composer param
-        public LocalDiscretePPOAgent(PPOAgentOptions options, int[] ActionSizes, OneOf<int, (int, int)> StateSizes /*, IDiscretePPOAgentCOmposer<T> agentComposer = null*/)
+        public LocalContinuousPPOAgent(PPOAgentOptions options, int[] DiscreteDimensions, OneOf<int, (int, int)> StateSizes, (float min, float max)[] ContinuousActionBounds)
         {
-            _agent = PPOAgentFactory<T>.ComposeDiscretePPOAgent(options, ActionSizes, StateSizes);
-            useRnn = options.UseRNN;           
+            _agent = PPOAgentFactory<T>.ComposeContinuousPPOAgent(options, DiscreteDimensions, StateSizes, ContinuousActionBounds);
+            useRnn = options.UseRNN;
         }
 
         public ValueTask LoadAsync(string path)
@@ -51,13 +50,11 @@ namespace RLMatrix.Agents.PPO.Implementations
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<Dictionary<Guid, int[]>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
+        public ValueTask<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
         {
-            
-
             if (useRnn)
             {
-                Dictionary<Guid, int[]> actionDict = new Dictionary<Guid, int[]>();
+                Dictionary<Guid, (int[] discreteActions, float[] continuousActions)> actionDict = new Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>();
                 if (memoriesStore.Count == 0)
                 {
                     foreach (var stateInfo in stateInfos)
@@ -72,42 +69,39 @@ namespace RLMatrix.Agents.PPO.Implementations
                     return (info.state, memoryTuple?.Item1, memoryTuple?.Item2);
                 }).ToArray();
 
-                (int[] actions, Tensor? memoryState, Tensor? memoryState2)[] actionsWithMemory = _agent.SelectActionsRecurrent(statesWithMemory, isTraining);
+                ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[] actionsWithMemory = _agent.SelectActionsRecurrent(statesWithMemory, isTraining);
 
                 for (int i = 0; i < stateInfos.Count; i++)
                 {
                     Guid environmentId = stateInfos[i].environmentId;
-                    int[] action = actionsWithMemory[i].actions;
+                    (int[] discreteActions, float[] continuousActions) action = actionsWithMemory[i].actions;
                     memoriesStore[environmentId] = (actionsWithMemory[i].memoryState, actionsWithMemory[i].memoryState2);
-                    actionDict[environmentId] = action;
-                }
-
-
-                return ValueTask.FromResult(actionDict);
-            }else
-            {
-
-                // Extract the states from the stateInfos list
-                T[] states = stateInfos.Select(info => info.state).ToArray();
-
-                // Select actions for the batch of states
-                int[][] actions = _agent.SelectActions(states, isTraining);
-
-                // Create a dictionary to map environment IDs to their corresponding actions
-                Dictionary<Guid, int[]> actionDict = new Dictionary<Guid, int[]>();
-
-                // Iterate over the stateInfos and populate the actionDict
-                for (int i = 0; i < stateInfos.Count; i++)
-                {
-                    Guid environmentId = stateInfos[i].environmentId;
-                    int[] action = actions[i];
                     actionDict[environmentId] = action;
                 }
 
                 return ValueTask.FromResult(actionDict);
             }
+            else
+            {
+                // Extract the states from the stateInfos list
+                T[] states = stateInfos.Select(info => info.state).ToArray();
 
+                // Select actions for the batch of states
+                (int[] discreteActions, float[][] continuousActions) actions = _agent.SelectActions(states, isTraining);
 
+                // Create a dictionary to map environment IDs to their corresponding actions
+                Dictionary<Guid, (int[] discreteActions, float[] continuousActions)> actionDict = new Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>();
+
+                // Iterate over the stateInfos and populate the actionDict
+                for (int i = 0; i < stateInfos.Count; i++)
+                {
+                    Guid environmentId = stateInfos[i].environmentId;
+                    (int[] discreteActions, float[] continuousActions) action = (actions.discreteActions, actions.continuousActions[i]);
+                    actionDict[environmentId] = action;
+                }
+
+                return ValueTask.FromResult(actionDict);
+            }
         }
 
         public ValueTask UploadTransitionsAsync(IEnumerable<TransitionPortable<T>> transitions)
@@ -117,7 +111,3 @@ namespace RLMatrix.Agents.PPO.Implementations
         }
     }
 }
-
-
-    
-

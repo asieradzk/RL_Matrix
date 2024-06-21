@@ -422,6 +422,7 @@ namespace RLMatrix.Agents.PPO.Implementations
                             using (var surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages)
                             {
                                 var actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
+                                //actorLoss.print();
                                 actorOptimizer.zero_grad();
                                 actorLoss.backward();
                                 torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);

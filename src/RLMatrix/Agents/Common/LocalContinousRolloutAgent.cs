@@ -1,66 +1,34 @@
-﻿using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.Extensions.DependencyInjection;
-using OneOf;
-using RLMatrix.Agents.Common;
+﻿using RLMatrix.Agents.DQN.Domain;
+using RLMatrix.Agents.PPO.Implementations;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
-using RLMatrix.Common.Remote;
 
-namespace RLMatrix.Agents.SignalR
+namespace RLMatrix.Agents.Common
 {
-    //TODO: DRY violation, this can be somehow married with DiscreteRolloutAgent
-    public class RemoteDiscreteRolloutAgent<TState> : IDiscreteRolloutAgent<TState>
+    public partial class LocalContinuousRolloutAgent<TState> : IContinuousRolloutAgent<TState>
     {
-        private readonly HubConnection _connection;
-        private readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
-        private readonly Dictionary<Guid, Episode<TState>> _envPairs;
-        private readonly IRLChartService? _chartService;
+        protected readonly Dictionary<Guid, IContinuousEnvironmentAsync<TState>> _environments;
+        protected readonly Dictionary<Guid, Episode<TState>> _ennvPairs;
+        protected readonly IContinuousProxy<TState> _agent;
+        protected readonly IRLChartService? _chartService;
 
-        public RemoteDiscreteRolloutAgent(string hubUrl, IAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments, IRLChartService chartService = null)
+        public LocalContinuousRolloutAgent(PPOAgentOptions options, IEnumerable<IContinuousEnvironmentAsync<TState>> environments, IRLChartService chartService = null)
         {
-            _connection = new HubConnectionBuilder()
-                .WithUrl(hubUrl)
-                .AddMessagePackProtocol()
-                .Build();
-
-
             _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
-            _envPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
+            _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
             _chartService = chartService;
-            //cast options to concrete type
-            var optionsType = options.GetType();
-            if (optionsType == typeof(DQNAgentOptions))
-            {
-                InitializeAsync((DQNAgentOptions)options).GetAwaiter().GetResult();
-            }
-            else if (optionsType == typeof(PPOAgentOptions))
-            {
-                InitializeAsync((PPOAgentOptions)options).GetAwaiter().GetResult();
-            }
-            else
-            {
-                throw new ArgumentException("Invalid options type");
-            }
+            _agent = new LocalContinuousPPOAgent<TState>(options, environments.First().DiscreteActionSize, environments.First().StateSize, environments.First().ContinuousActionBounds);
         }
 
-        private async Task InitializeAsync(OneOf<DQNAgentOptions, PPOAgentOptions> options)
-        {   
-            await _connection.StartAsync();
-
-            var actionSizes = _environments.First().Value.actionSize;
-            var stateSizes = _environments.First().Value.stateSize;
-
-            var optsDTO = options.ToAgentOptionsDTO();
-            var stateSizesDTO = stateSizes.ToStateSizesDTO();
-
-            await _connection.InvokeAsync("Initialize", optsDTO, actionSizes, stateSizesDTO);
-        }
         List<double> chart = new();
+
         public async Task Step(bool isTraining = true)
         {
+            //GETS INITIAL STATES FOR ALL ENVS
             List<Task<(Guid environmentId, TState state)>> stateTaskList = new();
             foreach (var env in _environments)
             {
@@ -69,20 +37,23 @@ namespace RLMatrix.Agents.SignalR
             }
             var stateResults = await Task.WhenAll(stateTaskList);
 
+            //GETS ACTIONS FOR ALL DETERMINED STATES
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
-            var actions = await GetActionsBatchAsync(payload);
+            var actions = await _agent.SelectActionsBatchAsync(payload, isTraining);
 
+            //STEPS ALL ENVS AND GETS REWARDS AND DONES
             List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new();
             foreach (var action in actions)
             {
                 var env = _environments[action.Key];
-                var rewardTask = env.Step(action.Value)
-                    .ContinueWith(t => (action.Key, t.Result));
+                var rewardTask = env.Step(action.Value.discreteActions, action.Value.continuousActions)
+                    .ContinueWith(t => (action.Key, t.Result));  // Ensure that the task returns a tuple with the Guid
                 rewardTaskList.Add(rewardTask);
             }
 
             await Task.WhenAll(rewardTaskList);
 
+            //GETS NEXT STATES FOR ALL ENVS
             List<Task<(Guid environmentId, TState state)>> nextStateTaskList = new();
             foreach (var env in _environments)
             {
@@ -91,6 +62,7 @@ namespace RLMatrix.Agents.SignalR
             }
             var nextStateResults = await Task.WhenAll(nextStateTaskList);
 
+            //Process episodes
             ConcurrentBag<TransitionPortable<TState>> transitionsToShip = new();
             ConcurrentBag<double> rewards = new();
             var completedEpisodes = new List<(Guid environmentId, bool done)>();
@@ -98,7 +70,7 @@ namespace RLMatrix.Agents.SignalR
             foreach (var env in _environments)
             {
                 var key = env.Key;
-                var episode = _envPairs[key];
+                var episode = _ennvPairs[key];
                 var stateResult = stateResults.First(x => x.environmentId == key);
                 var state = stateResult.state;
                 var action = actions[key];
@@ -106,7 +78,7 @@ namespace RLMatrix.Agents.SignalR
                 var reward = stepResult.reward.Item1;
                 var isDone = stepResult.reward.Item2;
                 var nextState = nextStateResults.First(x => x.environmentId == key).state;
-                episode.AddTransition(state, isDone, action, null, reward);
+                episode.AddTransition(state, isDone, action.discreteActions, action.continuousActions, reward);
                 if (isDone)
                 {
                     foreach (var transition in episode.CompletedEpisodes)
@@ -130,26 +102,23 @@ namespace RLMatrix.Agents.SignalR
 
             if (transitionsToShip.Count > 0)
             {
-                await _connection.InvokeAsync("UploadTransitions", transitionsToShip.ToList().ToDTOList());
+                await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
             }
 
-            await _connection.InvokeAsync("ResetStates", completedEpisodes);
-            await _connection.InvokeAsync("OptimizeModel");
+            await _agent.ResetStates(completedEpisodes);
+            await _agent.OptimizeModelAsync();
         }
 
-        public async ValueTask<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos)
+        public async ValueTask<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
         {
-            var stateInfoDTOs = stateInfos.PackList();
-            var actionsDictionary = await _connection.InvokeAsync<Dictionary<Guid, int[]>>("SelectActions", stateInfoDTOs);
-
-            return actionsDictionary;
+            return await _agent.SelectActionsBatchAsync(stateInfos, isTraining);
         }
 
         private TState DeepCopy(TState input)
         {
             if (input is float[] array1D)
             {
-                return (TState)(object)array1D.ToArray();
+                return (TState)(object)array1D.ToArray(); // Create a new array with the same elements
             }
             else if (input is float[,] array2D)
             {
@@ -165,34 +134,20 @@ namespace RLMatrix.Agents.SignalR
             }
         }
 
-        private async Task<(Guid environmentId, TState state)> GetStateAsync(Guid environmentId, IEnvironmentAsync<TState> env)
+        private async Task<(Guid environmentId, TState state)> GetStateAsync(Guid environmentId, IContinuousEnvironmentAsync<TState> env)
         {
             var state = DeepCopy(await env.GetCurrentState());
             return (environmentId, state);
         }
 
-        public async ValueTask Save()
-        {
-            await _connection.InvokeAsync("Save");
-        }
-
-        public async ValueTask Load()
-        {
-            await _connection.InvokeAsync("Load");
-        }
-
         public ValueTask Save(string path)
         {
-            Console.WriteLine("Path not supported in remote agent.");
-            _connection.InvokeAsync("Save");
-            return ValueTask.CompletedTask;
+            return _agent.SaveAsync(path);
         }
 
         public ValueTask Load(string path)
         {
-            Console.WriteLine("Path not supported in remote agent.");
-            _connection.InvokeAsync("Load");
-            return ValueTask.CompletedTask;
+            return _agent.LoadAsync(path);
         }
     }
 }

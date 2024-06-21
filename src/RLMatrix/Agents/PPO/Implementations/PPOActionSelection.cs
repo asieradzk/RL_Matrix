@@ -33,21 +33,17 @@ namespace RLMatrix.Agents.PPO.Implementations
             return randStdNormal;
         }
 
-        public static float[] SampleContinuousActions(Tensor result, int[] actionSize, (float, float)[] continousActions)
+        public static float[] SampleContinuousActions(Tensor result, int[] actionSize, (float, float)[] continuousActions)
         {
-
             List<float> actions = new List<float>();
-            int offset = actionSize.Count(); // Assuming discrete action heads come first
-            for (int i = 0; i < continousActions.Count(); i++)
+            int discreteHeads = actionSize.Count();
+            int continuousHeads = continuousActions.Length;
+            for (int i = 0; i < continuousHeads; i++)
             {
-                var mean = result.select(1, offset + i * 2).item<float>();
-                var logStd = result.select(1, offset + i * 2 + 1).item<float>();
+                var mean = result[0, discreteHeads + i, 0].item<float>();
+                var logStd = result[0, discreteHeads + continuousHeads + i, 0].item<float>(); 
                 var std = (float)Math.Exp(logStd);
                 var actionValue = mean + std * (float)SampleFromStandardNormal(new Random());
-
-                // Ensuring that action value stays within given bounds (assuming you have min and max values for each action)
-                actionValue = Math.Clamp(actionValue, continousActions[i].Item1, continousActions[i].Item2);
-
                 actions.Add(actionValue);
             }
             return actions.ToArray();
@@ -65,18 +61,18 @@ namespace RLMatrix.Agents.PPO.Implementations
             return actions.ToArray();
         }
 
-        public static float[] SelectMeanContinuousActions(Tensor result, int[] actionSize, (float, float)[] continousActions)
+        public static float[] SelectMeanContinuousActions(Tensor result, int[] actionSize, (float, float)[] continuousActions)
         {
             List<float> actions = new List<float>();
-            int offset = actionSize.Count();
-            for (int i = 0; i < continousActions.Count(); i++)
+            int discreteHeads = actionSize.Count();
+            int continuousHeads = continuousActions.Length;
+            for (int i = 0; i < continuousHeads; i++)
             {
-                var mean = result.select(1, offset + i * 2).item<float>();
+                var mean = result[0, discreteHeads + i, 0].item<float>();
                 actions.Add(mean);
             }
             return actions.ToArray();
         }
-
 
         #endregion
     }

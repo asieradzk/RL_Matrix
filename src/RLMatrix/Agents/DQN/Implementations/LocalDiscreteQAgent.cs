@@ -38,7 +38,7 @@ namespace RLMatrix
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<Dictionary<Guid, int[]>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos)
+        public ValueTask<Dictionary<Guid, int[]>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
         {
             // Extract the states from the stateInfos list
             T[] states = stateInfos.Select(info => info.state).ToArray();

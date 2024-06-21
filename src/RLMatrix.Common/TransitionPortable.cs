@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace RLMatrix
 {
-#if NET8_0
+#if NET8_0_OR_GREATER
     public sealed record TransitionPortable<TState>(Guid Guid, TState state, int[] discreteActions, float[] continuousActions, float reward, Guid? NextTransitionGuid);
 #elif NETSTANDARD2_0
     public sealed class TransitionPortable<TState>

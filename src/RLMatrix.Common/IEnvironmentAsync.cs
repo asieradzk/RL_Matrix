@@ -22,7 +22,7 @@ namespace RLMatrix
         /// <summary>
         /// Represents the dimensionality of the environment's action space.
         /// For instance if action size is set to 4, the network will learn to output an integer between 0 and 3.
-        /// The length of array is number of possible actions so if you input [2, 4] the agent will otput int[2] where first int is between 0 and 1 and second between 0 and 3.
+        /// The length of array is number of possible actions so if you input [2, 4] the agent will output int[2] where first int is between 0 and 1 and second between 0 and 3.
         /// </summary>
         public int[] actionSize { get; set; }
 

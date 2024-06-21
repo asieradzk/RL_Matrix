@@ -45,22 +45,27 @@ namespace RLMatrix
                 using (var actionLogits = logits.select(1, i))
                 using (var actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1))
                 {
-                    discreteLogProbs.Add(torch.nn.functional.log_softmax(actionLogits, dim: 1).gather(dim: 1, index: actionTaken));
+                    
+                    var res = torch.nn.functional.log_softmax(actionLogits, dim: 1).gather(dim: 1, index: actionTaken);
+                    discreteLogProbs.Add(res);
                 }
             }
 
             // Continuous action log probabilities
             for (int i = 0; i < contActions; i++)
             {
-                using (var mean = logits.select(1, discreteActions + i))
-                using (var log_std = logits.select(1, discreteActions + contActions + i))
-                using (var actionTaken = actions.select(1, discreteActions + i))
+                using (var mean = logits[.., discreteActions + i, 0].unsqueeze(1))
+                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1))
+                using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
                 {
-                    var log_prob = (-0.5 * torch.pow((actionTaken - mean) / torch.exp(log_std), 2) - log_std - 0.5 * Math.Log(2 * Math.PI)).sum(1, keepdim: true);
+                    var std = torch.exp(logStd);
+                    var diff = actionTaken - mean;
+                    var squared_diff = torch.pow(diff / std, 2);
+                    var log_prob = (-0.5f * squared_diff - logStd - 0.5f * (float)Math.Log(2 * Math.PI));
                     continuousLogProbs.Add(log_prob);
+                    
                 }
             }
-
             // Combine discrete and continuous log probabilities
             using (var combinedLogProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1))
             {
@@ -70,54 +75,7 @@ namespace RLMatrix
             }
         }
 
-        public Tensor ComputeEntropy<StateTensor>(StateTensor states, int discreteActions, int continuousActions)
-        {
-            Tensor logits;
-            switch (states)
-            {
-                case Tensor state:
-                    logits = forward(state);
-                    break;
-                case PackedSequence state:
-                    logits = forward(state);
-                    break;
-                default:
-                    throw new ArgumentException("Invalid state type");
-            }
-
-            var discreteEntropies = new List<Tensor>();
-            var continuousEntropies = new List<Tensor>();
-
-            // Discrete action entropy
-            for (int i = 0; i < discreteActions; i++)
-            {
-                using (var actionProbs = logits.select(1, i))
-                using (var logProbs = torch.log(actionProbs + 1e-10))
-                {
-                    var entropy = -(actionProbs * logProbs).sum(1, keepdim: true);
-                    discreteEntropies.Add(entropy);
-                }
-            }
-
-            // Continuous action entropy
-            for (int i = 0; i < continuousActions; i++)
-            {
-                using (var log_std = logits.select(1, discreteActions + i))
-                {
-                    var entropy = 0.5 + 0.5 * Math.Log(2 * Math.PI) + log_std;
-                    continuousEntropies.Add(entropy);
-                }
-            }
-
-            // Combine the entropies
-            using (var combinedEntropies = torch.cat(discreteEntropies.Concat(continuousEntropies).ToArray(), dim: 1))
-            {
-                var totalEntropy = combinedEntropies.mean(new long[] { 1 }, true);
-                logits.Dispose();
-                return totalEntropy;
-            }
-        }
-
+  
         public (Tensor logprobs, Tensor entropy) get_log_prob_entropy<StateTensor>(StateTensor states, Tensor actions, int discreteActions, int contActions)
         {
             Tensor logits;
@@ -153,16 +111,20 @@ namespace RLMatrix
             // Continuous action log probabilities and entropy
             for (int i = 0; i < contActions; i++)
             {
-                using (var mean = logits.select(1, discreteActions + i))
-                using (var log_std = logits.select(1, discreteActions + contActions + i))
-                using (var actionTaken = actions.select(1, discreteActions + i))
+                using (var mean = logits[.., discreteActions + i, 0].unsqueeze(1))
+                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1))
+                using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
                 {
-                    var log_prob = (-0.5 * torch.pow((actionTaken - mean) / torch.exp(log_std), 2) - log_std - 0.5 * Math.Log(2 * Math.PI)).sum(1, keepdim: true);
+
+                    var std = torch.exp(logStd);
+                    var diff = actionTaken - mean;
+                    var squared_diff = torch.pow(diff / std, 2);
+                    var log_prob = -0.5f * squared_diff - logStd - 0.5f * (float)Math.Log(2 * Math.PI);
                     continuousLogProbs.Add(log_prob);
-                    continuousEntropies.Add(0.5 + 0.5 * Math.Log(2 * Math.PI) + log_std);
+                    var entropy = (logStd + 0.5f * (1 + (float)Math.Log(2 * Math.PI)));
+                    continuousEntropies.Add(entropy);
                 }
             }
-
             // Combine discrete and continuous log probabilities and entropies
             using (var combinedLogProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1))
             using (var combinedEntropies = torch.cat(discreteEntropies.Concat(continuousEntropies).ToArray(), dim: 1))
@@ -186,14 +148,17 @@ namespace RLMatrix
         //private readonly GRU lstmLayer;
         private readonly int hiddenSize;
         private readonly bool useRnn;
+        private readonly int headSize = 1;
+        private readonly (float, float)[] continuousActionBounds;
 
         public PPOActorNet1D(string name, long inputs, int width, int[] discreteActions, (float, float)[] continuousActionBounds, int depth = 3, bool useRNN = false) : base(name)
         {
             if (depth < 1) throw new ArgumentOutOfRangeException("Depth must be 1 or greater.");
-
+            this.continuousActionBounds = continuousActionBounds;
             this.useRnn = useRNN;
             this.hiddenSize = width;
-         
+
+            this.headSize = discreteActions.Count() > 0 ? discreteActions[0] : 1;
 
             if (useRnn)
             {
@@ -240,20 +205,41 @@ namespace RLMatrix
         private Tensor ApplyHeads(Tensor x)
         {
             var outputs = new List<Tensor>();
+
+            // Process discrete heads
             foreach (var head in discreteHeads)
             {
                 outputs.Add(functional.softmax(head.forward(x), 1));
             }
-            foreach (var head in continuousHeadsMean)
+
+            // Process continuous heads (mean) and apply tanh to bound them within [-1, 1]
+            for (int i = 0; i < continuousHeadsMean.Count; i++)
             {
-                outputs.Add(head.forward(x));  // mean values
+                var continuousOutput = tanh(continuousHeadsMean[i].forward(x));  // Apply tanh to bound within [-1, 1]
+
+                // Remap continuous means from [-1, 1] to the desired action bounds
+                var low = continuousActionBounds[i].Item1;
+                var high = continuousActionBounds[i].Item2;
+                continuousOutput = (continuousOutput + 1) / 2 * (high - low) + low;  // Remap to [low, high]
+
+                var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
+                paddedOutput[.., 0] = continuousOutput.squeeze(-1);
+                outputs.Add(paddedOutput);
             }
-            foreach (var head in continuousHeadsLogStd)
+
+            // Process continuous heads (log std)
+            for (int i = 0; i < continuousHeadsLogStd.Count; i++)
             {
-                outputs.Add(functional.softplus(head.forward(x)));  // Convert to log std deviation values
+                var continuousOutput = functional.softplus(continuousHeadsLogStd[i].forward(x));
+                var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
+                paddedOutput[.., 0] = continuousOutput.squeeze(-1);
+                outputs.Add(paddedOutput);
             }
-            return stack(outputs, dim: 1);
+
+            var result = stack(outputs.ToArray(), dim: 1);
+            return result;
         }
+
 
         public override Tensor forward(Tensor x)
         {

@@ -87,7 +87,7 @@ namespace RLMatrix.Agents.PPO.Implementations
                 T[] states = stateInfos.Select(info => info.state).ToArray();
 
                 // Select actions for the batch of states
-                (int[] discreteActions, float[][] continuousActions) actions = _agent.SelectActions(states, isTraining);
+                (int[] discreteActions, float[] continuousActions)[] actions = _agent.SelectActions(states, isTraining);
 
                 // Create a dictionary to map environment IDs to their corresponding actions
                 Dictionary<Guid, (int[] discreteActions, float[] continuousActions)> actionDict = new Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>();
@@ -96,7 +96,7 @@ namespace RLMatrix.Agents.PPO.Implementations
                 for (int i = 0; i < stateInfos.Count; i++)
                 {
                     Guid environmentId = stateInfos[i].environmentId;
-                    (int[] discreteActions, float[] continuousActions) action = (actions.discreteActions, actions.continuousActions[i]);
+                    (int[] discreteActions, float[] continuousActions) action = actions[i];
                     actionDict[environmentId] = action;
                 }
 

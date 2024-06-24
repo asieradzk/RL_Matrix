@@ -8,13 +8,15 @@ namespace RLMatrix.Agents.PPO.Implementations
     {
         public override ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[] SelectActionsRecurrent((T state, Tensor? memoryState, Tensor? memoryState2)[] states, bool isTraining)
         {
-            ((int[], float[]), Tensor, Tensor)[] result = new ((int[], float[]), Tensor, Tensor)[states.Length];
+            var result = new ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[states.Length];
+
             for (int i = 0; i < states.Length; i++)
             {
                 using (var scope = torch.no_grad())
                 {
                     Tensor stateTensor = Utilities<T>.StateToTensor(states[i].state, Device);
                     var forwardResult = actorNet.forward(stateTensor, states[i].memoryState, states[i].memoryState2);
+
                     if (isTraining)
                     {
                         int[] discreteActions = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(forwardResult.Item1, DiscreteDimensions);
@@ -29,9 +31,9 @@ namespace RLMatrix.Agents.PPO.Implementations
                     }
                 }
             }
+
             return result;
         }
-
         public new (int[] discreteActions, float[][] continuousActions) SelectActions(T[] states, bool isTraining)
         {
             Console.WriteLine("Using non recurrent action selection with recurrent agent, use ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[] signature instead");

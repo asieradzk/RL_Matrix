@@ -128,12 +128,19 @@ namespace RLMatrix.Agents.SignalR
                 _chartService.CreateOrUpdateChart(chart);
             }
 
-            if (transitionsToShip.Count > 0)
+            if (transitionsToShip.Count > 0 && isTraining)
             {
                 await _connection.InvokeAsync("UploadTransitions", transitionsToShip.ToList().ToDTOList());
+            }else
+            {
+                transitionsToShip = null;
             }
 
             await _connection.InvokeAsync("ResetStates", completedEpisodes);
+
+            if(!isTraining)
+                return;
+
             await _connection.InvokeAsync("OptimizeModel");
         }
 

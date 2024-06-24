@@ -27,39 +27,98 @@ namespace RLMatrix.Agents.PPO.Implementations
         {
             Optimizer.Optimize(Memory);
         }
-
-        public (int[] discreteActions, float[][] continuousActions) SelectActions(T[] states, bool isTraining)
+        public (int[] discreteActions, float[] continuousActions)[] SelectActions(T[] states, bool isTraining)
         {
-            int[][] discreteActions = new int[states.Length][];
-            float[][] continuousActions = new float[states.Length][];
+            using (var scope = torch.no_grad())
+            {
+                Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, Device);
+                var result = actorNet.forward(stateTensor);
+                var actions = new (int[] discreteActions, float[] continuousActions)[states.Length];
+
+                for (int i = 0; i < states.Length; i++)
+                {
+                    actions[i].discreteActions = new int[DiscreteDimensions.Length];
+                    actions[i].continuousActions = new float[ContinuousActionBounds.Length];
+
+                    int discreteIndex = 0;
+                    int continuousIndex = 0;
+
+                    for (int j = 0; j < DiscreteDimensions.Length + ContinuousActionBounds.Length; j++)
+                    {
+                        if (j < DiscreteDimensions.Length)
+                        {
+                            var actionProbs = result[i, j];
+                            if (isTraining)
+                            {
+                                var actionSample = torch.multinomial(actionProbs, 1, true);
+                                actions[i].discreteActions[discreteIndex] = (int)actionSample.item<long>();
+                            }
+                            else
+                            {
+                                var actionIndex = actionProbs.argmax();
+                                actions[i].discreteActions[discreteIndex] = (int)actionIndex.item<long>();
+                            }
+                            discreteIndex++;
+                        }
+                        else
+                        {
+                            var (min, max) = ContinuousActionBounds[continuousIndex];
+                            var mu = result[i, j, 0];
+                            var sigma = result[i, j, 1].exp();
+
+                            float action;
+                            if (isTraining)
+                            {
+                                var distribution = torch.distributions.Normal(mu, sigma);
+                                action = distribution.sample().item<float>();
+                            }
+                            else
+                            {
+                                action = mu.item<float>();
+                            }
+
+                            // Clamp the action to the specified bounds
+                            action = Math.Clamp(action, min, max);
+                            actions[i].continuousActions[continuousIndex] = action;
+                            continuousIndex++;
+                        }
+                    }
+                }
+
+                return actions;
+            }
+        }
+
+        public (int[] discreteActions, float[] continuousActions)[] SelectActions2(T[] states, bool isTraining)
+        {
+            var result = new (int[] discreteActions, float[] continuousActions)[states.Length];
 
             for (int i = 0; i < states.Length; i++)
             {
                 using (var scope = torch.no_grad())
                 {
                     Tensor stateTensor = Utilities<T>.StateToTensor(states[i], Device);
-                    var result = actorNet.forward(stateTensor);
+                    var forwardResult = actorNet.forward(stateTensor);
 
                     if (isTraining)
                     {
                         // Discrete Actions
-                        discreteActions[i] = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(result, DiscreteDimensions);
+                        result[i].discreteActions = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(forwardResult, DiscreteDimensions);
                         // Continuous Actions
-                        continuousActions[i] = PPOActionSelection<T>.SampleContinuousActions(result, DiscreteDimensions, ContinuousActionBounds);
+                        result[i].continuousActions = PPOActionSelection<T>.SampleContinuousActions(forwardResult, DiscreteDimensions, ContinuousActionBounds);
                     }
                     else
                     {
                         // Discrete Actions
-                        discreteActions[i] = PPOActionSelection<T>.SelectGreedyDiscreteActions(result, DiscreteDimensions);
+                        result[i].discreteActions = PPOActionSelection<T>.SelectGreedyDiscreteActions(forwardResult, DiscreteDimensions);
                         // Continuous Actions
-                        continuousActions[i] = PPOActionSelection<T>.SelectMeanContinuousActions(result, DiscreteDimensions, ContinuousActionBounds);
+                        result[i].continuousActions = PPOActionSelection<T>.SelectMeanContinuousActions(forwardResult, DiscreteDimensions, ContinuousActionBounds);
                     }
                 }
             }
 
-            return (discreteActions.SelectMany(a => a).ToArray(), continuousActions);
+            return result;
         }
-
         public virtual ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[] SelectActionsRecurrent((T state, Tensor? memoryState, Tensor? memoryState2)[] states, bool isTraining)
         {
             throw new Exception("Using recurrent action selection with non recurrent agent, use (int[] discreteActions, float[][] continuousActions) SelectActions(T[] states, bool isTraining) signature instead");

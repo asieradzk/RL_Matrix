@@ -401,6 +401,8 @@ namespace RLMatrix.Agents.PPO.Implementations
             {
                 var transitions = replayBuffer.SampleEntireMemory();
                 CreateTensorsFromTransitions(myDevice, transitions, out var stateBatch, out var actionBatch);
+                stateBatch.print();
+                actionBatch.print();
 
                 using (var policyOld = actorNet.get_log_prob(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count()).detach())
                 using (var valueOld = criticNet.forward(stateBatch).detach())

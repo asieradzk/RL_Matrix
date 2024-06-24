@@ -46,6 +46,7 @@ namespace RLMatrix.Agents.PPO.Implementations
                 var actionValue = mean + std * (float)SampleFromStandardNormal(new Random());
                 actions.Add(actionValue);
             }
+            
             return actions.ToArray();
         }
 

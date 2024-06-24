@@ -100,12 +100,20 @@ namespace RLMatrix.Agents.Common
                 _chartService.CreateOrUpdateChart(chart);
             }
 
-            if (transitionsToShip.Count > 0)
+            if (transitionsToShip.Count > 0 && isTraining)
             {
                 await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
             }
+            else
+            {
+                transitionsToShip.Clear();
+            }
 
             await _agent.ResetStates(completedEpisodes);
+
+            if (!isTraining)
+                return;
+
             await _agent.OptimizeModelAsync();
         }
 

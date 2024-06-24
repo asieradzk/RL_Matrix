@@ -20,7 +20,7 @@ namespace RLMatrix.Agents.Common
 
     public interface ISelectContinuousAndDiscreteActions<T>
     {
-        public (int[] discreteActions, float[][] continuousActions) SelectActions(T[] states, bool isTraining);
+        public (int[] discreteActions, float[] continuousActions)[] SelectActions(T[] states, bool isTraining);
     }
 
     public interface ISelectContinuousAndDiscreteActionsRecurrent<T>

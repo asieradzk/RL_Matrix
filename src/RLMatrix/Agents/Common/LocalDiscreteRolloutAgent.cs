@@ -113,8 +113,17 @@ namespace RLMatrix.Agents.Common
             {
                 await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
             }
+            else
+            {
+                transitionsToShip.Clear();
+            }
 
             await _agent.ResetStates(completedEpisodes);
+
+
+            if (!isTraining)
+                return;
+
             await _agent.OptimizeModelAsync();
         }
 

@@ -220,8 +220,11 @@ namespace RLMatrix.Agents.PPO.Implementations
                 Tensor actionBatch = torch.cat(actionBatches.ToArray(), dim: 0);
 
                 Tensor policyOld = actorNet.get_log_prob(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count()).detach();
+                
                 Tensor valueOld = criticNet.forward(stateBatch).detach().squeeze(1);
-                Tensor maskedPolicyOld = torch.masked_select(policyOld, mask.to_type(ScalarType.Bool));
+
+                //Tensor maskedPolicyOld = torch.masked_select(policyOld, mask.to_type(ScalarType.Bool));
+                Tensor maskedPolicyOld = MaskedSelectBatch(policyOld, mask.to_type(ScalarType.Bool));
                 Tensor maskedValueOld = torch.masked_select(valueOld, mask.to_type(ScalarType.Bool));
 
                 List<Tensor> discountedRewardsList = new List<Tensor>();
@@ -231,13 +234,15 @@ namespace RLMatrix.Agents.PPO.Implementations
                 var (maskedDiscountedRewards, maskedAdvantages) = DiscountedRewardsAndAdvantages(paddedTransitionsSummed, valueOld);
                 maskedDiscountedRewards = torch.masked_select(maskedDiscountedRewards, mask.to_type(ScalarType.Bool));
                 maskedAdvantages = torch.masked_select(maskedAdvantages, mask.to_type(ScalarType.Bool));
+                maskedAdvantages = ReshapeAdvantages(maskedAdvantages, maskedPolicyOld);
 
                 for (int i = 0; i < myOptions.PPOEpochs; i++)
                 {
                     using (var actorScope = torch.NewDisposeScope())
                     {
                         (Tensor policy, Tensor entropy) = actorNet.get_log_prob_entropy(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count());
-                        policy = torch.masked_select(policy, mask.to_type(ScalarType.Bool));
+                        //policy = torch.masked_select(policy, mask.to_type(ScalarType.Bool));
+                        policy = MaskedSelectBatch(policy, mask.to_type(ScalarType.Bool));
                         entropy = torch.masked_select(entropy, mask.to_type(ScalarType.Bool));
                         Tensor ratios = torch.exp(policy - maskedPolicyOld);
                         Tensor surr1 = ratios * maskedAdvantages;
@@ -284,6 +289,38 @@ namespace RLMatrix.Agents.PPO.Implementations
         }
 
 
+        //TODO: move to utils?
+        private Tensor MaskedSelectBatch(Tensor tensor, Tensor mask)
+        {
+            if (tensor.shape[0] != mask.shape[0])
+            {
+                throw new ArgumentException("Tensor and mask must have the same batch size (first dimension)");
+            }
+
+            // Ensure mask is boolean
+            mask = mask.to_type(ScalarType.Bool);
+
+            // Reshape tensor to [batch_size, -1]
+            long flattenedSize = tensor.shape.Skip(1).Aggregate(1L, (a, b) => a * b);
+            var reshaped = tensor.view(tensor.shape[0], flattenedSize);
+
+            // Apply mask
+            var maskedFlat = torch.masked_select(reshaped, mask.unsqueeze(-1));
+
+            // Reshape back to original shape minus the masked-out batch elements
+            long newBatchSize = mask.sum().item<long>();
+            var newShape = new long[] { newBatchSize }.Concat(tensor.shape.Skip(1)).ToArray();
+            return maskedFlat.view(newShape);
+        }
+
+        private Tensor ReshapeAdvantages(Tensor advantages, Tensor policyTensor)
+        {
+            if (policyTensor.dim() == 1)
+                return advantages;
+
+            // Expand (duplicate) advantages to match policy shape in first two dimensions
+            return advantages.expand(policyTensor.shape[0], policyTensor.shape[1]);
+        }
         #endregion
 
         #endregion

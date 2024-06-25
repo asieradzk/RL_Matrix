@@ -10,7 +10,7 @@ var myChart = new WinformsChart();
 var myChart2 = new WinformsChart();
 
 var optsppo = new PPOAgentOptions(
-    batchSize: 16,           // Nu8mber of EPISODES agent interacts with environment before learning from its experience
+    batchSize: 32,           // Nu8mber of EPISODES agent interacts with environment before learning from its experience
     memorySize: 10000,       // Size of the replay buffer
     gamma: 0.99f,          // Discount factor for rewards
     gaeLambda: 0.95f,      // Lambda factor for Generalized Advantage Estimation
@@ -20,7 +20,7 @@ var optsppo = new PPOAgentOptions(
     clipEpsilon: 0.2f,     // Clipping factor for PPO's objective function
     vClipRange: 0.2f,      // Clipping range for value loss
     cValue: 0.5f,          // Coefficient for value loss
-    ppoEpochs: 4,            // Number of PPO epoch
+    ppoEpochs: 7,            // Number of PPO epoch
     clipGradNorm: 0.5f,
     entropyCoefficient: 0.005f,
     useRNN: false

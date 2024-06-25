@@ -31,6 +31,7 @@ namespace RLMatrix
         }
 
 
+        
         public PPOActorNet CreateActorNet(DiscreteEnvSizeDTO env)
         {
             switch (typeof(T))
@@ -116,8 +117,32 @@ namespace RLMatrix
 
     public class DiscreteEnvSizeDTO
     {
+        private int[] _actionSize;
+
         public OneOf<int, (int, int)> stateSize { get; set; }
-        public int[] actionSize { get; set; }
+
+        public int[] actionSize
+        {
+            get => _actionSize;
+            set
+            {
+                if (value == null || value.Length == 0)
+                {
+                    throw new ArgumentException("Action size array cannot be null or empty.");
+                }
+
+                int firstValue = value[0];
+                foreach (var item in value)
+                {
+                    if (item != firstValue)
+                    {
+                        throw new ArgumentException("All Discrete heads must have identical size - Action size array must be uniform.");
+                    }
+                }
+
+                _actionSize = value;
+            }
+        }
     }
 
     public class ContinuousEnvSizeDTO

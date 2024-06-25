@@ -44,9 +44,43 @@ For users qualifying for the MIT License as per Section 3, the following are exp
 It is important to note that the MIT License allows for commercial use, including selling products or services that incorporate RLMatrix, as long as the user meets the eligibility criteria specified in Section 3.
 
 
-## 7. Derivative Works
+## 7. Derivative Works and Partial Code Usage
 
-Any derivative works or modifications of RLMatrix are subject to the same licensing terms as the original software.
+7.1. Scope of Application:
+The terms of this section apply to:
+a) Complete derivative works or modifications of RLMatrix
+b) Partial use of RLMatrix code, including but not limited to individual functions, classes, algorithms, or code snippets
+c) Any software that incorporates or is derived from any part of RLMatrix, regardless of the amount of code used
+
+7.2. Licensing Requirements:
+Any work that falls under the scope defined in 7.1 is subject to the same licensing terms as the original RLMatrix software. This includes:
+
+a) For works or code portions derived from the MIT-licensed version of RLMatrix:
+   - The work MUST be licensed under the terms of this Comprehensive Dual License Agreement.
+   - A copy of this entire license agreement MUST be included with any distribution of the work.
+   - The work must clearly state that it uses or is based on RLMatrix and include a link to the original RLMatrix project.
+
+b) For works or code portions derived from the commercially licensed version of RLMatrix:
+   - The terms of the commercial license apply to the work.
+   - Any distribution of the work must comply with the terms of the commercial license.
+
+7.3. Users of Derivative Works or Partial Code:
+Users of any work that falls under the scope defined in 7.1, whether created under the MIT license or commercial license, are subject to the same licensing criteria and commercial requirements as users of the original RLMatrix. Specifically:
+
+a) Users who meet the criteria for the MIT license as specified in Section 3 may use the work under the MIT license terms.
+
+b) Users who meet any of the criteria for the commercial license as specified in Section 2 MUST obtain a commercial license for their use of the work, even if the work itself was created under the MIT license.
+
+c) The transition requirements specified in Section 8 apply equally to users of such works.
+
+7.4. Responsibility:
+It is the responsibility of both the creator of any work that falls under the scope defined in 7.1 and the users of such work to ensure compliance with these terms. Creators must make their users aware of these licensing requirements and the potential need for a commercial license.
+
+7.5. No Circumvention:
+The use of derivative works, partial code, or any incorporation of RLMatrix does not exempt any entity from the commercial licensing requirements. The commercial license criteria and requirements cannot be circumvented by using, creating, or incorporating any part of RLMatrix.
+
+7.6. Burden of Proof:
+In case of dispute, the burden of proving that code similar to RLMatrix was independently developed without use or reference to RLMatrix shall rest with the party making such a claim.
 
 ## 8. Transition to Commercial License
 
@@ -87,7 +121,7 @@ You are responsible for complying with all applicable export and re-export contr
 
 ## 15. Changes to This License
 
-We reserve the right to modify these license terms at any time. Any changes will be effective immediately upon posting the revised license.
+We reserve the right to modify these license terms at any time. Any changes will be effective immediately upon posting the revised license online. These changes apply retroactively to all existing versions of RLMatrix, all derivative works, and all partial implementations, regardless of when they were created or distributed. Users of RLMatrix or any derivative works are responsible for regularly checking for updates to this license and ensuring their compliance with the most current version.
 
 For any questions or concerns regarding this dual-license model, please contact:
 

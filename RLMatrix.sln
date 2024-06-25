@@ -20,7 +20,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 		LICENSE.txt = LICENSE.txt
 		README.md = README.md
-		RLMatrixDualLicense.txt = RLMatrixDualLicense.txt
+		RLMatrixDualLicense.md = RLMatrixDualLicense.md
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RLMatrix.Godot", "src\RLMatrix.Godot\RLMatrix.Godot.csproj", "{16F7C0F8-E663-4E8A-83A0-49D44C36317F}"

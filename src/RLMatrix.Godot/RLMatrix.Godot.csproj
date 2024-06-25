@@ -11,7 +11,7 @@
 		<Version>0.2.421.3</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
-		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+		<PackageLicenseExpression>RLMatrixLicense</PackageLicenseExpression>
 		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
 		<PackageDescription>Deep Reinfocement Learning Library wiring RLMatrix with Godot objects for easy of use with Godot Engine</PackageDescription>
 		<PackageProjectUrl>https://github.com/asieradzk/RL_Matrix</PackageProjectUrl>

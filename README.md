@@ -109,5 +109,6 @@ As we innovate, anticipate breaking changes. We'll keep you in the loop!
 Questions? Ideas? Collaborations? Drop a line at:
 📧 contact@exmachinasoft.com
 
-## 🤝 Join the Journey:
-We believe in collective brilliance! If you're inspired to enhance RL Matrix, please open an issue or PR. Let’s shape the future of RL together!
+## 🤝 License:
+RLMatrix is licensed under the [RLMatrix Comprehensive Dual License Agreement](https://github.com/asieradzk/RL_Matrix/blob/master/LICENSE.txt)
+

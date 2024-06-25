@@ -18,9 +18,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{70B48B2C-4375-4F03-BBC6-6097BCCC54D1}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
-		GNUAfferoGPL.txt = GNUAfferoGPL.txt
 		LICENSE.txt = LICENSE.txt
 		README.md = README.md
+		RLMatrixDualLicense.txt = RLMatrixDualLicense.txt
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RLMatrix.Godot", "src\RLMatrix.Godot\RLMatrix.Godot.csproj", "{16F7C0F8-E663-4E8A-83A0-49D44C36317F}"
@@ -41,7 +41,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartPole-v1-Server", "examp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CartPole-v1-Client", "examples\Networked\CartPole-v1-Client\CartPole-v1-Client.csproj", "{18CE92C4-3546-440D-BD0C-EEA34474854C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RLMatrix.Common.Remote", "src\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj", "{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RLMatrix.Common.Remote", "src\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj", "{0DB0DE7D-9A9D-413F-BBFE-C8AE1040FE53}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

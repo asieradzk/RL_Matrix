@@ -12,7 +12,7 @@
 		<Version>0.2.1</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
-		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+		<PackageLicenseExpression>RLMatrixLicense</PackageLicenseExpression>
 		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 		<PackageDescription>Deep Reinforcement Learning in .NET</PackageDescription>
 		<PackageProjectUrl>https://github.com/asieradzk/RL_Matrix</PackageProjectUrl>

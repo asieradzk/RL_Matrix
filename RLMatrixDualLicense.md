@@ -43,6 +43,24 @@ For users qualifying for the MIT License as per Section 3, the following are exp
 
 It is important to note that the MIT License allows for commercial use, including selling products or services that incorporate RLMatrix, as long as the user meets the eligibility criteria specified in Section 3.
 
+## 5. Distribution Requirements
+
+5.1. For MIT License Users:
+When distributing RLMatrix or any derivative work under the MIT License, you must:
+a) Include a copy of the full text of this Comprehensive Dual License Agreement with the distribution.
+b) Retain all copyright, patent, trademark, and attribution notices from the source form of RLMatrix.
+c) Clearly indicate any modifications made to RLMatrix.
+
+5.2. For Commercial License Users:
+Distribution requirements for commercial license users are specified in the separate commercial license agreement.
+
+## 6. Contributions and Intellectual Property
+
+6.1. Contributions:
+By submitting modifications to RLMatrix, you agree that your contributions will be licensed under the same terms as this Comprehensive Dual License Agreement.
+
+6.2. Intellectual Property:
+This license does not grant you any rights to use any trademarks, service marks, or logos associated with RLMatrix. The use of such marks is subject to separate written permission from the copyright holder.
 
 ## 7. Derivative Works and Partial Code Usage
 

@@ -133,9 +133,12 @@ namespace RLMatrix.Agents.SignalR
         public async ValueTask<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
         {
             var stateInfoDTOs = stateInfos.PackList();
-            var actionsDictionary = await _connection.InvokeAsync<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>>("SelectActions", stateInfoDTOs, isTraining);
+            var actionResponse = await _connection.InvokeAsync<ActionResponseDTO>("SelectActions", stateInfoDTOs, isTraining);
 
-            return actionsDictionary;
+            return actionResponse.Actions.ToDictionary(
+                kvp => kvp.Key,
+                kvp => (kvp.Value.DiscreteActions, kvp.Value.ContinuousActions)
+            );
         }
 
         private TState DeepCopy(TState input)

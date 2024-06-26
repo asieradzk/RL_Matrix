@@ -21,7 +21,7 @@ public static class RLMatrixServerExtensions
                 options.MaximumReceiveMessageSize = 10240 * 10240; // 10 MB
             });
 
-        services.AddSingleton<IDiscreteRLMatrixService>(new RLMatrixService(savePath));
+        services.AddSingleton<IRLMatrixService>(new RLMatrixService(savePath));
     }
 
     public static void UseRLMatrixEndpoints(this IApplicationBuilder app)

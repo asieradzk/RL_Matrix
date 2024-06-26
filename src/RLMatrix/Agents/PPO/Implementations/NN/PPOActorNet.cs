@@ -450,12 +450,14 @@ namespace RLMatrix
         private Module<Tensor, Tensor> conv1, flatten;
         private readonly ModuleList<Module<Tensor, Tensor>> fcModules = new();
         private readonly ModuleList<Module<Tensor, Tensor>> discreteHeads = new();
-        private readonly ModuleList<Module<Tensor, Tensor>> continuousMeans = new();
-        private readonly ModuleList<Module<Tensor, Tensor>> continuousStds = new();
+        private readonly ModuleList<Module<Tensor, Tensor>> continuousHeadsMean = new();
+        private readonly ModuleList<Module<Tensor, Tensor>> continuousHeadsLogStd = new();
         private readonly LSTM LSTMLayer;
         private int width;
         private long linear_input_size;
         private bool useRNN;
+        private readonly int headSize = 1;
+        private readonly (float, float)[] continuousActionBounds;
 
         public long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
         {
@@ -468,6 +470,8 @@ namespace RLMatrix
 
             this.width = width;
             this.useRNN = useRNN;
+            this.continuousActionBounds = continuousActionBounds;
+            this.headSize = discreteActionSizes.Length > 0 ? discreteActionSizes[0] : 1;
 
             var smallestDim = Math.Min(h, w);
             var padding = smallestDim / 2;
@@ -501,12 +505,51 @@ namespace RLMatrix
 
             foreach (var actionBound in continuousActionBounds)
             {
-                continuousMeans.Add(Linear(width, 1));  // Assuming each continuous action is 1-dimensional
-                continuousStds.Add(Linear(width, 1));
+                continuousHeadsMean.Add(Linear(width, 1));
+                continuousHeadsLogStd.Add(Linear(width, 1));
             }
 
             RegisterComponents();
         }
+
+        private Tensor ApplyHeads(Tensor x)
+        {
+            var outputs = new List<Tensor>();
+
+            // Process discrete heads
+            foreach (var head in discreteHeads)
+            {
+                outputs.Add(functional.softmax(head.forward(x), 1));
+            }
+
+            // Process continuous heads (mean) and apply tanh to bound them within [-1, 1]
+            for (int i = 0; i < continuousHeadsMean.Count; i++)
+            {
+                var continuousOutput = tanh(continuousHeadsMean[i].forward(x));  // Apply tanh to bound within [-1, 1]
+
+                // Remap continuous means from [-1, 1] to the desired action bounds
+                var low = continuousActionBounds[i].Item1;
+                var high = continuousActionBounds[i].Item2;
+                continuousOutput = (continuousOutput + 1) / 2 * (high - low) + low;  // Remap to [low, high]
+
+                var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
+                paddedOutput[.., 0] = continuousOutput.squeeze(-1);
+                outputs.Add(paddedOutput);
+            }
+
+            // Process continuous heads (log std)
+            for (int i = 0; i < continuousHeadsLogStd.Count; i++)
+            {
+                var continuousOutput = functional.softplus(continuousHeadsLogStd[i].forward(x));
+                var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
+                paddedOutput[.., 0] = continuousOutput.squeeze(-1);
+                outputs.Add(paddedOutput);
+            }
+
+            var result = stack(outputs.ToArray(), dim: 1);
+            return result;
+        }
+
         public override Tensor forward(Tensor x)
         {
             if (x.dim() == 2)
@@ -518,68 +561,30 @@ namespace RLMatrix
                 x = x.unsqueeze(1);
             }
 
-            var batchength = x.size(0);
-            var sequencLength = x.size(1);
+            var batchLength = x.size(0);
+            var sequenceLength = x.size(1);
 
-            if(useRNN && x.dim() == 4)
+            if (useRNN && x.dim() == 4)
             {
-                x = x.reshape(new long[] { batchength * sequencLength, 1, x.size(2), x.size(3) });
+                x = x.reshape(new long[] { batchLength * sequenceLength, 1, x.size(2), x.size(3) });
             }
 
             x = functional.tanh(conv1.forward(x));
             x = flatten.forward(x);
             if (useRNN)
             {
-                x = x.reshape(new long[] { batchength, sequencLength, x.size(1) });
+                x = x.reshape(new long[] { batchLength, sequenceLength, x.size(1) });
                 x = LSTMLayer.forward(x, null).Item1;
                 x = x.reshape(new long[] { -1, x.size(2) });
             }
-            
 
             foreach (var module in fcModules)
             {
                 x = functional.tanh(module.forward(x));
             }
 
-            var discreteOutputs = new List<Tensor>();
-            var continuousOutputs = new List<Tensor>();
-
-            foreach (var head in discreteHeads)
-            {
-                discreteOutputs.Add(functional.softmax(head.forward(x), 1));
-            }
-
-            foreach (var meanModule in continuousMeans)
-            {
-                continuousOutputs.Add(meanModule.forward(x));
-            }
-
-            foreach (var stdModule in continuousStds)
-            {
-                continuousOutputs.Add(functional.softplus(stdModule.forward(x)));
-            }
-
-            var res = stack(discreteOutputs.Concat(continuousOutputs).ToArray(), dim: 1);
-            return res;
+            return ApplyHeads(x);
         }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                LSTMLayer?.Dispose();
-                conv1.Dispose();
-                foreach (var module in fcModules.Concat(discreteHeads).Concat(continuousMeans).Concat(continuousStds))
-                {
-                    module.Dispose();
-                }
-                
-                ClearModules();
-            }
-
-            base.Dispose(disposing);
-        }
-
 
         public override (Tensor, Tensor, Tensor) forward(Tensor x, Tensor? state, Tensor? state2)
         {
@@ -605,36 +610,34 @@ namespace RLMatrix
             x = result.Item1.squeeze(0);
             var stateRes = (result.Item2, result.Item3);
 
-
             foreach (var module in fcModules)
             {
                 x = functional.tanh(module.forward(x));
             }
 
-            var discreteOutputs = new List<Tensor>();
-            var continuousOutputs = new List<Tensor>();
-
-            foreach (var head in discreteHeads)
-            {
-                discreteOutputs.Add(functional.softmax(head.forward(x), 1));
-            }
-
-            foreach (var meanModule in continuousMeans)
-            {
-                continuousOutputs.Add(meanModule.forward(x));
-            }
-
-            foreach (var stdModule in continuousStds)
-            {
-                continuousOutputs.Add(functional.softplus(stdModule.forward(x)));
-            }
-
-            return (stack(discreteOutputs.Concat(continuousOutputs).ToArray(), dim: 1), stateRes.Item1, stateRes.Item2);
+            return (ApplyHeads(x), stateRes.Item1, stateRes.Item2);
         }
 
         public override Tensor forward(PackedSequence x)
         {
             throw new NotImplementedException();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                LSTMLayer?.Dispose();
+                conv1.Dispose();
+                foreach (var module in fcModules.Concat(discreteHeads).Concat(continuousHeadsMean).Concat(continuousHeadsLogStd))
+                {
+                    module.Dispose();
+                }
+
+                ClearModules();
+            }
+
+            base.Dispose(disposing);
         }
     }
 

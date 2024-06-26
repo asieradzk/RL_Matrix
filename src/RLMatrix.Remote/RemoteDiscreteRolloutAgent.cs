@@ -56,7 +56,7 @@ namespace RLMatrix.Agents.SignalR
             var optsDTO = options.ToAgentOptionsDTO();
             var stateSizesDTO = stateSizes.ToStateSizesDTO();
 
-            await _connection.InvokeAsync("Initialize", optsDTO, actionSizes, stateSizesDTO);
+            await _connection.InvokeAsync("Initialize", optsDTO, actionSizes, new(float, float)[0], stateSizesDTO);
         }
         List<double> chart = new();
         public async Task Step(bool isTraining = true)
@@ -70,7 +70,7 @@ namespace RLMatrix.Agents.SignalR
             var stateResults = await Task.WhenAll(stateTaskList);
 
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
-            var actions = await GetActionsBatchAsync(payload);
+            var actions = await GetActionsBatchAsync(payload, isTraining);
 
             List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new();
             foreach (var action in actions)
@@ -144,12 +144,15 @@ namespace RLMatrix.Agents.SignalR
             await _connection.InvokeAsync("OptimizeModel");
         }
 
-        public async ValueTask<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos)
+        public async ValueTask<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
         {
             var stateInfoDTOs = stateInfos.PackList();
-            var actionsDictionary = await _connection.InvokeAsync<Dictionary<Guid, int[]>>("SelectActions", stateInfoDTOs);
+            var actionResponse = await _connection.InvokeAsync<ActionResponseDTO>("SelectActions", stateInfoDTOs, isTraining);
 
-            return actionsDictionary;
+            return actionResponse.Actions.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.DiscreteActions
+            );
         }
 
         private TState DeepCopy(TState input)

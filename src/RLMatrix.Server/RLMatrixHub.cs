@@ -1,21 +1,26 @@
 ﻿using RLMatrix.Common.Remote;
 using RLMatrix.Server;
 using Microsoft.AspNetCore.SignalR;
+using OneOf;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
 public class RLMatrixHub : Hub
 {
-    private readonly IDiscreteRLMatrixService _proxyAdapter;
+    private readonly IRLMatrixService _service;
 
-    public RLMatrixHub(IDiscreteRLMatrixService proxyAdapter)
+    public RLMatrixHub(IRLMatrixService service)
     {
-        _proxyAdapter = proxyAdapter;
+        _service = service;
     }
 
-    public async Task Initialize(AgentOptionsDTO opts, int[] actionSizes, StateSizesDTO stateSizes)
+    public async Task Initialize(AgentOptionsDTO opts, int[] discreteActionSizes, (float min, float max)[] continuousActionBounds, StateSizesDTO stateSizes)
     {
         Console.WriteLine($"Initializing... request from {Context.ConnectionId}");
         try
         {
-            _proxyAdapter.Initialize(opts.ToAgentOptions(), actionSizes, stateSizes.ToOneOf());
+            _service.Initialize(opts.ToAgentOptions(), discreteActionSizes, continuousActionBounds, stateSizes.ToOneOf());
             Console.WriteLine("Initialized");
         }
         catch (Exception ex)
@@ -25,11 +30,11 @@ public class RLMatrixHub : Hub
         }
     }
 
-    public async Task<Dictionary<Guid, int[]>> SelectActions(List<StateInfoDTO> stateInfosDTOs)
+    public async Task<ActionResponseDTO> SelectActions(List<StateInfoDTO> stateInfosDTOs, bool isTraining)
     {
         try
         {
-            return await _proxyAdapter.SelectActionsBatchAsync(stateInfosDTOs);
+            return await _service.SelectActionsBatchAsync(stateInfosDTOs, isTraining);
         }
         catch (Exception ex)
         {
@@ -43,7 +48,7 @@ public class RLMatrixHub : Hub
     {
         try
         {
-            await _proxyAdapter.ResetStates(environmentIds);
+            await _service.ResetStates(environmentIds);
         }
         catch (Exception ex)
         {
@@ -57,7 +62,7 @@ public class RLMatrixHub : Hub
     {
         try
         {
-            await _proxyAdapter.UploadTransitionsAsync(transitions);
+            await _service.UploadTransitionsAsync(transitions);
         }
         catch (Exception ex)
         {
@@ -71,7 +76,7 @@ public class RLMatrixHub : Hub
     {
         try
         {
-            await _proxyAdapter.OptimizeModelAsync();
+            await _service.OptimizeModelAsync();
         }
         catch (Exception ex)
         {
@@ -85,7 +90,7 @@ public class RLMatrixHub : Hub
     {
         try
         {
-            await _proxyAdapter.SaveAsync();
+            await _service.SaveAsync();
         }
         catch (Exception ex)
         {
@@ -99,7 +104,7 @@ public class RLMatrixHub : Hub
     {
         try
         {
-            await _proxyAdapter.LoadAsync();
+            await _service.LoadAsync();
         }
         catch (Exception ex)
         {

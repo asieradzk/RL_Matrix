@@ -55,17 +55,14 @@ namespace RLMatrix.Agents.PPO.Implementations
             if (useRnn)
             {
                 Dictionary<Guid, (int[] discreteActions, float[] continuousActions)> actionDict = new Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>();
-                if (memoriesStore.Count == 0)
-                {
-                    foreach (var stateInfo in stateInfos)
-                    {
-                        memoriesStore[stateInfo.environmentId] = null;
-                    }
-                }
 
                 (T state, Tensor? memoryState, Tensor? memoryState2)[] statesWithMemory = stateInfos.Select(info =>
                 {
-                    var memoryTuple = memoriesStore[info.environmentId];
+                    if (!memoriesStore.TryGetValue(info.environmentId, out var memoryTuple))
+                    {
+                        memoryTuple = null;
+                        memoriesStore[info.environmentId] = memoryTuple;
+                    }
                     return (info.state, memoryTuple?.Item1, memoryTuple?.Item2);
                 }).ToArray();
 
@@ -75,8 +72,10 @@ namespace RLMatrix.Agents.PPO.Implementations
                 {
                     Guid environmentId = stateInfos[i].environmentId;
                     (int[] discreteActions, float[] continuousActions) action = actionsWithMemory[i].actions;
-                    memoriesStore[environmentId] = (actionsWithMemory[i].memoryState, actionsWithMemory[i].memoryState2);
+                    
                     actionDict[environmentId] = action;
+
+                    memoriesStore[environmentId] = (actionsWithMemory[i].memoryState, actionsWithMemory[i].memoryState2);
                 }
 
                 return ValueTask.FromResult(actionDict);
@@ -103,7 +102,6 @@ namespace RLMatrix.Agents.PPO.Implementations
                 return ValueTask.FromResult(actionDict);
             }
         }
-
         public ValueTask UploadTransitionsAsync(IEnumerable<TransitionPortable<T>> transitions)
         {
             _agent.AddTransition(transitions);

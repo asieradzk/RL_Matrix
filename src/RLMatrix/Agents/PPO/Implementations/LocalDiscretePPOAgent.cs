@@ -53,22 +53,19 @@ namespace RLMatrix.Agents.PPO.Implementations
 
         public ValueTask<Dictionary<Guid, int[]>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
         {
-            
+
 
             if (useRnn)
             {
                 Dictionary<Guid, int[]> actionDict = new Dictionary<Guid, int[]>();
-                if (memoriesStore.Count == 0)
-                {
-                    foreach (var stateInfo in stateInfos)
-                    {
-                        memoriesStore[stateInfo.environmentId] = null;
-                    }
-                }
 
                 (T state, Tensor? memoryState, Tensor? memoryState2)[] statesWithMemory = stateInfos.Select(info =>
                 {
-                    var memoryTuple = memoriesStore[info.environmentId];
+                    if (!memoriesStore.TryGetValue(info.environmentId, out var memoryTuple))
+                    {
+                        memoryTuple = null;
+                        memoriesStore[info.environmentId] = memoryTuple;
+                    }
                     return (info.state, memoryTuple?.Item1, memoryTuple?.Item2);
                 }).ToArray();
 
@@ -82,9 +79,9 @@ namespace RLMatrix.Agents.PPO.Implementations
                     actionDict[environmentId] = action;
                 }
 
-
                 return ValueTask.FromResult(actionDict);
-            }else
+            }
+            else
             {
 
                 // Extract the states from the stateInfos list

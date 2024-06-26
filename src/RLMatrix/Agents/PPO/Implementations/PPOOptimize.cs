@@ -318,7 +318,11 @@ namespace RLMatrix.Agents.PPO.Implementations
             if (policyTensor.dim() == 1)
                 return advantages;
 
-            // Expand (duplicate) advantages to match policy shape in first two dimensions
+            // Ensure advantages is 2D
+            if (advantages.dim() == 1)
+                advantages = advantages.unsqueeze(1);
+
+            // Expand advantages to match policy shape in first two dimensions
             return advantages.expand(policyTensor.shape[0], policyTensor.shape[1]);
         }
         #endregion
@@ -428,8 +432,11 @@ namespace RLMatrix.Agents.PPO.Implementations
             {
                 // (padding + masking)
                 OptimizeModelRNN(replayBuffer);
+
                 actorLrScheduler.step();
                 criticLrScheduler.step();
+
+                //(no masking version?)
                 // OptimizeRNNPacked(replayBuffer); //broken
                 return;
             }
@@ -438,8 +445,6 @@ namespace RLMatrix.Agents.PPO.Implementations
             {
                 var transitions = replayBuffer.SampleEntireMemory();
                 CreateTensorsFromTransitions(myDevice, transitions, out var stateBatch, out var actionBatch);
-                stateBatch.print();
-                actionBatch.print();
 
                 using (var policyOld = actorNet.get_log_prob(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count()).detach())
                 using (var valueOld = criticNet.forward(stateBatch).detach())

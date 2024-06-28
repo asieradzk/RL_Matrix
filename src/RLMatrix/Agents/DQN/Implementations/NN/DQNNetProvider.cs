@@ -44,7 +44,6 @@ namespace RLMatrix
             }
         }
 
-
         public DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51)
         {
             switch (typeof(T))
@@ -80,7 +79,6 @@ namespace RLMatrix
             }
         }
 
-
         internal enum NetworkType
         {
             vanilla,
@@ -92,14 +90,17 @@ namespace RLMatrix
 
     public class EnvSizeDTO<T>
     {
+#if NET8_0_OR_GREATER
         public required OneOf<int, (int, int)> stateSize;
         public required int[] actionSize;
+#else
+       public OneOf<int, (int, int)> stateSize;
+       public int[] actionSize;
+#endif
     }
-
-    
 
     public interface IDQNNetProvider<T>
     {
-        public DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51);
+        DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51);
     }
 }

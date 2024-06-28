@@ -4,11 +4,14 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace RLMatrix.Agents.Common
 {
+    /// <summary>
+    /// Represents a local continuous rollout agent for reinforcement learning.
+    /// </summary>
+    /// <typeparam name="TState">The type of the state.</typeparam>
     public partial class LocalContinuousRolloutAgent<TState> : IContinuousRolloutAgent<TState>
     {
         protected readonly Dictionary<Guid, IContinuousEnvironmentAsync<TState>> _environments;
@@ -16,7 +19,13 @@ namespace RLMatrix.Agents.Common
         protected readonly IContinuousProxy<TState> _agent;
         protected readonly IRLChartService? _chartService;
 
-        public LocalContinuousRolloutAgent(PPOAgentOptions options, IEnumerable<IContinuousEnvironmentAsync<TState>> environments, IRLChartService chartService = null)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LocalContinuousRolloutAgent{TState}"/> class.
+        /// </summary>
+        /// <param name="options">The PPO agent options.</param>
+        /// <param name="environments">The collection of continuous environments.</param>
+        /// <param name="chartService">The optional chart service.</param>
+        public LocalContinuousRolloutAgent(PPOAgentOptions options, IEnumerable<IContinuousEnvironmentAsync<TState>> environments, IRLChartService? chartService = null)
         {
             _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
             _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
@@ -24,12 +33,16 @@ namespace RLMatrix.Agents.Common
             _agent = new LocalContinuousPPOAgent<TState>(options, environments.First().DiscreteActionSize, environments.First().StateSize, environments.First().ContinuousActionBounds);
         }
 
-        List<double> chart = new();
+        List<double> chart = new List<double>();
 
+        /// <summary>
+        /// Performs a step in the reinforcement learning process.
+        /// </summary>
+        /// <param name="isTraining">Indicates whether the agent is in training mode.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task Step(bool isTraining = true)
         {
-            //GETS INITIAL STATES FOR ALL ENVS
-            List<Task<(Guid environmentId, TState state)>> stateTaskList = new();
+            List<Task<(Guid environmentId, TState state)>> stateTaskList = new List<Task<(Guid environmentId, TState state)>>();
             foreach (var env in _environments)
             {
                 var stateTask = GetStateAsync(env.Key, env.Value);
@@ -37,24 +50,21 @@ namespace RLMatrix.Agents.Common
             }
             var stateResults = await Task.WhenAll(stateTaskList);
 
-            //GETS ACTIONS FOR ALL DETERMINED STATES
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
             var actions = await _agent.SelectActionsBatchAsync(payload, isTraining);
 
-            //STEPS ALL ENVS AND GETS REWARDS AND DONES
-            List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new();
+            List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new List<Task<(Guid environmentId, (float, bool) reward)>>();
             foreach (var action in actions)
             {
                 var env = _environments[action.Key];
                 var rewardTask = env.Step(action.Value.discreteActions, action.Value.continuousActions)
-                    .ContinueWith(t => (action.Key, t.Result));  // Ensure that the task returns a tuple with the Guid
+                    .ContinueWith(t => (action.Key, t.Result));
                 rewardTaskList.Add(rewardTask);
             }
 
             await Task.WhenAll(rewardTaskList);
 
-            //GETS NEXT STATES FOR ALL ENVS
-            List<Task<(Guid environmentId, TState state)>> nextStateTaskList = new();
+            List<Task<(Guid environmentId, TState state)>> nextStateTaskList = new List<Task<(Guid environmentId, TState state)>>();
             foreach (var env in _environments)
             {
                 var stateTask = GetStateAsync(env.Key, env.Value);
@@ -62,9 +72,8 @@ namespace RLMatrix.Agents.Common
             }
             var nextStateResults = await Task.WhenAll(nextStateTaskList);
 
-            //Process episodes
-            ConcurrentBag<TransitionPortable<TState>> transitionsToShip = new();
-            ConcurrentBag<double> rewards = new();
+            ConcurrentBag<TransitionPortable<TState>> transitionsToShip = new ConcurrentBag<TransitionPortable<TState>>();
+            ConcurrentBag<double> rewards = new ConcurrentBag<double>();
             var completedEpisodes = new List<(Guid environmentId, bool done)>();
 
             foreach (var env in _environments)
@@ -94,7 +103,6 @@ namespace RLMatrix.Agents.Common
             if (_chartService != null)
             {
                 chart.AddRange(rewards);
-                //remove starting from 0 till it has less than 100 elements
                 chart.RemoveRange(0, Math.Max(0, chart.Count - 100));
 
                 _chartService.CreateOrUpdateChart(chart);
@@ -106,7 +114,11 @@ namespace RLMatrix.Agents.Common
             }
             else
             {
+#if NET8_0_OR_GREATER
                 transitionsToShip.Clear();
+#else
+                transitionsToShip = new ConcurrentBag<TransitionPortable<TState>>();
+#endif
             }
 
             await _agent.ResetStates(completedEpisodes);
@@ -117,7 +129,13 @@ namespace RLMatrix.Agents.Common
             await _agent.OptimizeModelAsync();
         }
 
-        public async ValueTask<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
+        /// <summary>
+        /// Gets actions for a batch of states asynchronously.
+        /// </summary>
+        /// <param name="stateInfos">The list of state information.</param>
+        /// <param name="isTraining">Indicates whether the agent is in training mode.</param>
+        /// <returns>A dictionary of actions for each environment.</returns>
+        public async Task<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
         {
             return await _agent.SelectActionsBatchAsync(stateInfos, isTraining);
         }
@@ -126,7 +144,7 @@ namespace RLMatrix.Agents.Common
         {
             if (input is float[] array1D)
             {
-                return (TState)(object)array1D.ToArray(); // Create a new array with the same elements
+                return (TState)(object)array1D.ToArray();
             }
             else if (input is float[,] array2D)
             {
@@ -148,14 +166,40 @@ namespace RLMatrix.Agents.Common
             return (environmentId, state);
         }
 
+        /// <summary>
+        /// Saves the agent's state to the specified path.
+        /// </summary>
+        /// <param name="path">The path to save the agent's state.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+#if NET8_0_OR_GREATER
         public ValueTask Save(string path)
         {
             return _agent.SaveAsync(path);
         }
+#else
+        public Task Save(string path)
+        {
+            return _agent.SaveAsync(path);
+            return Task.CompletedTask;
+        }
+#endif
 
+        /// <summary>
+        /// Loads the agent's state from the specified path.
+        /// </summary>
+        /// <param name="path">The path to load the agent's state from.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+#if NET8_0_OR_GREATER
         public ValueTask Load(string path)
         {
             return _agent.LoadAsync(path);
         }
+#else
+        public Task Load(string path)
+        {
+            return _agent.LoadAsync(path);
+            return Task.CompletedTask;
+        }
+#endif
     }
 }

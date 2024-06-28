@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Intrinsics.X86;
-using System.Runtime.Intrinsics;
 using System.Collections;
 using System.Runtime.CompilerServices;
 using IEnumerableUnpacker;
@@ -11,12 +9,10 @@ using RLMatrix;
 
 namespace RLMatrix.Agents.Common
 {
-
     /// <summary>
     /// The Transition record represents a single transition in reinforcement learning.
     /// It contains the current state, discrete and continuous actions taken, reward received, and the next state.
     /// </summary>
-
     [Unpackable]
     public sealed class TransitionInMemory<TState> : IEquatable<TransitionInMemory<TState>>
     {
@@ -61,6 +57,7 @@ namespace RLMatrix.Agents.Common
 
         public override int GetHashCode()
         {
+#if NET8_0_OR_GREATER
             var hash = new HashCode();
             hash.Add(state);
             hash.Add(discreteActions);
@@ -68,6 +65,18 @@ namespace RLMatrix.Agents.Common
             hash.Add(reward);
             hash.Add(nextState);
             return hash.ToHashCode();
+#else
+           unchecked
+           {
+               int hash = 17;
+               hash = hash * 23 + EqualityComparer<TState>.Default.GetHashCode(state);
+               hash = hash * 23 + (discreteActions != null ? discreteActions.GetHashCode() : 0);
+               hash = hash * 23 + (continuousActions != null ? continuousActions.GetHashCode() : 0);
+               hash = hash * 23 + reward.GetHashCode();
+               hash = hash * 23 + (nextState != null ? EqualityComparer<TState>.Default.GetHashCode(nextState) : 0);
+               return hash;
+           }
+#endif
         }
     }
 }
@@ -78,7 +87,6 @@ public static class TransitionExtensions
     {
         var transitionMap = new Dictionary<Guid, TransitionInMemory<TState>>();
 
-        // Create TransitionInMemory objects and populate the transitionMap
         foreach (var portableTransition in portableTransitions)
         {
             var transition = new TransitionInMemory<TState>(
@@ -91,30 +99,26 @@ public static class TransitionExtensions
                 null
             );
 
-            transitionMap[portableTransition.Guid] = transition;
+            transitionMap[portableTransition.guid] = transition;
         }
 
-        // Set the nextState, nextTransition, and previousTransition references
         foreach (var portableTransition in portableTransitions)
         {
-            var transition = transitionMap[portableTransition.Guid];
+            var transition = transitionMap[portableTransition.guid];
 
-            if (portableTransition.NextTransitionGuid.HasValue)
+            if (portableTransition.nextTransitionGuid.HasValue)
             {
-                var nextTransition = transitionMap[portableTransition.NextTransitionGuid.Value];
+                var nextTransition = transitionMap[portableTransition.nextTransitionGuid.Value];
                 transition.nextState = nextTransition.state;
                 transition.nextTransition = nextTransition;
                 nextTransition.previousTransition = transition;
             }
         }
 
-        // Find the first transition (the one without a previous transition)
         var firstTransition = transitionMap.Values.FirstOrDefault(t => t.previousTransition == null);
 
-        // Create a list to store the transitions
         var transitions = new List<TransitionInMemory<TState>>();
 
-        // Traverse the doubly linked list starting from the first transition
         var currentTransition = firstTransition;
         while (currentTransition != null)
         {
@@ -124,5 +128,4 @@ public static class TransitionExtensions
 
         return transitions;
     }
-
 }

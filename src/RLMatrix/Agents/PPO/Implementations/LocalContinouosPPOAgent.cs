@@ -5,6 +5,10 @@ using TorchSharp;
 using static TorchSharp.torch;
 using static TorchSharp.torch.nn;
 using static TorchSharp.torch.optim;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace RLMatrix.Agents.PPO.Implementations
 {
@@ -12,7 +16,7 @@ namespace RLMatrix.Agents.PPO.Implementations
     {
         private readonly IContinuousPPOAgent<T> _agent;
         bool useRnn = false;
-        private Dictionary<Guid, (Tensor?, Tensor?)?> memoriesStore = new();
+        private Dictionary<Guid, (Tensor?, Tensor?)?> memoriesStore = new Dictionary<Guid, (Tensor?, Tensor?)?>();
 
         public LocalContinuousPPOAgent(PPOAgentOptions options, int[] DiscreteDimensions, OneOf<int, (int, int)> StateSizes, (float min, float max)[] ContinuousActionBounds)
         {
@@ -20,6 +24,7 @@ namespace RLMatrix.Agents.PPO.Implementations
             useRnn = options.UseRNN;
         }
 
+#if NET8_0_OR_GREATER
         public ValueTask LoadAsync(string path)
         {
             _agent.Load(path);
@@ -51,6 +56,39 @@ namespace RLMatrix.Agents.PPO.Implementations
         }
 
         public ValueTask<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
+#else
+        public Task LoadAsync(string path)
+        {
+            _agent.Load(path);
+            return Task.CompletedTask;
+        }
+
+        public Task OptimizeModelAsync()
+        {
+            _agent.OptimizeModel();
+            return Task.CompletedTask;
+        }
+
+        public Task ResetStates(List<(Guid environmentId, bool dones)> environmentIds)
+        {
+            foreach (var (envId, done) in environmentIds)
+            {
+                if (done && memoriesStore.ContainsKey(envId))
+                {
+                    memoriesStore[envId] = (null, null);
+                }
+            }
+            return Task.CompletedTask;
+        }
+
+        public Task SaveAsync(string path)
+        {
+            _agent.Save(path);
+            return Task.CompletedTask;
+        }
+
+        public Task<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
+#endif
         {
             if (useRnn)
             {
@@ -72,26 +110,24 @@ namespace RLMatrix.Agents.PPO.Implementations
                 {
                     Guid environmentId = stateInfos[i].environmentId;
                     (int[] discreteActions, float[] continuousActions) action = actionsWithMemory[i].actions;
-                    
+
                     actionDict[environmentId] = action;
 
                     memoriesStore[environmentId] = (actionsWithMemory[i].memoryState, actionsWithMemory[i].memoryState2);
                 }
 
+#if NET8_0_OR_GREATER
                 return ValueTask.FromResult(actionDict);
+#else
+                return Task.FromResult(actionDict);
+#endif
             }
             else
             {
-                // Extract the states from the stateInfos list
                 T[] states = stateInfos.Select(info => info.state).ToArray();
-
-                // Select actions for the batch of states
                 (int[] discreteActions, float[] continuousActions)[] actions = _agent.SelectActions(states, isTraining);
-
-                // Create a dictionary to map environment IDs to their corresponding actions
                 Dictionary<Guid, (int[] discreteActions, float[] continuousActions)> actionDict = new Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>();
 
-                // Iterate over the stateInfos and populate the actionDict
                 for (int i = 0; i < stateInfos.Count; i++)
                 {
                     Guid environmentId = stateInfos[i].environmentId;
@@ -99,13 +135,26 @@ namespace RLMatrix.Agents.PPO.Implementations
                     actionDict[environmentId] = action;
                 }
 
+#if NET8_0_OR_GREATER
                 return ValueTask.FromResult(actionDict);
+#else
+                return Task.FromResult(actionDict);
+#endif
             }
         }
+
+#if NET8_0_OR_GREATER
         public ValueTask UploadTransitionsAsync(IEnumerable<TransitionPortable<T>> transitions)
         {
             _agent.AddTransition(transitions);
             return ValueTask.CompletedTask;
         }
+#else
+        public Task UploadTransitionsAsync(IEnumerable<TransitionPortable<T>> transitions)
+        {
+            _agent.AddTransition(transitions);
+            return Task.CompletedTask;
+        }
+#endif
     }
 }

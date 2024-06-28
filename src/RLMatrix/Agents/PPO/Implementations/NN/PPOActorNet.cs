@@ -21,6 +21,19 @@ namespace RLMatrix
         public abstract (Tensor, Tensor, Tensor) forward(Tensor x, Tensor? state, Tensor? state2);
         public abstract Tensor forward(PackedSequence x);
 
+        public static long[] GetIndices(long length)
+        {
+            if (length < 0)
+                throw new ArgumentOutOfRangeException(nameof(length), "Length must be non-negative.");
+
+            long[] indices = new long[length];
+            for (int i = 0; i < length; i++)
+            {
+                indices[i] = i;
+            }
+            return indices;
+        }
+
         public Tensor get_log_prob<StateTensor>(StateTensor states, Tensor actions, int discreteActions, int contActions)
         {
             Tensor logits;
@@ -54,9 +67,15 @@ namespace RLMatrix
             // Continuous action log probabilities
             for (int i = 0; i < contActions; i++)
             {
+#if  NET8_0_OR_GREATER
                 using (var mean = logits[.., discreteActions + i, 0].unsqueeze(1))
                 using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1))
                 using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
+#else
+                using (var mean = logits[GetIndices(logits.size(0)), discreteActions + i, 0].unsqueeze(1))
+                using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1))
+                using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
+#endif
                 {
                     var std = torch.exp(logStd);
                     var diff = actionTaken - mean;
@@ -111,9 +130,15 @@ namespace RLMatrix
             // Continuous action log probabilities and entropy
             for (int i = 0; i < contActions; i++)
             {
+#if  NET8_0_OR_GREATER
                 using (var mean = logits[.., discreteActions + i, 0].unsqueeze(1))
                 using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1))
                 using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
+#else
+                using (var mean = logits[GetIndices(logits.size(0)), discreteActions + i, 0].unsqueeze(1))
+                using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1))
+                using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
+#endif
                 {
 
                     var std = torch.exp(logStd);
@@ -223,7 +248,12 @@ namespace RLMatrix
                 continuousOutput = (continuousOutput + 1) / 2 * (high - low) + low;  // Remap to [low, high]
 
                 var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
+#if NET8_0_OR_GREATER
                 paddedOutput[.., 0] = continuousOutput.squeeze(-1);
+#else
+                paddedOutput[GetIndices(paddedOutput.size(0)), 0] = continuousOutput.squeeze(-1);
+#endif
+
                 outputs.Add(paddedOutput);
             }
 
@@ -232,7 +262,11 @@ namespace RLMatrix
             {
                 var continuousOutput = functional.softplus(continuousHeadsLogStd[i].forward(x));
                 var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
+#if NET8_0_OR_GREATER
                 paddedOutput[.., 0] = continuousOutput.squeeze(-1);
+#else
+                paddedOutput[GetIndices(paddedOutput.size(0)), 0] = continuousOutput.squeeze(-1);
+#endif
                 outputs.Add(paddedOutput);
             }
 
@@ -533,7 +567,11 @@ namespace RLMatrix
                 continuousOutput = (continuousOutput + 1) / 2 * (high - low) + low;  // Remap to [low, high]
 
                 var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
+#if NET8_0_OR_GREATER
                 paddedOutput[.., 0] = continuousOutput.squeeze(-1);
+#else
+                paddedOutput[GetIndices(paddedOutput.size(0)), 0] = continuousOutput.squeeze(-1);
+#endif
                 outputs.Add(paddedOutput);
             }
 
@@ -542,7 +580,11 @@ namespace RLMatrix
             {
                 var continuousOutput = functional.softplus(continuousHeadsLogStd[i].forward(x));
                 var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
+#if NET8_0_OR_GREATER
                 paddedOutput[.., 0] = continuousOutput.squeeze(-1);
+#else
+                paddedOutput[GetIndices(paddedOutput.size(0)), 0] = continuousOutput.squeeze(-1);
+#endif
                 outputs.Add(paddedOutput);
             }
 

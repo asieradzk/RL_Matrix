@@ -96,9 +96,17 @@ namespace RLMatrix
 
         public void Clear()
         {
+#if NET8_0_OR_GREATER
             Array.Fill(tree, 0f); // Reset all tree elements to 0
-            count = 0; // Reset count
+#else
+            for (int i = 0; i < tree.Length; i++)
+            {
+                tree[i] = 0f;
+            }
+#endif
+            count = 0; // Reset countl
             MaxPriority = 1.0f; // Reset MaxPriority
         }
+    
     }
 }

@@ -39,26 +39,26 @@ namespace RLMatrix.Common.Remote
             {
                 return new TransitionPortableDTO
                 {
-                    Guid = transition.Guid,
+                    Guid = transition.guid,
                     State1D = (float[])(object)transition.state,
                     State2D = null,
                     DiscreteActions = transition.discreteActions,
                     ContinuousActions = transition.continuousActions,
                     Reward = transition.reward,
-                    NextTransitionGuid = transition.NextTransitionGuid
+                    NextTransitionGuid = transition.nextTransitionGuid
                 };
             }
             else if (typeof(TState) == typeof(float[,]))
             {
                 return new TransitionPortableDTO
                 {
-                    Guid = transition.Guid,
+                    Guid = transition.guid,
                     State1D = null,
                     State2D = (float[,])(object)transition.state,
                     DiscreteActions = transition.discreteActions,
                     ContinuousActions = transition.continuousActions,
                     Reward = transition.reward,
-                    NextTransitionGuid = transition.NextTransitionGuid
+                    NextTransitionGuid = transition.nextTransitionGuid
                 };
             }
             else

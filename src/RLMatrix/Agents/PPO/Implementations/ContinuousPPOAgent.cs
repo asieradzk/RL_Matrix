@@ -4,11 +4,16 @@ using TorchSharp;
 using static TorchSharp.torch;
 using static TorchSharp.torch.optim;
 using static TorchSharp.torch.optim.lr_scheduler;
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace RLMatrix.Agents.PPO.Implementations
 {
     public class ContinuousPPOAgent<T> : IContinuousPPOAgent<T>
     {
+#if NET8_0_OR_GREATER
         public required PPOActorNet actorNet { get; set; }
         public required PPOCriticNet criticNet { get; set; }
         public required IOptimize<T> Optimizer { get; init; }
@@ -17,6 +22,16 @@ namespace RLMatrix.Agents.PPO.Implementations
         public required (float min, float max)[] ContinuousActionBounds { get; init; }
         public required PPOAgentOptions Options { get; init; }
         public required Device Device { get; init; }
+#else
+        public PPOActorNet actorNet { get; set; }
+        public PPOCriticNet criticNet { get; set; }
+        public IOptimize<T> Optimizer { get; set; }
+        public IMemory<T> Memory { get; set; }
+        public int[] DiscreteDimensions { get; set; }
+        public (float min, float max)[] ContinuousActionBounds { get; set; }
+        public PPOAgentOptions Options { get; set; }
+        public Device Device { get; set; }
+#endif
 
         public void AddTransition(IEnumerable<TransitionPortable<T>> transitions)
         {
@@ -27,6 +42,7 @@ namespace RLMatrix.Agents.PPO.Implementations
         {
             Optimizer.Optimize(Memory);
         }
+
         public (int[] discreteActions, float[] continuousActions)[] SelectActions(T[] states, bool isTraining)
         {
             using (var scope = torch.no_grad())
@@ -77,8 +93,7 @@ namespace RLMatrix.Agents.PPO.Implementations
                                 action = mu.item<float>();
                             }
 
-                            // Clamp the action to the specified bounds
-                            action = Math.Clamp(action, min, max);
+                            action = Clamp(action, min, max);
                             actions[i].continuousActions[continuousIndex] = action;
                             continuousIndex++;
                         }
@@ -87,6 +102,11 @@ namespace RLMatrix.Agents.PPO.Implementations
 
                 return actions;
             }
+        }
+
+        private float Clamp(float value, float min, float max)
+        {
+            return (value < min) ? min : (value > max) ? max : value;
         }
 
         public (int[] discreteActions, float[] continuousActions)[] SelectActions2(T[] states, bool isTraining)
@@ -102,16 +122,12 @@ namespace RLMatrix.Agents.PPO.Implementations
 
                     if (isTraining)
                     {
-                        // Discrete Actions
                         result[i].discreteActions = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(forwardResult, DiscreteDimensions);
-                        // Continuous Actions
                         result[i].continuousActions = PPOActionSelection<T>.SampleContinuousActions(forwardResult, DiscreteDimensions, ContinuousActionBounds);
                     }
                     else
                     {
-                        // Discrete Actions
                         result[i].discreteActions = PPOActionSelection<T>.SelectGreedyDiscreteActions(forwardResult, DiscreteDimensions);
-                        // Continuous Actions
                         result[i].continuousActions = PPOActionSelection<T>.SelectMeanContinuousActions(forwardResult, DiscreteDimensions, ContinuousActionBounds);
                     }
                 }
@@ -119,6 +135,7 @@ namespace RLMatrix.Agents.PPO.Implementations
 
             return result;
         }
+
         public virtual ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[] SelectActionsRecurrent((T state, Tensor? memoryState, Tensor? memoryState2)[] states, bool isTraining)
         {
             throw new Exception("Using recurrent action selection with non recurrent agent, use (int[] discreteActions, float[][] continuousActions) SelectActions(T[] states, bool isTraining) signature instead");
@@ -126,32 +143,26 @@ namespace RLMatrix.Agents.PPO.Implementations
 
         public void Save(string path)
         {
-            // Check if path ends with "/", if not, append it
-            var modelPath = path.EndsWith("/") ? path : path + "/";
+            var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
 
-            // Save the policy network
             string actorNetPath = GetNextAvailableModelPath(modelPath, "modelActor");
             actorNet.save(actorNetPath);
 
-            // Save the target network
             string criticNetPath = GetNextAvailableModelPath(modelPath, "modelCritic");
             criticNet.save(criticNetPath);
         }
 
         private string GetNextAvailableModelPath(string modelPath, string modelName)
         {
-            // Read all files in the directory
             var files = Directory.GetFiles(modelPath);
 
-            // Find the highest number of files with the same name
             int maxNumber = files
                 .Where(file => file.Contains(modelName))
-                .Select(file => Path.GetFileNameWithoutExtension(file).Split("_").LastOrDefault())
+                .Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault())
                 .Where(number => int.TryParse(number, out _))
                 .DefaultIfEmpty("0")
                 .Max(number => int.Parse(number));
 
-            // Append the next number to the model name
             string nextModelPath = $"{modelPath}{modelName}_{maxNumber + 1}";
 
             return nextModelPath;
@@ -159,14 +170,11 @@ namespace RLMatrix.Agents.PPO.Implementations
 
         public void Load(string path, LRScheduler scheduler = null)
         {
-            // Check if path ends with "/", if not, append it
-            var modelPath = path.EndsWith("/") ? path : path + "/";
+            var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
 
-            // Load the policy network
             string actorNetPath = GetLatestModelPath(modelPath, "modelActor");
             actorNet.load(actorNetPath, strict: true);
 
-            // Load the target network
             string criticNetPath = GetLatestModelPath(modelPath, "modelCritic");
             criticNet.load(criticNetPath, strict: true);
 
@@ -175,18 +183,15 @@ namespace RLMatrix.Agents.PPO.Implementations
 
         private string GetLatestModelPath(string modelPath, string modelName)
         {
-            // Read all files in the directory
             var files = Directory.GetFiles(modelPath);
 
-            // Find the highest number of files with the same name
             int maxNumber = files
                 .Where(file => file.Contains(modelName))
-                .Select(file => Path.GetFileNameWithoutExtension(file).Split("_").LastOrDefault())
+                .Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault())
                 .Where(number => int.TryParse(number, out _))
                 .DefaultIfEmpty("0")
                 .Max(number => int.Parse(number));
 
-            // Get the latest model path
             string latestModelPath = $"{modelPath}{modelName}_{maxNumber}";
 
             return latestModelPath;

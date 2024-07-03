@@ -1,0 +1,256 @@
+﻿@page "/experiment/{ExperimentId:guid}"
+@using RLMatrix.Common.Dashboard
+@using RLMatrix.Dashboard.Services
+@inject IDashboardService DashboardService
+@inject IJSRuntime JSRuntime
+@inject IExportService ExportService
+@inject ILogger<SingleExperimentComponent> Logger
+
+<div class="experiment-container">
+    <div class="experiment-title-tile">
+        <h2>Experiment @ExperimentStartTime.ToString("g")</h2>
+        <button class="export-button" @onclick="ExportCsv" disabled="@isExporting">
+            @if (isExporting)
+            {
+                <span>Exporting...</span>
+            }
+            else
+            {
+                <span>Export as CSV</span>
+            }
+        </button>
+    </div>
+    <div class="chart-grid">
+        @for (int i = 0; i < _chartIds.Length; i += 2)
+        {
+            <div class="chart-row">
+                <div class="chart-tile">
+                    <div id="@_chartIds[i]" class="chart-container"></div>
+                </div>
+                @if (i + 1 < _chartIds.Length)
+                {
+                    <div class="chart-tile">
+                        <div id="@_chartIds[i + 1]" class="chart-container"></div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .experiment-container {
+        padding: 20px;
+        background-color: #1e1e1e;
+        color: #ffffff;
+    }
+
+    .experiment-title-tile {
+        background-color: #252526;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        padding: 16px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+        .experiment-title-tile h2 {
+            margin: 0;
+            color: #ffffff;
+        }
+
+    .export-button {
+        background-color: #0078d4;
+        color: #ffffff;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+
+        .export-button:hover {
+            background-color: #106ebe;
+        }
+
+        .export-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+    .chart-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .chart-row {
+        display: flex;
+        gap: 20px;
+    }
+
+    .chart-tile {
+        flex: 1;
+        background-color: #252526;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        padding: 16px;
+    }
+
+    .chart-container {
+        height: 300px;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public Guid ExperimentId { get; set; }
+
+    private DateTime ExperimentStartTime { get; set; }
+    private string[] _chartIds;
+    private bool _chartsInitialized = false;
+    private int _currentEpisode = 0;
+    private List<ExperimentData> _experimentData = new List<ExperimentData>();
+    private bool isExporting = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ExperimentStartTime = DashboardService.GetExperimentStartTime(ExperimentId);
+
+        _chartIds = new[]
+        {
+            $"loss-chart-{ExperimentId}",
+            $"reward-chart-{ExperimentId}",
+            $"learning-rate-chart-{ExperimentId}",
+            $"cumulative-reward-chart-{ExperimentId}",
+            $"episode-length-chart-{ExperimentId}"
+        };
+
+        // Load initial data
+        _experimentData = await DashboardService.GetExperimentDataAsync(ExperimentId);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender || !_chartsInitialized)
+        {
+            await InitializeChartsAsync();
+        }
+    }
+
+    private async Task InitializeChartsAsync()
+    {
+        if (_experimentData == null || !_experimentData.Any())
+        {
+            return;
+        }
+
+        var uniqueData = _experimentData.GroupBy(d => d.Timestamp)
+                                        .Select(g => g.First())
+                                        .OrderBy(d => d.Timestamp)
+                                        .ToList();
+
+        var episodes = Enumerable.Range(0, uniqueData.Count).ToArray();
+        _currentEpisode = episodes.Length - 1;
+        var tasks = new List<Task>();
+
+        var chartData = new (string title, Func<ExperimentData, double?> selector)[]
+        {
+            ("Loss Over Time", d => d.Loss),
+            ("Reward Over Time", d => d.Reward),
+            ("Learning Rate Over Time", d => d.LearningRate),
+            ("Cumulative Reward Over Time", d => d.CumulativeReward),
+            ("Episode Length Over Time", d => d.EpisodeLength.HasValue ? (double?)d.EpisodeLength.Value : null)
+        };
+
+        for (int i = 0; i < _chartIds.Length; i++)
+        {
+            var data = new
+            {
+                x = episodes,
+                y = uniqueData.Select(d => chartData[i].selector(d) ?? double.NaN).ToArray()
+            };
+            var layout = new
+            {
+                title = chartData[i].title,
+                xaxis = new { title = "Episode" },
+                yaxis = new { title = chartData[i].title.Split(' ')[0] },
+                margin = new { l = 50, r = 50, b = 50, t = 50, pad = 4 },
+                paper_bgcolor = "rgba(0,0,0,0)",
+                plot_bgcolor = "rgba(0,0,0,0)",
+                font = new { color = "#ffffff" }
+            };
+
+            var task = JSRuntime.InvokeVoidAsync("resetAndInitChart", _chartIds[i], chartData[i].title, "Episode", chartData[i].title.Split(' ')[0], data, layout).AsTask();
+            tasks.Add(task);
+        }
+
+        await Task.WhenAll(tasks);
+        _chartsInitialized = true;
+    }
+
+    public async Task UpdateCharts(ExperimentData data)
+    {
+        if (!_chartsInitialized)
+        {
+            _experimentData.Add(data);
+            await InitializeChartsAsync();
+            return;
+        }
+
+        _currentEpisode++;
+        var updateTasks = new List<Task>();
+
+        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[0], _currentEpisode, data.Loss ?? double.NaN).AsTask());
+        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[1], _currentEpisode, data.Reward ?? double.NaN).AsTask());
+        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[2], _currentEpisode, data.LearningRate ?? double.NaN).AsTask());
+        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[3], _currentEpisode, data.CumulativeReward ?? double.NaN).AsTask());
+        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[4], _currentEpisode, data.EpisodeLength ?? double.NaN).AsTask());
+
+        await Task.WhenAll(updateTasks);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_chartsInitialized)
+        {
+            var disposeTasks = _chartIds.Select(chartId => JSRuntime.InvokeVoidAsync("disposeChart", chartId).AsTask());
+            await Task.WhenAll(disposeTasks);
+            _chartsInitialized = false;
+        }
+    }
+
+    private async Task ExportCsv()
+    {
+        if (isExporting) return;
+
+        isExporting = true;
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation("Starting CSV export for Experiment {ExperimentId}", ExperimentId);
+            var fileContent = await ExportService.ExportExperimentDataAsCsv(_experimentData);
+
+            var fileName = $"experiment_{ExperimentId}_{DateTime.Now:yyyyMMddHHmmss}.csv";
+
+            Logger.LogInformation("CSV file generated successfully. Initiating download.");
+
+            await JSRuntime.InvokeVoidAsync("saveAsFile", fileName, "text/csv", Convert.ToBase64String(fileContent));
+
+            Logger.LogInformation("CSV file download initiated for user.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error occurred during CSV export for Experiment {ExperimentId}", ExperimentId);
+        
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+}

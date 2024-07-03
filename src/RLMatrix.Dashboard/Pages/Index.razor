@@ -1,3 +1,189 @@
 ﻿@page "/"
+@using RLMatrix.Common.Dashboard
+@using RLMatrix.Dashboard.Files.Components
+@inject IDashboardService DashboardService
+@implements IDisposable
 
-<h1>Hello, world!</h1>
+<div class="header">
+    <select class="experiment-select" @onchange="OnExperimentSelected">
+        <option value="">Select an experiment</option>
+        @foreach (var experiment in _experiments)
+        {
+            <option value="@experiment.Id">Experiment @experiment.StartTime.ToString("g")</option>
+        }
+    </select>
+    <div class="logo-container">
+        <img src="/images/rlmat.svg" alt="Logo" width="100%" height="40" />
+    </div>
+    <div class="social-links">
+        <a href="https://x.com/RLMatrixCsharp" target="_blank" rel="noopener noreferrer">
+            <img src="/images/twitter.svg" alt="Twitter" width="24" height="24" class="invert-icon" />
+        </a>
+        <a href="https://github.com/asieradzk/RL_Matrix" target="_blank" rel="noopener noreferrer">
+            <img src="/images/github.svg" alt="GitHub" width="24" height="24" class="invert-icon" />
+        </a>
+        <a href="https://github.com/sponsors/asieradzk" target="_blank" rel="noopener noreferrer" class="sponsor-button">
+            <svg class="heart-icon" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z" fill="currentColor" />
+            </svg>
+            <span>Sponsor</span>
+        </a>
+    </div>
+</div>
+
+<div class="main-content">
+    @if (_selectedExperiment != Guid.Empty)
+    {
+        <SingleExperimentComponent @key="_selectedExperiment"
+                                   ExperimentId="@_selectedExperiment"
+                                   @ref="_currentExperimentComponent" />
+    }
+</div>
+
+<style>
+    .sponsor-button {
+        display: inline-flex;
+        align-items: center;
+        background-color: #21262d;
+        color: #c9d1d9;
+        border: 1px solid rgba(240, 246, 252, 0.1);
+        border-radius: 6px;
+        padding: 5px 12px;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: background-color 0.2s, border-color 0.2s;
+    }
+
+        .sponsor-button:hover {
+            background-color: #30363d;
+            border-color: #8b949e;
+        }
+
+    .heart-icon {
+        margin-right: 6px;
+        color: #db61a2;
+    }
+
+
+
+    .header {
+        background-color: #252526;
+        padding: 1rem;
+        border-bottom: 1px solid #3e3e42;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .experiment-select {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        border: 1px solid #3e3e42;
+        padding: 0.5rem;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-grow: 1;
+    }
+
+    .social-links {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+        .social-links a {
+            display: flex;
+            align-items: center;
+        }
+
+    .invert-icon {
+        filter: invert(1);
+    }
+    .main-content {
+        padding: 2rem;
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+    }
+</style>
+
+@code {
+    private List<(Guid Id, DateTime StartTime)> _experiments = new List<(Guid, DateTime)>();
+    private Dictionary<Guid, IDisposable> _subscriptions = new Dictionary<Guid, IDisposable>();
+    private Guid _selectedExperiment = Guid.Empty;
+    private SingleExperimentComponent _currentExperimentComponent;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _experiments = DashboardService.GetAllExperiments().ToList();
+    }
+
+    private async Task OnExperimentSelected(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value.ToString(), out Guid selectedId))
+        {
+            await DisposeCurrentExperiment();
+            _selectedExperiment = selectedId;
+            StateHasChanged();
+            await Task.Delay(1);
+            SubscribeToExperiment(_selectedExperiment);
+        }
+    }
+
+    private async Task DisposeCurrentExperiment()
+    {
+        if (_currentExperimentComponent != null)
+        {
+            await _currentExperimentComponent.DisposeAsync();
+            _currentExperimentComponent = null;
+        }
+    }
+
+    private void SubscribeToExperiment(Guid experimentId)
+    {
+        if (_subscriptions.TryGetValue(experimentId, out var existingSubscription))
+        {
+            existingSubscription.Dispose();
+        }
+
+        var subscription = DashboardService.GetExperimentDataStream(experimentId)
+            .Subscribe(data =>
+            {
+                if (_selectedExperiment == experimentId && _currentExperimentComponent != null)
+                {
+                    InvokeAsync(async () =>
+                    {
+                        try
+                        {
+                            await _currentExperimentComponent.UpdateCharts(data);
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            _subscriptions[experimentId].Dispose();
+                            _subscriptions.Remove(experimentId);
+                        }
+                        catch (TaskCanceledException)
+                        {
+                        }
+                    });
+                }
+            });
+
+        _subscriptions[experimentId] = subscription;
+    }
+
+    public void Dispose()
+    {
+        foreach (var subscription in _subscriptions.Values)
+        {
+            subscription.Dispose();
+        }
+    }
+}

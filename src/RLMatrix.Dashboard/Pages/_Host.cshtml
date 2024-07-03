@@ -3,6 +3,51 @@
 @namespace RLMatrix.Dashboard.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    window.initChart = function (elementId, title, xAxisTitle, yAxisTitle, initialData, layout) {
+        var trace = {
+            x: initialData.x,
+            y: initialData.y,
+            type: 'scatter',
+            mode: 'lines+markers'
+        };
+        layout = layout || {
+            title: title,
+            xaxis: { title: xAxisTitle },
+            yaxis: { title: yAxisTitle },
+            margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 }
+        };
+        Plotly.newPlot(elementId, [trace], layout, { responsive: true });
+    }
+
+    window.updateChart = function (elementId, x, y) {
+        Plotly.extendTraces(elementId, { x: [[x]], y: [[y]] }, [0]);
+    }
+
+    window.disposeChart = function (elementId) {
+        Plotly.purge(elementId);
+    }
+
+    window.resetAndInitChart = function (elementId, title, xAxisTitle, yAxisTitle, initialData, layout) {
+        Plotly.purge(elementId);  
+        window.initChart(elementId, title, xAxisTitle, yAxisTitle, initialData, layout);
+    }
+
+</script>
+
+<script>
+    window.saveAsFile = (fileName, contentType, content) => {
+        const link = document.createElement("a");
+        const file = new Blob([atob(content)], { type: contentType });
+        link.href = URL.createObjectURL(file);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>

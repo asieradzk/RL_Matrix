@@ -44,6 +44,8 @@
 
 	<ItemGroup>
 		<PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="OneOf" Version="3.0.271" />
 		<PackageReference Include="TorchSharp-cuda-windows" Version="0.102.2" />

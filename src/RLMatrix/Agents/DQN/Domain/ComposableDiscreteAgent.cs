@@ -47,7 +47,10 @@ namespace RLMatrix
 
         public void AddTransition(IEnumerable<TransitionPortable<T>> transitions)
         {
-            Memory.Push(transitions.ToTransitionInMemory());
+            var transitionsInMemory = transitions.ToTransitionInMemory();
+
+
+            Memory.Push(transitionsInMemory);
             episodeCount++;
         }
 

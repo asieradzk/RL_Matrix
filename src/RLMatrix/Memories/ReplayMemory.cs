@@ -5,6 +5,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.IO;
 using RLMatrix.Memories;
 using RLMatrix.Agents.Common;
+using RLMatrix.Dashboard;
 
 namespace RLMatrix
 {
@@ -67,7 +68,29 @@ namespace RLMatrix
                 // Increase the capacity to accommodate the new transitions
                 this.capacity = memory.Count + count;
             }
+            ProcessAndUploadEpisodes(transitions);
             memory.AddRange(transitions);
+        }
+        //SOLID violation your mother tried to warn you about.
+        public void ProcessAndUploadEpisodes(IList<TransitionInMemory<TState>> transitions)
+        {
+            var firstTransitions = transitions.Where(t => t.previousTransition == null).ToList();
+
+            foreach (var firstTransition in firstTransitions)
+            {
+                double episodeReward = 0;
+                int episodeLength = 0;
+                var currentTransition = firstTransition;
+
+                while (currentTransition != null)
+                {
+                    episodeReward += currentTransition.reward;
+                    episodeLength++;
+                    currentTransition = currentTransition.nextTransition;
+                }
+
+                DashboardProvider.Instance.UpdateEpisodeData(episodeReward, episodeReward, episodeLength);
+            }
         }
 
         /// <summary>

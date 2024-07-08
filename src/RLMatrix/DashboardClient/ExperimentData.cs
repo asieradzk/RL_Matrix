@@ -8,12 +8,12 @@ namespace RLMatrix.Common.Dashboard
 {
     public record ExperimentData
     {
-        Guid ExperimentId { get; set; }
-        DateTime Timestamp { get; set; }
-        double? Loss { get; set; }
-        double? LearningRate { get; set; }
-        double? Reward { get; set; }
-        double? CumulativeReward { get; set; }
-        int? EpisodeLength { get; set; }
+        public Guid ExperimentId { get; set; }
+        public DateTime Timestamp { get; set; }
+        public double? Loss { get; set; }
+        public double? LearningRate { get; set; }
+        public double? Reward { get; set; }
+        public double? CumulativeReward { get; set; }
+        public int? EpisodeLength { get; set; }
     }
 }

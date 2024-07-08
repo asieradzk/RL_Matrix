@@ -1,5 +1,6 @@
 ﻿using RLMatrix;
 using RLMatrix.Agents.Common;
+using RLMatrix.Dashboard;
 using RLMatrix.Memories;
 using System;
 using System.Collections.Generic;
@@ -98,6 +99,30 @@ public class PrioritizedReplayMemory<TState> : IMemory<TState>, IStorableMemory
             }
             currentIndex = transitionsCount - remainingCapacity;
             count = capacity;
+        }
+
+        ProcessAndUploadEpisodes(transitions);
+    }
+
+    //SOLID violation your mother tried to warn you about.
+    public void ProcessAndUploadEpisodes(IList<TransitionInMemory<TState>> transitions)
+    {
+        var firstTransitions = transitions.Where(t => t.previousTransition == null).ToList();
+
+        foreach (var firstTransition in firstTransitions)
+        {
+            double episodeReward = 0;
+            int episodeLength = 0;
+            var currentTransition = firstTransition;
+
+            while (currentTransition != null)
+            {
+                episodeReward += currentTransition.reward;
+                episodeLength++;
+                currentTransition = currentTransition.nextTransition;
+            }
+            DashboardProvider.Instance.UpdateEpisodeData(episodeReward, episodeReward, episodeLength);
+
         }
     }
 

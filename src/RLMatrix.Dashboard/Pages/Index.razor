@@ -1,6 +1,7 @@
 ﻿@page "/"
 @using RLMatrix.Common.Dashboard
 @using RLMatrix.Dashboard.Files.Components
+@using System.Reactive.Linq
 @inject IDashboardService DashboardService
 @implements IDisposable
 
@@ -65,8 +66,6 @@
         color: #db61a2;
     }
 
-
-
     .header {
         background-color: #252526;
         padding: 1rem;
@@ -107,6 +106,7 @@
     .invert-icon {
         filter: invert(1);
     }
+
     .main-content {
         padding: 2rem;
         background-color: #1e1e1e;
@@ -154,15 +154,16 @@
         }
 
         var subscription = DashboardService.GetExperimentDataStream(experimentId)
-            .Subscribe(data =>
+            .ObserveOn(SynchronizationContext.Current)
+            .Subscribe(async batch =>
             {
                 if (_selectedExperiment == experimentId && _currentExperimentComponent != null)
                 {
-                    InvokeAsync(async () =>
+                    await InvokeAsync(async () =>
                     {
                         try
                         {
-                            await _currentExperimentComponent.UpdateCharts(data);
+                            await _currentExperimentComponent.UpdateCharts(batch);
                         }
                         catch (ObjectDisposedException)
                         {

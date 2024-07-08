@@ -1,14 +1,11 @@
 ﻿using RLMatrix.Common.Dashboard;
 
-namespace RLMatrix.Dashboard
+public interface IDashboardService
 {
-    public interface IDashboardService
-    {
-        void AddDataPoint(ExperimentData data);
-        IObservable<ExperimentData> GetExperimentDataStream(Guid experimentId);
-        IObservable<double> GetMetricStream(Guid experimentId, Func<ExperimentData, double?> metricSelector);
-        IEnumerable<(Guid Id, DateTime StartTime)> GetAllExperiments();
-        Task<List<ExperimentData>> GetExperimentDataAsync(Guid experimentId);
-        DateTime GetExperimentStartTime(Guid experimentId);
-    }
+    Task AddDataPoint(ExperimentData data);
+    IObservable<IList<ExperimentData>> GetExperimentDataStream(Guid experimentId);
+    IEnumerable<(Guid Id, DateTime StartTime)> GetAllExperiments();
+    Task<List<ExperimentData>> GetExperimentDataAsync(Guid experimentId);
+    DateTime GetExperimentStartTime(Guid experimentId);
+    IObservable<IList<ExperimentData>> DataStream { get; }
 }

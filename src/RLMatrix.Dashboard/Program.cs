@@ -3,13 +3,19 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.FileProviders;
 using RLMatrix.Dashboard;
 using RLMatrix.Dashboard.Services;
+using RLMatrix.Dashboard.Hubs;
+using System.Reactive.Subjects;
+using RLMatrix.Common.Dashboard;
 
 var builder = WebApplication.CreateBuilder(args);
+
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+builder.Services.AddSignalR();
 builder.Services.AddSingleton<IDashboardService, DashboardService>();
-builder.Services.AddSingleton<RandomDataPusher>();
 builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddSingleton<Subject<ExperimentData>>();
+builder.Services.AddSingleton<RandomDataPusher>();
 
 var app = builder.Build();
 
@@ -21,13 +27,12 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+
 app.MapBlazorHub();
+app.MapHub<ExperimentDataHub>("/experimentdatahub");
 app.MapFallbackToPage("/_Host");
 
-//random data points for testing
-var randomDataPusher = app.Services.GetRequiredService<RandomDataPusher>();
-randomDataPusher.Start();
-
-
+var dataPusher = app.Services.GetRequiredService<RandomDataPusher>();
+//dataPusher.Start();
 
 app.Run();

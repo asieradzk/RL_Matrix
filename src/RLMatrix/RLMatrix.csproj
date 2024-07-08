@@ -48,6 +48,7 @@
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="OneOf" Version="3.0.271" />
+		<PackageReference Include="System.Reactive" Version="6.0.1" />
 		<PackageReference Include="TorchSharp-cuda-windows" Version="0.102.2" />
 		<PackageReference Include="TorchVision" Version="0.102.2" />
 	</ItemGroup>

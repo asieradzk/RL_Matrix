@@ -1,5 +1,6 @@
 ﻿using RLMatrix.Agents.Common;
 using RLMatrix.Agents.DQN.Domain;
+using RLMatrix.Dashboard;
 using RLMatrix.Memories;
 using TorchSharp;
 using TorchSharp.Modules;
@@ -255,11 +256,16 @@ namespace RLMatrix.Agents.PPO.Implementations
 
                         // Calculate the mean of the non-masked surrogate and entropy values
                         Tensor actorLoss = -surr.mean() - myOptions.EntropyCoefficient * maskedEntropy.mean();
-
                         actorOptimizer.zero_grad();
                         actorLoss.backward();
                         torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);
                         actorOptimizer.step();
+                        if(i == 0)
+                        {
+                            DashboardProvider.Instance.UpdateLoss((double)actorLoss.item<float>());
+                            DashboardProvider.Instance.UpdateLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
+                        }
+                        
                     }
 
                     using (var criticScope = torch.NewDisposeScope())
@@ -471,6 +477,13 @@ namespace RLMatrix.Agents.PPO.Implementations
                                 actorLoss.backward();
                                 torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);
                                 actorOptimizer.step();
+
+
+                                if(i == 0)
+                                {
+                                    DashboardProvider.Instance.UpdateLoss((double)actorLoss.item<float>());
+                                    DashboardProvider.Instance.UpdateLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
+                                }                                
                             }
                         }
 

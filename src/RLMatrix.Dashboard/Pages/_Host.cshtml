@@ -5,38 +5,66 @@
 
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script>
+    window.chartData = {};
+    window.chartLayouts = {};
+
     window.initChart = function (elementId, title, xAxisTitle, yAxisTitle, initialData, layout) {
         var trace = {
             x: initialData.x,
             y: initialData.y,
             type: 'scatter',
-            mode: 'lines+markers'
+            mode: 'lines',
+            connectgaps: true
         };
         layout = layout || {
             title: title,
             xaxis: { title: xAxisTitle },
             yaxis: { title: yAxisTitle },
-            margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 }
+            margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#ffffff' }
         };
         Plotly.newPlot(elementId, [trace], layout, { responsive: true });
+        window.chartData[elementId] = { x: initialData.x, y: initialData.y };
+        window.chartLayouts[elementId] = layout;
     }
 
-    window.updateChart = function (elementId, x, y) {
-        Plotly.extendTraces(elementId, { x: [[x]], y: [[y]] }, [0]);
+    window.updateChart = function (elementId, newData) {
+        var currentData = window.chartData[elementId];
+        currentData.x = currentData.x.concat(newData.x);
+        currentData.y = currentData.y.concat(newData.y);
+
+        // Thin out data if it exceeds a certain length
+        if (currentData.x.length > 1000) {
+            var skip = Math.floor(currentData.x.length / 1000);
+            currentData.x = currentData.x.filter((_, index) => index % skip === 0);
+            currentData.y = currentData.y.filter((_, index) => index % skip === 0);
+        }
+
+        var updatedTrace = {
+            x: currentData.x,
+            y: currentData.y,
+            type: 'scatter',
+            mode: 'lines',
+        };
+
+        var layout = window.chartLayouts[elementId];
+
+        Plotly.react(elementId, [updatedTrace], layout);
     }
 
     window.disposeChart = function (elementId) {
         Plotly.purge(elementId);
+        delete window.chartData[elementId];
+        delete window.chartLayouts[elementId];
     }
 
     window.resetAndInitChart = function (elementId, title, xAxisTitle, yAxisTitle, initialData, layout) {
-        Plotly.purge(elementId);  
+        window.disposeChart(elementId);
         window.initChart(elementId, title, xAxisTitle, yAxisTitle, initialData, layout);
     }
 
-</script>
-
-<script>
     window.saveAsFile = (fileName, contentType, content) => {
         const link = document.createElement("a");
         const file = new Blob([atob(content)], { type: contentType });

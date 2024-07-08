@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RLMatrix.Common.Dashboard
 {
@@ -10,10 +6,31 @@ namespace RLMatrix.Common.Dashboard
     {
         public Guid ExperimentId { get; set; }
         public DateTime Timestamp { get; set; }
-        public double? Loss { get; set; }
-        public double? LearningRate { get; set; }
+
+        // General metrics
         public double? Reward { get; set; }
         public double? CumulativeReward { get; set; }
         public int? EpisodeLength { get; set; }
+
+        // Actor-Critic specific metrics
+        public double? ActorLoss { get; set; }
+        public double? ActorLearningRate { get; set; }
+        public double? CriticLoss { get; set; }
+        public double? CriticLearningRate { get; set; }
+
+        // Policy metrics
+        public double? KLDivergence { get; set; }
+        public double? Entropy { get; set; }
+
+        // DQN/C51 specific metrics
+        public double? TargetQValue { get; set; }
+        public double? Epsilon { get; set; }
+        public double? TDError { get; set; }
+        public double? Loss { get; set; }
+        public double? LearningRate { get; set; }
+
+        // C51 specific metrics
+        public double? CategoricalAccuracy { get; set; }
+        public double? KLDivergenceC51 { get; set; }
     }
 }

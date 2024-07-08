@@ -14,7 +14,7 @@ var optsppo = new PPOAgentOptions(
     memorySize: 10000,       // Size of the replay buffer
     gamma: 0.99f,          // Discount factor for rewards
     gaeLambda: 0.95f,      // Lambda factor for Generalized Advantage Estimation
-    lr: 1e-4f,            // Learning rate
+    lr: 1e-3f,            // Learning rate
     width: 512,
     depth: 2,
     clipEpsilon: 0.2f,     // Clipping factor for PPO's objective function
@@ -23,7 +23,7 @@ var optsppo = new PPOAgentOptions(
     ppoEpochs: 7,            // Number of PPO epoch
     clipGradNorm: 0.5f,
     entropyCoefficient: 0.005f,
-    useRNN: true
+    useRNN: false
    );
 
 var optsdqn = new DQNAgentOptions(numAtoms: 51,

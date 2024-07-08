@@ -5,6 +5,7 @@
 @inject IJSRuntime JSRuntime
 @inject IExportService ExportService
 @inject ILogger<SingleExperimentComponent> Logger
+@implements IAsyncDisposable
 
 <div class="experiment-container">
     <div class="experiment-title-tile">
@@ -21,18 +22,10 @@
         </button>
     </div>
     <div class="chart-grid">
-        @for (int i = 0; i < _chartIds.Length; i += 2)
+        @foreach (var chartKey in _chartKeys)
         {
-            <div class="chart-row">
-                <div class="chart-tile">
-                    <div id="@_chartIds[i]" class="chart-container"></div>
-                </div>
-                @if (i + 1 < _chartIds.Length)
-                {
-                    <div class="chart-tile">
-                        <div id="@_chartIds[i + 1]" class="chart-container"></div>
-                    </div>
-                }
+            <div class="chart-tile @(_activeCharts.Contains(chartKey) ? "" : "hidden")">
+                <div id="@GetChartId(chartKey)" class="chart-container"></div>
             </div>
         }
     </div>
@@ -40,15 +33,16 @@
 
 <style>
     .experiment-container {
-        padding: 20px;
-        background-color: #1e1e1e;
+        width: 100%;
         color: #ffffff;
+        padding: 0 20px;
+        box-sizing: border-box;
     }
 
     .experiment-title-tile {
         background-color: #252526;
         border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         padding: 16px;
         margin-bottom: 20px;
         display: flex;
@@ -81,68 +75,57 @@
         }
 
     .chart-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }
-
-    .chart-row {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 20px;
     }
 
     .chart-tile {
-        flex: 1;
         background-color: #252526;
         border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         padding: 16px;
     }
 
     .chart-container {
         height: 300px;
     }
-</style>
 
+    .hidden {
+        display: none;
+    }
+</style>
 @code {
     [Parameter]
     public Guid ExperimentId { get; set; }
 
     private DateTime ExperimentStartTime { get; set; }
-    private string[] _chartIds;
-    private bool _chartsInitialized = false;
+    private string[] _chartKeys = { "Loss", "Reward", "LearningRate", "CumulativeReward", "EpisodeLength" };
+    private HashSet<string> _activeCharts = new HashSet<string>();
     private int _currentEpisode = 0;
     private List<ExperimentData> _experimentData = new List<ExperimentData>();
     private bool isExporting = false;
+    private bool _chartsInitialized = false;
 
     protected override async Task OnInitializedAsync()
     {
         ExperimentStartTime = DashboardService.GetExperimentStartTime(ExperimentId);
-
-        _chartIds = new[]
-        {
-            $"loss-chart-{ExperimentId}",
-            $"reward-chart-{ExperimentId}",
-            $"learning-rate-chart-{ExperimentId}",
-            $"cumulative-reward-chart-{ExperimentId}",
-            $"episode-length-chart-{ExperimentId}"
-        };
-
-        // Load initial data
         _experimentData = await DashboardService.GetExperimentDataAsync(ExperimentId);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender || !_chartsInitialized)
+        if (firstRender)
         {
             await InitializeChartsAsync();
         }
     }
 
+    private string GetChartId(string chartKey) => $"{chartKey.ToLower()}-chart-{ExperimentId}";
+
     private async Task InitializeChartsAsync()
     {
-        if (_experimentData == null || !_experimentData.Any())
+        if (_experimentData == null || !_experimentData.Any() || _chartsInitialized)
         {
             return;
         }
@@ -154,72 +137,114 @@
 
         var episodes = Enumerable.Range(0, uniqueData.Count).ToArray();
         _currentEpisode = episodes.Length - 1;
-        var tasks = new List<Task>();
 
-        var chartData = new (string title, Func<ExperimentData, double?> selector)[]
+        foreach (var chartKey in _chartKeys)
         {
-            ("Loss Over Time", d => d.Loss),
-            ("Reward Over Time", d => d.Reward),
-            ("Learning Rate Over Time", d => d.LearningRate),
-            ("Cumulative Reward Over Time", d => d.CumulativeReward),
-            ("Episode Length Over Time", d => d.EpisodeLength.HasValue ? (double?)d.EpisodeLength.Value : null)
-        };
+            if (await InitializeChart(chartKey, uniqueData, episodes))
+            {
+                _activeCharts.Add(chartKey);
+            }
+        }
 
-        for (int i = 0; i < _chartIds.Length; i++)
+        _chartsInitialized = true;
+        StateHasChanged();
+    }
+
+    private async Task<bool> InitializeChart(string chartKey, List<ExperimentData> uniqueData, int[] episodes)
+    {
+        var data = uniqueData.Select(d => GetValueForChart(d, chartKey)).ToArray();
+        if (data.Any(d => d.HasValue))
         {
-            var data = new
+            var plotData = new
             {
                 x = episodes,
-                y = uniqueData.Select(d => chartData[i].selector(d) ?? double.NaN).ToArray()
+                y = data
             };
             var layout = new
             {
-                title = chartData[i].title,
+                title = $"{chartKey} Over Time",
                 xaxis = new { title = "Episode" },
-                yaxis = new { title = chartData[i].title.Split(' ')[0] },
+                yaxis = new { title = chartKey },
                 margin = new { l = 50, r = 50, b = 50, t = 50, pad = 4 },
                 paper_bgcolor = "rgba(0,0,0,0)",
                 plot_bgcolor = "rgba(0,0,0,0)",
                 font = new { color = "#ffffff" }
             };
 
-            var task = JSRuntime.InvokeVoidAsync("resetAndInitChart", _chartIds[i], chartData[i].title, "Episode", chartData[i].title.Split(' ')[0], data, layout).AsTask();
-            tasks.Add(task);
+            var chartId = GetChartId(chartKey);
+            var exists = await JSRuntime.InvokeAsync<bool>("eval", $"document.getElementById('{chartId}') !== null");
+            if (exists)
+            {
+                await JSRuntime.InvokeVoidAsync("initChart", chartId, $"{chartKey} Over Time", "Episode", chartKey, plotData, layout);
+                return true;
+            }
         }
-
-        await Task.WhenAll(tasks);
-        _chartsInitialized = true;
+        return false;
     }
 
-    public async Task UpdateCharts(ExperimentData data)
+    public async Task UpdateCharts(IList<ExperimentData> batch)
     {
         if (!_chartsInitialized)
         {
-            _experimentData.Add(data);
+            _experimentData.AddRange(batch);
             await InitializeChartsAsync();
             return;
         }
 
-        _currentEpisode++;
         var updateTasks = new List<Task>();
 
-        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[0], _currentEpisode, data.Loss ?? double.NaN).AsTask());
-        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[1], _currentEpisode, data.Reward ?? double.NaN).AsTask());
-        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[2], _currentEpisode, data.LearningRate ?? double.NaN).AsTask());
-        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[3], _currentEpisode, data.CumulativeReward ?? double.NaN).AsTask());
-        updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", _chartIds[4], _currentEpisode, data.EpisodeLength ?? double.NaN).AsTask());
+        var batchedData = _chartKeys.ToDictionary(key => GetChartId(key), _ => (new List<int>(), new List<double?>()));
+
+        foreach (var data in batch)
+        {
+            _currentEpisode++;
+
+            foreach (var chartKey in _chartKeys)
+            {
+                var value = GetValueForChart(data, chartKey);
+                if (value.HasValue)
+                {
+                    var chartId = GetChartId(chartKey);
+                    batchedData[chartId].Item1.Add(_currentEpisode);
+                    batchedData[chartId].Item2.Add(value.Value);
+
+                    if (!_activeCharts.Contains(chartKey))
+                    {
+                        var initialized = await InitializeChart(chartKey, new List<ExperimentData> { data }, new[] { _currentEpisode });
+                        if (initialized)
+                        {
+                            _activeCharts.Add(chartKey);
+                            StateHasChanged();
+                        }
+                    }
+                }
+            }
+
+            _experimentData.Add(data);
+        }
+
+        foreach (var kvp in batchedData)
+        {
+            if (kvp.Value.Item1.Any())
+            {
+                updateTasks.Add(JSRuntime.InvokeVoidAsync("updateChart", kvp.Key, new { x = kvp.Value.Item1, y = kvp.Value.Item2 }).AsTask());
+            }
+        }
 
         await Task.WhenAll(updateTasks);
     }
 
-    public async ValueTask DisposeAsync()
+    private double? GetValueForChart(ExperimentData data, string chartKey)
     {
-        if (_chartsInitialized)
+        return chartKey switch
         {
-            var disposeTasks = _chartIds.Select(chartId => JSRuntime.InvokeVoidAsync("disposeChart", chartId).AsTask());
-            await Task.WhenAll(disposeTasks);
-            _chartsInitialized = false;
-        }
+            "Loss" => data.Loss,
+            "Reward" => data.Reward,
+            "LearningRate" => data.LearningRate,
+            "CumulativeReward" => data.CumulativeReward,
+            "EpisodeLength" => data.EpisodeLength,
+            _ => null,
+        };
     }
 
     private async Task ExportCsv()
@@ -245,12 +270,26 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error occurred during CSV export for Experiment {ExperimentId}", ExperimentId);
-        
         }
         finally
         {
             isExporting = false;
             StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var chartKey in _activeCharts)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("disposeChart", GetChartId(chartKey));
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error disposing chart {ChartId}", GetChartId(chartKey));
+            }
         }
     }
 }

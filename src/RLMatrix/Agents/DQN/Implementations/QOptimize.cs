@@ -1,4 +1,5 @@
 ﻿using RLMatrix.Agents.Common;
+using RLMatrix.Dashboard;
 using RLMatrix.Memories;
 using TorchSharp;
 using TorchSharp.Modules;
@@ -90,6 +91,10 @@ namespace RLMatrix.Agents.DQN.Domain
                 Tensor loss = LossCalculator.ComputeLoss(stateActionValues, expectedStateActionValues);
                 UpdateModel(loss);
                 LRScheduler.step();
+
+                DashboardProvider.Instance.UpdateLoss((double)loss.item<float>());
+                DashboardProvider.Instance.UpdateLearningRate(LRScheduler.get_last_lr().FirstOrDefault());
+
                 if (ReplayBuffer is PrioritizedReplayMemory<T> prioritizedReplayBuffer)
                 {
                     var sampledIncides = prioritizedReplayBuffer.GetSampledIndices();

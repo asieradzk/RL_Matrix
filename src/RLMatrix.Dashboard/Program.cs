@@ -15,7 +15,6 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddSingleton<Subject<ExperimentData>>();
-builder.Services.AddSingleton<RandomDataPusher>();
 
 var app = builder.Build();
 
@@ -32,7 +31,5 @@ app.MapBlazorHub();
 app.MapHub<ExperimentDataHub>("/experimentdatahub");
 app.MapFallbackToPage("/_Host");
 
-var dataPusher = app.Services.GetRequiredService<RandomDataPusher>();
-//dataPusher.Start();
 
 app.Run();

@@ -481,8 +481,8 @@ namespace RLMatrix.Agents.PPO.Implementations
 
                                 if(i == 0)
                                 {
-                                    DashboardProvider.Instance.UpdateLoss((double)actorLoss.item<float>());
-                                    DashboardProvider.Instance.UpdateLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
+                                    DashboardProvider.Instance.UpdateActorLoss((double)actorLoss.item<float>());
+                                    DashboardProvider.Instance.UpdateActorLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
                                 }                                
                             }
                         }
@@ -499,6 +499,12 @@ namespace RLMatrix.Agents.PPO.Implementations
                                 criticLoss.backward();
                                 torch.nn.utils.clip_grad_norm_(criticNet.parameters(), myOptions.ClipGradNorm);
                                 criticOptimizer.step();
+
+                                if (i == 0)
+                                {
+                                    DashboardProvider.Instance.UpdateCriticLoss((double)criticLoss.item<float>());
+                                    DashboardProvider.Instance.UpdateCriticLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
+                                }
                             }
                         }
                     }

@@ -95,12 +95,17 @@
         display: none;
     }
 </style>
+
 @code {
     [Parameter]
     public Guid ExperimentId { get; set; }
 
     private DateTime ExperimentStartTime { get; set; }
-    private string[] _chartKeys = { "Loss", "Reward", "LearningRate", "CumulativeReward", "EpisodeLength" };
+    private string[] _chartKeys = {
+        "Reward", "CumulativeReward", "EpisodeLength", "ActorLoss", "ActorLearningRate",
+        "CriticLoss", "CriticLearningRate", "KLDivergence", "Entropy", "TargetQValue",
+        "Epsilon", "TDError", "Loss", "LearningRate", "CategoricalAccuracy", "KLDivergenceC51"
+    };
     private HashSet<string> _activeCharts = new HashSet<string>();
     private int _currentEpisode = 0;
     private List<ExperimentData> _experimentData = new List<ExperimentData>();
@@ -238,11 +243,22 @@
     {
         return chartKey switch
         {
-            "Loss" => data.Loss,
             "Reward" => data.Reward,
-            "LearningRate" => data.LearningRate,
             "CumulativeReward" => data.CumulativeReward,
             "EpisodeLength" => data.EpisodeLength,
+            "ActorLoss" => data.ActorLoss,
+            "ActorLearningRate" => data.ActorLearningRate,
+            "CriticLoss" => data.CriticLoss,
+            "CriticLearningRate" => data.CriticLearningRate,
+            "KLDivergence" => data.KLDivergence,
+            "Entropy" => data.Entropy,
+            "TargetQValue" => data.TargetQValue,
+            "Epsilon" => data.Epsilon,
+            "TDError" => data.TDError,
+            "Loss" => data.Loss,
+            "LearningRate" => data.LearningRate,
+            "CategoricalAccuracy" => data.CategoricalAccuracy,
+            "KLDivergenceC51" => data.KLDivergenceC51,
             _ => null,
         };
     }

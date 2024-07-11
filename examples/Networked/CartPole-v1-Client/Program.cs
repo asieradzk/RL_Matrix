@@ -47,11 +47,11 @@ var optsdqn = new DQNAgentOptions(numAtoms: 51,
 
 
 
-var env = new List<IContinuousEnvironmentAsync<float[]>> { new TrivialContinuousEnvironmentAsync(), };
-var env2 = new List<IContinuousEnvironmentAsync<float[]>> { new TrivialContinuousEnvironmentAsync()};
+var env = new List<IEnvironmentAsync<float[]>> { new CartPoleAsync(), new CartPoleAsync(), new CartPoleAsync(), };
+var env2 = new List<IEnvironmentAsync<float[]>> { new CartPoleAsync()};
 
-var agent = new RemoteContinuousRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env, myChart);
-var agent2 = new RemoteContinuousRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env2, myChart2);
+var agent = new RemoteDiscreteRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env, myChart);
+var agent2 = new RemoteDiscreteRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env2, myChart2);
 
 
 for (int i = 0; i < 20000; i++)

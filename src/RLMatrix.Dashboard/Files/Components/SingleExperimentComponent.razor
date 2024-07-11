@@ -103,8 +103,8 @@
     private DateTime ExperimentStartTime { get; set; }
     private string[] _chartKeys = {
         "Reward", "CumulativeReward", "EpisodeLength", "ActorLoss", "ActorLearningRate",
-        "CriticLoss", "CriticLearningRate", "KLDivergence", "Entropy", "TargetQValue",
-        "Epsilon", "TDError", "Loss", "LearningRate", "CategoricalAccuracy", "KLDivergenceC51"
+        "CriticLoss", "CriticLearningRate", "KLDivergence", "Entropy",
+        "Epsilon", "Loss", "LearningRate"
     };
     private HashSet<string> _activeCharts = new HashSet<string>();
     private int _currentEpisode = 0;
@@ -252,13 +252,9 @@
             "CriticLearningRate" => data.CriticLearningRate,
             "KLDivergence" => data.KLDivergence,
             "Entropy" => data.Entropy,
-            "TargetQValue" => data.TargetQValue,
             "Epsilon" => data.Epsilon,
-            "TDError" => data.TDError,
             "Loss" => data.Loss,
             "LearningRate" => data.LearningRate,
-            "CategoricalAccuracy" => data.CategoricalAccuracy,
-            "KLDivergenceC51" => data.KLDivergenceC51,
             _ => null,
         };
     }

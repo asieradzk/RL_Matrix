@@ -5,10 +5,12 @@
 	<LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+	  <RunArguments>--launch-profile BlazorServer</RunArguments>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Reactive" Version="6.0.1" />
   </ItemGroup>
+
 
 </Project>

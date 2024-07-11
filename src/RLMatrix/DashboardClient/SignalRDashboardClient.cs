@@ -20,13 +20,9 @@ namespace RLMatrix.Dashboard
         private readonly BehaviorSubject<double?> _criticLearningRateSubject = new BehaviorSubject<double?>(null);
         private readonly BehaviorSubject<double?> _klDivergenceSubject = new BehaviorSubject<double?>(null);
         private readonly BehaviorSubject<double?> _entropySubject = new BehaviorSubject<double?>(null);
-        private readonly BehaviorSubject<double?> _targetQValueSubject = new BehaviorSubject<double?>(null);
         private readonly BehaviorSubject<double?> _epsilonSubject = new BehaviorSubject<double?>(null);
-        private readonly BehaviorSubject<double?> _tdErrorSubject = new BehaviorSubject<double?>(null);
         private readonly BehaviorSubject<double?> _lossSubject = new BehaviorSubject<double?>(null);
         private readonly BehaviorSubject<double?> _learningRateSubject = new BehaviorSubject<double?>(null);
-        private readonly BehaviorSubject<double?> _categoricalAccuracySubject = new BehaviorSubject<double?>(null);
-        private readonly BehaviorSubject<double?> _klDivergenceC51Subject = new BehaviorSubject<double?>(null);
         private readonly Subject<ExperimentData> _dataSubject = new Subject<ExperimentData>();
 
         public IObservable<(double? Reward, double? CumulativeReward, int? EpisodeLength)> EpisodeData => _episodeDataSubject.AsObservable();
@@ -36,13 +32,9 @@ namespace RLMatrix.Dashboard
         public IObservable<double?> CriticLearningRate => _criticLearningRateSubject.AsObservable();
         public IObservable<double?> KLDivergence => _klDivergenceSubject.AsObservable();
         public IObservable<double?> Entropy => _entropySubject.AsObservable();
-        public IObservable<double?> TargetQValue => _targetQValueSubject.AsObservable();
         public IObservable<double?> Epsilon => _epsilonSubject.AsObservable();
-        public IObservable<double?> TDError => _tdErrorSubject.AsObservable();
         public IObservable<double?> Loss => _lossSubject.AsObservable();
         public IObservable<double?> LearningRate => _learningRateSubject.AsObservable();
-        public IObservable<double?> CategoricalAccuracy => _categoricalAccuracySubject.AsObservable();
-        public IObservable<double?> KLDivergenceC51 => _klDivergenceC51Subject.AsObservable();
 
         private readonly Guid _experimentId;
         private bool _isConnected = false;
@@ -57,10 +49,9 @@ namespace RLMatrix.Dashboard
 
             var latestOptimizationData = Observable.CombineLatest(
                 ActorLoss, ActorLearningRate, CriticLoss, CriticLearningRate,
-                KLDivergence, Entropy, TargetQValue, Epsilon, TDError, Loss, LearningRate,
-                CategoricalAccuracy, KLDivergenceC51,
+                KLDivergence, Entropy, Epsilon, Loss, LearningRate,
                 (actorLoss, actorLR, criticLoss, criticLR, klDivergence, entropy,
-                 targetQValue, epsilon, tdError, loss, lr, categoricalAccuracy, klDivergenceC51) =>
+                 epsilon, loss, lr) =>
                     new
                     {
                         ActorLoss = actorLoss,
@@ -69,13 +60,9 @@ namespace RLMatrix.Dashboard
                         CriticLearningRate = criticLR,
                         KLDivergence = klDivergence,
                         Entropy = entropy,
-                        TargetQValue = targetQValue,
                         Epsilon = epsilon,
-                        TDError = tdError,
                         Loss = loss,
-                        LearningRate = lr,
-                        CategoricalAccuracy = categoricalAccuracy,
-                        KLDivergenceC51 = klDivergenceC51
+                        LearningRate = lr
                     });
 
             EpisodeData
@@ -93,25 +80,32 @@ namespace RLMatrix.Dashboard
                     CriticLearningRate = optData.CriticLearningRate,
                     KLDivergence = optData.KLDivergence,
                     Entropy = optData.Entropy,
-                    TargetQValue = optData.TargetQValue,
                     Epsilon = optData.Epsilon,
-                    TDError = optData.TDError,
                     Loss = optData.Loss,
-                    LearningRate = optData.LearningRate,
-                    CategoricalAccuracy = optData.CategoricalAccuracy,
-                    KLDivergenceC51 = optData.KLDivergenceC51
+                    LearningRate = optData.LearningRate
                 })
                 .Buffer(TimeSpan.FromSeconds(1))
                 .Where(batch => batch.Count > 0)
                 .Subscribe(async batch => await SendDataBatch(batch));
         }
 
+
         public async Task StartAsync()
         {
             if (_isConnected)
             {
-                var cts = new System.Threading.CancellationTokenSource(1000);
-                await _hubConnection.StartAsync(cts.Token);
+                try
+                {
+                    var cts = new System.Threading.CancellationTokenSource(1000);
+                    await _hubConnection.StartAsync(cts.Token);
+                }
+                catch (Exception e)
+                {
+
+                    Console.WriteLine("Terminating dashboard connection due to error: " + e.Message);
+                    _isConnected = false;
+                }
+
             }
         }
 
@@ -138,7 +132,7 @@ namespace RLMatrix.Dashboard
         }
 
         public void UpdateEpisodeData(double? reward, double? cumReward, int? epLength) =>
-            _episodeDataSubject.OnNext((reward, cumReward, epLength));
+           _episodeDataSubject.OnNext((reward, cumReward, epLength));
 
         public void UpdateActorLoss(double? loss) => _actorLossSubject.OnNext(loss);
         public void UpdateActorLearningRate(double? lr) => _actorLearningRateSubject.OnNext(lr);
@@ -146,15 +140,9 @@ namespace RLMatrix.Dashboard
         public void UpdateCriticLearningRate(double? lr) => _criticLearningRateSubject.OnNext(lr);
         public void UpdateKLDivergence(double? kl) => _klDivergenceSubject.OnNext(kl);
         public void UpdateEntropy(double? entropy) => _entropySubject.OnNext(entropy);
-        public void UpdateTargetQValue(double? q) => _targetQValueSubject.OnNext(q);
         public void UpdateEpsilon(double? epsilon) => _epsilonSubject.OnNext(epsilon);
-        public void UpdateTDError(double? error) => _tdErrorSubject.OnNext(error);
         public void UpdateLoss(double? loss) => _lossSubject.OnNext(loss);
-        public void UpdateLearningRate(double? lr) => _learningRateSubject.OnNext(lr);
-        public void UpdateCategoricalAccuracy(double? accuracy) => _categoricalAccuracySubject.OnNext(accuracy);
-        public void UpdateKLDivergenceC51(double? kl) => _klDivergenceC51Subject.OnNext(kl);
-
-        public Func<string, Task> SaveModel { get; set; }
+        public void UpdateLearningRate(double? lr) => _learningRateSubject.OnNext(lr); public Func<string, Task> SaveModel { get; set; }
         public Func<string, Task> LoadModel { get; set; }
         public Func<string, Task> SaveBuffer { get; set; }
 
@@ -179,13 +167,9 @@ namespace RLMatrix.Dashboard
             _criticLearningRateSubject.Dispose();
             _klDivergenceSubject.Dispose();
             _entropySubject.Dispose();
-            _targetQValueSubject.Dispose();
             _epsilonSubject.Dispose();
-            _tdErrorSubject.Dispose();
             _lossSubject.Dispose();
             _learningRateSubject.Dispose();
-            _categoricalAccuracySubject.Dispose();
-            _klDivergenceC51Subject.Dispose();
             _dataSubject.Dispose();
         }
     }

@@ -2,6 +2,7 @@
 using RLMatrix.Agents.DQN.Domain;
 using RLMatrix.Dashboard;
 using RLMatrix.Memories;
+using System;
 using TorchSharp;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
@@ -262,8 +263,22 @@ namespace RLMatrix.Agents.PPO.Implementations
                         actorOptimizer.step();
                         if(i == 0)
                         {
-                            DashboardProvider.Instance.UpdateLoss((double)actorLoss.item<float>());
-                            DashboardProvider.Instance.UpdateLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
+                            Tensor klDivergence;
+                            if (policy.dim() > 1)
+                            {
+                                klDivergence = (policyOld.exp() * (policyOld - policy)).sum(-1).mean();
+                            }
+                            else
+                            {
+                                klDivergence = (policyOld.exp() * (policyOld - policy)).mean();
+                            }
+
+                            DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
+
+
+                            DashboardProvider.Instance.UpdateEntropy((double)maskedEntropy.mean().item<float>());
+                            DashboardProvider.Instance.UpdateActorLoss((double)actorLoss.item<float>());
+                            DashboardProvider.Instance.UpdateActorLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
                         }
                         
                     }
@@ -286,6 +301,11 @@ namespace RLMatrix.Agents.PPO.Implementations
                         criticLoss.backward();
                         torch.nn.utils.clip_grad_norm_(criticNet.parameters(), myOptions.ClipGradNorm);
                         criticOptimizer.step();
+                        if (i == 0)
+                        {
+                            DashboardProvider.Instance.UpdateCriticLoss((double)criticLoss.item<float>());
+                            DashboardProvider.Instance.UpdateCriticLearningRate(criticLrScheduler.get_last_lr().FirstOrDefault());
+                        }
                     }
                 }
             }
@@ -481,6 +501,21 @@ namespace RLMatrix.Agents.PPO.Implementations
 
                                 if(i == 0)
                                 {
+                                    Tensor klDivergence;
+                                    if (policy.dim() > 1)
+                                    {
+                                        klDivergence = (policyOld.exp() * (policyOld - policy)).sum(-1).mean();
+                                    }
+                                    else
+                                    {
+                                        klDivergence = (policyOld.exp() * (policyOld - policy)).mean();
+                                    }
+
+                                    DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
+
+
+                                    DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
+                                    DashboardProvider.Instance.UpdateEntropy((double)entropy.mean().item<float>());
                                     DashboardProvider.Instance.UpdateActorLoss((double)actorLoss.item<float>());
                                     DashboardProvider.Instance.UpdateActorLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
                                 }                                

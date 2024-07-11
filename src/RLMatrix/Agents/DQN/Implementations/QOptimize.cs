@@ -131,22 +131,33 @@ namespace RLMatrix.Agents.DQN.Domain
             }
         }
 
+        /// <summary>
+        /// Performs an optimized soft update of the target network parameters using vectorized operations.
+        /// </summary>
         private void SoftUpdateTargetNetwork()
         {
-            var targetNetStateDict = TargetNet.state_dict();
-            var policyNetStateDict = PolicyNet.state_dict();
-
-            foreach (var key in targetNetStateDict.Keys)
+            using (torch.no_grad())
             {
-                Tensor targetNetParam = targetNetStateDict[key];
-                Tensor policyNetParam = policyNetStateDict[key];
+                var targetParams = TargetNet.parameters().ToList();
+                var policyParams = PolicyNet.parameters().ToList();
 
-                // Detach the target network parameter from the computational graph
-                targetNetParam = targetNetParam.detach();
+                // Combine all parameters into single tensors
+                var targetTensor = torch.cat(targetParams.Select(p => p.flatten()).ToList());
+                var policyTensor = torch.cat(policyParams.Select(p => p.flatten()).ToList());
 
-                // Update the target network parameter using a weighted average
-                targetNetParam.mul_(1 - myOptions.TAU).add_(policyNetParam * myOptions.TAU);
+                // Perform the soft update in a single operation
+                targetTensor.mul_(1 - myOptions.TAU).add_(policyTensor, alpha: myOptions.TAU);
+
+                // Update the target network parameters
+                int index = 0;
+                foreach (var param in targetParams)
+                {
+                    var flatSize = (int)param.numel();
+                    param.copy_(targetTensor.narrow(0, index, flatSize).view_as(param));
+                    index += flatSize;
+                }
             }
         }
+
     }
 }

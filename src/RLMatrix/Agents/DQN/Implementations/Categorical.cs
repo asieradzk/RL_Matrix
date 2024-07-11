@@ -8,6 +8,7 @@ using static TorchSharp.torch.nn;
 using static TorchSharp.torch;
 using TorchSharp;
 using RLMatrix.Agents.Common;
+using RLMatrix.Dashboard;
 
 namespace RLMatrix.Agents.DQN.Implementations.C51
 {

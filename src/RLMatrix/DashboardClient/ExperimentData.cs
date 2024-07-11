@@ -23,14 +23,9 @@ namespace RLMatrix.Common.Dashboard
         public double? Entropy { get; set; }
 
         // DQN/C51 specific metrics
-        public double? TargetQValue { get; set; }
         public double? Epsilon { get; set; }
-        public double? TDError { get; set; }
         public double? Loss { get; set; }
         public double? LearningRate { get; set; }
 
-        // C51 specific metrics
-        public double? CategoricalAccuracy { get; set; }
-        public double? KLDivergenceC51 { get; set; }
     }
 }

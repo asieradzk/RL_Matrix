@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR.Client;
 using RLMatrix.Common;
 using RLMatrix.Common.Dashboard;
+using System.Threading;
 
 namespace RLMatrix.Dashboard
 {
@@ -40,12 +42,19 @@ namespace RLMatrix.Dashboard
         private bool _isConnected = false;
         private IDisposable _dataSubscription;
 
+        private ConcurrentQueue<ExperimentData> _dataQueue = new ConcurrentQueue<ExperimentData>();
+        private Timer _sendTimer;
+        private SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
+
         public SignalRDashboardClient(string hubUrl = "https://localhost:7126/experimentdatahub")
         {
-            _hubConnection = new HubConnectionBuilder().WithUrl(hubUrl).Build();
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .WithAutomaticReconnect(new[] { TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
+                .Build();
+
             SetupCallbacks();
             _experimentId = Guid.NewGuid();
-            _isConnected = true;
 
             var latestOptimizationData = Observable.CombineLatest(
                 ActorLoss, ActorLearningRate, CriticLoss, CriticLearningRate,
@@ -65,7 +74,7 @@ namespace RLMatrix.Dashboard
                         LearningRate = lr
                     });
 
-            EpisodeData
+            _dataSubscription = EpisodeData
                 .Where(data => data.Reward.HasValue || data.CumulativeReward.HasValue || data.EpisodeLength.HasValue)
                 .WithLatestFrom(latestOptimizationData, (epData, optData) => new ExperimentData
                 {
@@ -84,43 +93,69 @@ namespace RLMatrix.Dashboard
                     Loss = optData.Loss,
                     LearningRate = optData.LearningRate
                 })
-                .Buffer(TimeSpan.FromSeconds(1))
-                .Where(batch => batch.Count > 0)
-                .Subscribe(async batch => await SendDataBatch(batch));
-        }
+                .Subscribe(data => _dataQueue.Enqueue(data));
 
+            _hubConnection.Closed += async (error) =>
+            {
+                _isConnected = false;
+                Console.WriteLine($"Connection closed due to error: {error?.Message}");
+                await Task.Delay(new Random().Next(0, 5) * 1000);
+                await StartAsync();
+            };
+
+            _sendTimer = new Timer(SendQueuedData, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+        }
 
         public async Task StartAsync()
         {
-            if (_isConnected)
+            if (!_isConnected)
             {
                 try
                 {
-                    var cts = new System.Threading.CancellationTokenSource(1000);
-                    await _hubConnection.StartAsync(cts.Token);
+                    await _hubConnection.StartAsync();
+                    _isConnected = true;
+                    Console.WriteLine("Connected to dashboard");
                 }
                 catch (Exception e)
                 {
-
-                    Console.WriteLine("Terminating dashboard connection due to error: " + e.Message);
+                    Console.WriteLine($"Error starting dashboard connection: {e.Message}");
                     _isConnected = false;
                 }
-
             }
         }
 
-        private async Task SendDataBatch(IList<ExperimentData> batch)
+        private async void SendQueuedData(object state)
         {
-            if (_isConnected)
+            if (_isConnected && !_dataQueue.IsEmpty)
             {
+                await _sendSemaphore.WaitAsync();
+                List<ExperimentData> batch = new List<ExperimentData>();
                 try
                 {
-                    await _hubConnection.SendAsync("AddDataBatch", batch);
+                    while (batch.Count < 100 && _dataQueue.TryDequeue(out var data))
+                    {
+                        batch.Add(data);
+                    }
+
+                    if (batch.Count > 0)
+                    {
+                        await _hubConnection.SendAsync("AddDataBatch", batch);
+                    }
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Terminating dashboard connection due to error: " + e.Message);
+                    Console.WriteLine($"Error sending data batch: {e.Message}");
                     _isConnected = false;
+                    // Re-queue the data points
+                    foreach (var data in batch)
+                    {
+                        _dataQueue.Enqueue(data);
+                    }
+                    await StartAsync();
+                }
+                finally
+                {
+                    _sendSemaphore.Release();
                 }
             }
         }
@@ -142,7 +177,9 @@ namespace RLMatrix.Dashboard
         public void UpdateEntropy(double? entropy) => _entropySubject.OnNext(entropy);
         public void UpdateEpsilon(double? epsilon) => _epsilonSubject.OnNext(epsilon);
         public void UpdateLoss(double? loss) => _lossSubject.OnNext(loss);
-        public void UpdateLearningRate(double? lr) => _learningRateSubject.OnNext(lr); public Func<string, Task> SaveModel { get; set; }
+        public void UpdateLearningRate(double? lr) => _learningRateSubject.OnNext(lr);
+
+        public Func<string, Task> SaveModel { get; set; }
         public Func<string, Task> LoadModel { get; set; }
         public Func<string, Task> SaveBuffer { get; set; }
 
@@ -156,10 +193,12 @@ namespace RLMatrix.Dashboard
         public async ValueTask DisposeAsync()
         {
             _dataSubscription?.Dispose();
+            _sendTimer?.Dispose();
             if (_isConnected)
             {
                 await _hubConnection.DisposeAsync();
             }
+            _sendSemaphore.Dispose();
             _episodeDataSubject.Dispose();
             _actorLossSubject.Dispose();
             _actorLearningRateSubject.Dispose();

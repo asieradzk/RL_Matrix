@@ -33,7 +33,13 @@ namespace RLMatrix.Agents.PPO.Implementations
             return randStdNormal;
         }
 
-        public static float[] SampleContinuousActions(Tensor result, int[] actionSize, (float, float)[] continuousActions)
+        private static float Clamp(float value, float min, float max)
+        {
+            return (value < min) ? min : (value > max) ? max : value;
+        }
+
+
+        public static float[] SampleContinuousActions(Tensor result, int[] actionSize, (float min, float max)[] continuousActions)
         {
             List<float> actions = new List<float>();
             int discreteHeads = actionSize.Count();
@@ -41,12 +47,13 @@ namespace RLMatrix.Agents.PPO.Implementations
             for (int i = 0; i < continuousHeads; i++)
             {
                 var mean = result[0, discreteHeads + i, 0].item<float>();
-                var logStd = result[0, discreteHeads + continuousHeads + i, 0].item<float>(); 
+                var logStd = result[0, discreteHeads + continuousHeads + i, 0].item<float>();
                 var std = (float)Math.Exp(logStd);
                 var actionValue = mean + std * (float)SampleFromStandardNormal(new Random());
+                actionValue = Clamp(actionValue, continuousActions[i].min, continuousActions[i].max);
                 actions.Add(actionValue);
             }
-            
+
             return actions.ToArray();
         }
 
@@ -62,7 +69,7 @@ namespace RLMatrix.Agents.PPO.Implementations
             return actions.ToArray();
         }
 
-        public static float[] SelectMeanContinuousActions(Tensor result, int[] actionSize, (float, float)[] continuousActions)
+        public static float[] SelectMeanContinuousActions(Tensor result, int[] actionSize, (float min, float max)[] continuousActions)
         {
             List<float> actions = new List<float>();
             int discreteHeads = actionSize.Count();
@@ -70,7 +77,8 @@ namespace RLMatrix.Agents.PPO.Implementations
             for (int i = 0; i < continuousHeads; i++)
             {
                 var mean = result[0, discreteHeads + i, 0].item<float>();
-                actions.Add(mean);
+                var clampedMean = Clamp(mean, continuousActions[i].min, continuousActions[i].max);
+                actions.Add(clampedMean);
             }
             return actions.ToArray();
         }

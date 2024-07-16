@@ -2,19 +2,16 @@
 using RLMatrix;
 using RLMatrix.Agents.Common;
 using RLMatrix.Agents.SignalR;
-using RLMatrix.WinformsChart;
 
 Console.WriteLine("Hello, World!");
 
-var myChart = new WinformsChart();
-var myChart2 = new WinformsChart();
 
 var optsppo = new PPOAgentOptions(
-    batchSize: 32,           // Nu8mber of EPISODES agent interacts with environment before learning from its experience
+    batchSize: 4,           // Nu8mber of EPISODES agent interacts with environment before learning from its experience
     memorySize: 10000,       // Size of the replay buffer
     gamma: 0.99f,          // Discount factor for rewards
     gaeLambda: 0.95f,      // Lambda factor for Generalized Advantage Estimation
-    lr: 1e-3f,            // Learning rate
+    lr: 1e-4f,            // Learning rate
     width: 512,
     depth: 2,
     clipEpsilon: 0.2f,     // Clipping factor for PPO's objective function
@@ -50,8 +47,8 @@ var optsdqn = new DQNAgentOptions(numAtoms: 51,
 var env = new List<IEnvironmentAsync<float[]>> { new CartPoleAsync(), new CartPoleAsync(), new CartPoleAsync(), };
 var env2 = new List<IEnvironmentAsync<float[]>> { new CartPoleAsync()};
 
-var agent = new RemoteDiscreteRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env, myChart);
-var agent2 = new RemoteDiscreteRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env2, myChart2);
+var agent = new RemoteDiscreteRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env);
+var agent2 = new RemoteDiscreteRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env2);
 
 
 for (int i = 0; i < 20000; i++)

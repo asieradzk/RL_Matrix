@@ -17,19 +17,16 @@ namespace RLMatrix.Agents.Common
         protected readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
         protected readonly Dictionary<Guid, Episode<TState>> _ennvPairs;
         protected readonly IDiscreteProxy<TState> _agent;
-        protected readonly IRLChartService? _chartService;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="LocalDiscreteRolloutAgent{TState}"/> class with DQN agent options.
         /// </summary>
         /// <param name="options">The DQN agent options.</param>
         /// <param name="environments">The collection of environments.</param>
-        /// <param name="chartService">The optional chart service.</param>
-        public LocalDiscreteRolloutAgent(DQNAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments, IRLChartService? chartService = null)
+        public LocalDiscreteRolloutAgent(DQNAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
         {
             _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
             _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
-            _chartService = chartService;
             _agent = new LocalDiscreteQAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
         }
 
@@ -38,16 +35,13 @@ namespace RLMatrix.Agents.Common
         /// </summary>
         /// <param name="options">The PPO agent options.</param>
         /// <param name="environments">The collection of environments.</param>
-        /// <param name="chartService">The optional chart service.</param>
-        public LocalDiscreteRolloutAgent(PPOAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments, IRLChartService? chartService = null)
+        public LocalDiscreteRolloutAgent(PPOAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
         {
             _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
             _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
-            _chartService = chartService;
             _agent = new LocalDiscretePPOAgent<TState>(options, environments.First().actionSize, environments.First().stateSize);
         }
 
-        List<double> chart = new List<double>();
 
         /// <summary>
         /// Performs a step in the reinforcement learning process.
@@ -114,13 +108,6 @@ namespace RLMatrix.Agents.Common
                 }
             }
 
-            if (_chartService != null)
-            {
-                chart.AddRange(rewards);
-                chart.RemoveRange(0, Math.Max(0, chart.Count - 100));
-
-                _chartService.CreateOrUpdateChart(chart);
-            }
 
             if (transitionsToShip.Count > 0)
             {

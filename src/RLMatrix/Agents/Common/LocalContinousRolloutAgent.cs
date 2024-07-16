@@ -17,23 +17,19 @@ namespace RLMatrix.Agents.Common
         protected readonly Dictionary<Guid, IContinuousEnvironmentAsync<TState>> _environments;
         protected readonly Dictionary<Guid, Episode<TState>> _ennvPairs;
         protected readonly IContinuousProxy<TState> _agent;
-        protected readonly IRLChartService? _chartService;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="LocalContinuousRolloutAgent{TState}"/> class.
         /// </summary>
         /// <param name="options">The PPO agent options.</param>
         /// <param name="environments">The collection of continuous environments.</param>
-        /// <param name="chartService">The optional chart service.</param>
-        public LocalContinuousRolloutAgent(PPOAgentOptions options, IEnumerable<IContinuousEnvironmentAsync<TState>> environments, IRLChartService? chartService = null)
+        public LocalContinuousRolloutAgent(PPOAgentOptions options, IEnumerable<IContinuousEnvironmentAsync<TState>> environments)
         {
             _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
             _ennvPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
-            _chartService = chartService;
             _agent = new LocalContinuousPPOAgent<TState>(options, environments.First().DiscreteActionSize, environments.First().StateSize, environments.First().ContinuousActionBounds);
         }
 
-        List<double> chart = new List<double>();
 
         /// <summary>
         /// Performs a step in the reinforcement learning process.
@@ -98,14 +94,6 @@ namespace RLMatrix.Agents.Common
                     episode.CompletedEpisodes.Clear();
                     completedEpisodes.Add((key, true));
                 }
-            }
-
-            if (_chartService != null)
-            {
-                chart.AddRange(rewards);
-                chart.RemoveRange(0, Math.Max(0, chart.Count - 100));
-
-                _chartService.CreateOrUpdateChart(chart);
             }
 
             if (transitionsToShip.Count > 0 && isTraining)

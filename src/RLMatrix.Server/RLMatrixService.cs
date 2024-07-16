@@ -24,13 +24,16 @@ namespace RLMatrix.Server
         void Initialize(OneOf<DQNAgentOptions, PPOAgentOptions> opts, int[] discreteActionSizes, (float min, float max)[] continuousActionBounds, OneOf<int, (int, int)> stateSizes);
     }
 
-    public class RLMatrixService : IRLMatrixService
+    public class RLMatrixService : IRLMatrixService, IDisposable
     {
         private IRLMatrixProxyAdapter? _proxyAdapter = null;
         private readonly string _savePath;
         private readonly object _lock = new object();
         private readonly Queue<Func<ValueTask>> _requestQueue = new Queue<Func<ValueTask>>();
         private bool _isOptimizing = false;
+        private Task? _continuousOptimizationTask;
+        private CancellationTokenSource _optimizationCts = new CancellationTokenSource();
+        private bool _isDqnAgent = false;
 
         public RLMatrixService(string savePath)
         {
@@ -45,7 +48,25 @@ namespace RLMatrix.Server
             }
 
             opts.Switch(
-                dqnOpts => throw new NotSupportedException("DQN is not supported for continuous actions"),
+                dqnOpts =>
+                {
+                    _isDqnAgent = true;
+                    stateSizes.Switch(
+                        stateSize =>
+                        {
+                            _proxyAdapter = new DiscreteProxyAdapterImpl<float[]>(
+                                new LocalDiscreteQAgent<float[]>(dqnOpts, discreteActionSizes, stateSize),
+                                _savePath);
+                        },
+                        sizes =>
+                        {
+                            _proxyAdapter = new DiscreteProxyAdapterImpl<float[,]>(
+                                new LocalDiscreteQAgent<float[,]>(dqnOpts, discreteActionSizes, sizes),
+                                _savePath);
+                        }
+                    );
+                    StartContinuousOptimization();
+                },
                 ppoOpts =>
                 {
                     stateSizes.Switch(
@@ -115,20 +136,23 @@ namespace RLMatrix.Server
 
         public async ValueTask OptimizeModelAsync()
         {
-            lock (_lock)
+            if (!_isDqnAgent)
             {
-                _isOptimizing = true;
+                lock (_lock)
+                {
+                    _isOptimizing = true;
+                }
+
+                var _ = _proxyAdapter ?? throw new InvalidOperationException("Service not initialized");
+                await _proxyAdapter.OptimizeModelAsync();
+
+                lock (_lock)
+                {
+                    _isOptimizing = false;
+                }
+
+                await ProcessQueuedRequests();
             }
-
-            var _ = _proxyAdapter ?? throw new InvalidOperationException("Service not initialized");
-            await _proxyAdapter.OptimizeModelAsync();
-
-            lock (_lock)
-            {
-                _isOptimizing = false;
-            }
-
-            await ProcessQueuedRequests();
         }
 
         public ValueTask SaveAsync()
@@ -145,16 +169,23 @@ namespace RLMatrix.Server
 
         private async ValueTask EnqueueRequest(Func<ValueTask> request)
         {
-            lock (_lock)
+            if (_isDqnAgent)
             {
-                if (_isOptimizing)
-                {
-                    _requestQueue.Enqueue(request);
-                    return;
-                }
+                await request();
             }
+            else
+            {
+                lock (_lock)
+                {
+                    if (_isOptimizing)
+                    {
+                        _requestQueue.Enqueue(request);
+                        return;
+                    }
+                }
 
-            await request();
+                await request();
+            }
         }
 
         private async ValueTask ProcessQueuedRequests()
@@ -172,6 +203,27 @@ namespace RLMatrix.Server
 
                 await request();
             }
+        }
+
+        private void StartContinuousOptimization()
+        {
+            _continuousOptimizationTask = Task.Run(async () =>
+            {
+                while (!_optimizationCts.IsCancellationRequested)
+                {
+                    if (_proxyAdapter != null)
+                    {
+                        await _proxyAdapter.OptimizeModelAsync();
+                    }
+                }
+            });
+        }
+
+        public void Dispose()
+        {
+            _optimizationCts.Cancel();
+            _continuousOptimizationTask?.Wait();
+            _optimizationCts.Dispose();
         }
     }
 

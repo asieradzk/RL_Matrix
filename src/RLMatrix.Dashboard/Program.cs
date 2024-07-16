@@ -8,6 +8,8 @@ using System.Reactive.Subjects;
 using RLMatrix.Common.Dashboard;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,7 +27,16 @@ else
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    options.ClientTimeoutInterval = TimeSpan.FromMinutes(5);
+    options.HandshakeTimeout = TimeSpan.FromMinutes(5);
+    options.KeepAliveInterval = TimeSpan.FromMinutes(3.5);
+    options.MaximumReceiveMessageSize = 1024 * 1024 * 1024; // 1 GB
+}).AddJsonProtocol(options => {
+
+    options.PayloadSerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals;
+});
 builder.Services.AddSingleton<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddSingleton<Subject<ExperimentData>>();

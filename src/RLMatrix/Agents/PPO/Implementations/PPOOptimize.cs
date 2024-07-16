@@ -263,18 +263,6 @@ namespace RLMatrix.Agents.PPO.Implementations
                         actorOptimizer.step();
                         if(i == 0)
                         {
-                            Tensor klDivergence;
-                            if (policy.dim() > 1)
-                            {
-                                klDivergence = (policyOld.exp() * (policyOld - policy)).sum(-1).mean();
-                            }
-                            else
-                            {
-                                klDivergence = (policyOld.exp() * (policyOld - policy)).mean();
-                            }
-
-                            DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
-
 
                             DashboardProvider.Instance.UpdateEntropy((double)maskedEntropy.mean().item<float>());
                             DashboardProvider.Instance.UpdateActorLoss((double)actorLoss.item<float>());
@@ -501,17 +489,10 @@ namespace RLMatrix.Agents.PPO.Implementations
 
                                 if(i == 0)
                                 {
-                                    Tensor klDivergence;
-                                    if (policy.dim() > 1)
-                                    {
-                                        klDivergence = (policyOld.exp() * (policyOld - policy)).sum(-1).mean();
-                                    }
-                                    else
-                                    {
-                                        klDivergence = (policyOld.exp() * (policyOld - policy)).mean();
-                                    }
-
+                                    Tensor klDivergence = (policyOld.exp() * (policyOld - policy)).mean();
                                     DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
+
+                                   // DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
 
 
                                     DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
@@ -555,12 +536,13 @@ namespace RLMatrix.Agents.PPO.Implementations
 
         public void UpdateOptimizers(LRScheduler scheduler)
         {
+            //TODO: SEIROUS violation of DRY. Default Optimizer implementation should be moved to some kind of provider
             actorOptimizer = torch.optim.Adam(actorNet.parameters(), myOptions.LR, amsgrad: true);
-            scheduler ??= new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
+            scheduler ??= new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
             actorLrScheduler = scheduler;
 
             criticOptimizer = torch.optim.Adam(criticNet.parameters(), myOptions.LR, amsgrad: true);
-            scheduler ??= new optim.lr_scheduler.impl.CyclicLR(criticOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
+            scheduler ??= new optim.lr_scheduler.impl.CyclicLR(criticOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
             criticLrScheduler = scheduler;
         }
     }

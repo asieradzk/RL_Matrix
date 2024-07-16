@@ -17,9 +17,8 @@ namespace RLMatrix.Agents.SignalR
         private readonly HubConnection _connection;
         private readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
         private readonly Dictionary<Guid, Episode<TState>> _envPairs;
-        private readonly IRLChartService? _chartService;
 
-        public RemoteDiscreteRolloutAgent(string hubUrl, IAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments, IRLChartService chartService = null)
+        public RemoteDiscreteRolloutAgent(string hubUrl, IAgentOptions options, IEnumerable<IEnvironmentAsync<TState>> environments)
         {
             _connection = new HubConnectionBuilder()
                 .WithUrl(hubUrl)
@@ -29,7 +28,6 @@ namespace RLMatrix.Agents.SignalR
 
             _environments = environments.ToDictionary(env => Guid.NewGuid(), env => env);
             _envPairs = _environments.ToDictionary(pair => pair.Key, pair => new Episode<TState>());
-            _chartService = chartService;
             //cast options to concrete type
             var optionsType = options.GetType();
             if (optionsType == typeof(DQNAgentOptions))
@@ -58,7 +56,6 @@ namespace RLMatrix.Agents.SignalR
 
             await _connection.InvokeAsync("Initialize", optsDTO, actionSizes, new(float, float)[0], stateSizesDTO);
         }
-        List<double> chart = new();
         public async Task Step(bool isTraining = true)
         {
             List<Task<(Guid environmentId, TState state)>> stateTaskList = new();
@@ -119,14 +116,7 @@ namespace RLMatrix.Agents.SignalR
                 }
             }
 
-            if (_chartService != null)
-            {
-                chart.AddRange(rewards);
-                //remove starting from 0 till it has less than 100 elements
-                chart.RemoveRange(0, Math.Max(0, chart.Count - 100));
 
-                _chartService.CreateOrUpdateChart(chart);
-            }
 
             if (transitionsToShip.Count > 0 && isTraining)
             {

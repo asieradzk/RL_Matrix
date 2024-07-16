@@ -363,6 +363,8 @@ namespace RLMatrix
                 qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0]);
             }
 
+            qValuesAllHeads = torch.where(qValuesAllHeads.isnan(), torch.zeros_like(qValuesAllHeads), qValuesAllHeads);
+            float temperature = 1.0f;
             int[][] actions = new int[states.Length][];
 
             for (int i = 0; i < states.Length; i++)
@@ -373,7 +375,11 @@ namespace RLMatrix
                 {
                     if (agent.Random.NextDouble() > epsThreshold || !isTraining)
                     {
-                        Tensor actionProbs = torch.softmax(qValuesAllHeads[i, j], dim: -1);
+                        Tensor scaledQValues = qValuesAllHeads[i, j] / temperature;
+                        Tensor maxQValue = scaledQValues.max();
+                        Tensor actionProbs = torch.softmax(scaledQValues - maxQValue, dim: -1);
+                        actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
+                        actionProbs /= actionProbs.sum();
                         Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
                         actions[i][j] = (int)sampledAction.item<long>();
                     }
@@ -407,6 +413,8 @@ namespace RLMatrix
                 qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0]);
             }
 
+            qValuesAllHeads = torch.where(qValuesAllHeads.isnan(), torch.zeros_like(qValuesAllHeads), qValuesAllHeads);
+            float temperature = 1.0f;
             int[][] actions = new int[states.Length][];
 
             for (int i = 0; i < states.Length; i++)
@@ -415,7 +423,11 @@ namespace RLMatrix
 
                 for (int j = 0; j < agent.ActionSizes.Length; j++)
                 {
-                    Tensor actionProbs = torch.softmax(qValuesAllHeads[i, j], dim: -1);
+                    Tensor scaledQValues = qValuesAllHeads[i, j] / temperature;
+                    Tensor maxQValue = scaledQValues.max();
+                    Tensor actionProbs = torch.softmax(scaledQValues - maxQValue, dim: -1);
+                    actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
+                    actionProbs /= actionProbs.sum();
                     Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
                     actions[i][j] = (int)sampledAction.item<long>();
                 }
@@ -435,7 +447,9 @@ namespace RLMatrix
             }
 
             Tensor expectedQValues = (qValuesAllHeads * agent.support).sum(dim: -1);
+            expectedQValues = torch.where(expectedQValues.isnan(), torch.zeros_like(expectedQValues), expectedQValues);
 
+            float temperature = 1.0f;
             int[][] actions = new int[states.Length][];
 
             for (int i = 0; i < states.Length; i++)
@@ -444,7 +458,11 @@ namespace RLMatrix
 
                 for (int j = 0; j < agent.ActionSizes.Length; j++)
                 {
-                    Tensor actionProbs = torch.softmax(expectedQValues[i, j], dim: -1);
+                    Tensor scaledQValues = expectedQValues[i, j] / temperature;
+                    Tensor maxQValue = scaledQValues.max();
+                    Tensor actionProbs = torch.softmax(scaledQValues - maxQValue, dim: -1);
+                    actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
+                    actionProbs /= actionProbs.sum();
                     Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
                     actions[i][j] = (int)sampledAction.item<long>();
                 }
@@ -467,23 +485,27 @@ namespace RLMatrix
 
             Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
             Tensor qValuesAllHeads;
-
             using (torch.no_grad())
             {
                 qValuesAllHeads = agent.policyNet.forward(stateTensor).view(states.Length, agent.ActionSizes.Length, agent.ActionSizes[0], agent.Options.NumAtoms);
             }
 
             Tensor expectedQValues = (qValuesAllHeads * agent.support).sum(dim: -1);
+            expectedQValues = torch.where(expectedQValues.isnan(), torch.zeros_like(expectedQValues), expectedQValues);
 
+            float temperature = 1.0f;
             int[][] actions = new int[states.Length][];
 
             for (int i = 0; i < states.Length; i++)
             {
                 actions[i] = new int[agent.ActionSizes.Length];
-
                 for (int j = 0; j < agent.ActionSizes.Length; j++)
                 {
-                    Tensor actionProbs = torch.softmax(expectedQValues[i, j], dim: -1);
+                    Tensor scaledQValues = expectedQValues[i, j] / temperature;
+                    Tensor maxQValue = scaledQValues.max();
+                    Tensor actionProbs = torch.softmax(scaledQValues - maxQValue, dim: -1);
+                    actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
+                    actionProbs /= actionProbs.sum();
                     Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
                     actions[i][j] = (int)sampledAction.item<long>();
                 }
@@ -492,6 +514,7 @@ namespace RLMatrix
             return actions;
         }
         #endregion
+
 
         private static int[] ActionsFromState(T state, Module<Tensor, Tensor> policyNet, int[] ActionSizes, Device device)
         {

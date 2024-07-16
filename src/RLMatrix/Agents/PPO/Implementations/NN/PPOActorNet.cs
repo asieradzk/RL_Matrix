@@ -69,11 +69,11 @@ namespace RLMatrix
             {
 #if  NET8_0_OR_GREATER
                 using (var mean = logits[.., discreteActions + i, 0].unsqueeze(1))
-                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1))
+                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1).clamp(-20, 2))
                 using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
 #else
                 using (var mean = logits[GetIndices(logits.size(0)), discreteActions + i, 0].unsqueeze(1))
-                using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1))
+                using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1).clamp(-20, 2))
                 using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
 #endif
                 {
@@ -132,11 +132,11 @@ namespace RLMatrix
             {
 #if  NET8_0_OR_GREATER
                 using (var mean = logits[.., discreteActions + i, 0].unsqueeze(1))
-                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1))
+                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1).clamp(-20, 2))
                 using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
 #else
                 using (var mean = logits[GetIndices(logits.size(0)), discreteActions + i, 0].unsqueeze(1))
-                using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1))
+                using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1).clamp(-20, 2))
                 using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
 #endif
                 {

@@ -18,10 +18,10 @@
 
 	<PropertyGroup>
 		<PackageId>RLMatrix</PackageId>
-		<Version>0.2.1</Version>
+		<Version>0.3.0</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
-		<PackageLicenseExpression>RLMatrixLicense</PackageLicenseExpression>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
 		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 		<PackageDescription>Deep Reinforcement Learning in .NET</PackageDescription>
 		<PackageProjectUrl>https://github.com/asieradzk/RL_Matrix</PackageProjectUrl>
@@ -38,23 +38,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Include="..\..\LICENSE.txt" Pack="true" PackagePath="" />
 		<None Include="..\..\icon.png" Pack="true" PackagePath="" />
 		<None Include="..\..\README.md" Pack="true" PackagePath="" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-		<PackageReference Include="OneOf" Version="3.0.271" />
-		<PackageReference Include="System.Reactive" Version="6.0.1" />
-		<PackageReference Include="TorchSharp-cuda-windows" Version="0.102.2" />
-		<PackageReference Include="TorchVision" Version="0.102.2" />
+	  <PackageReference Include="RLMatrix.Common" Version="0.3.0" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\RLMatrix.Common\RLMatrix.Common.csproj" />
-	</ItemGroup>
+
 
 </Project>

@@ -33,12 +33,6 @@ namespace RLMatrix.Agents.PPO.Implementations
             return randStdNormal;
         }
 
-        private static float Clamp(float value, float min, float max)
-        {
-            return value;
-            return (value < min) ? min : (value > max) ? max : value;
-        }
-
 
         public static float[] SampleContinuousActions(Tensor result, int[] actionSize, (float min, float max)[] continuousActions)
         {
@@ -51,7 +45,8 @@ namespace RLMatrix.Agents.PPO.Implementations
                 var logStd = result[0, discreteHeads + continuousHeads + i, 0].item<float>();
                 var std = (float)Math.Exp(logStd);
                 var noise = (float)SampleFromStandardNormal(new Random());
-                var action = mean + std * noise;                actions.Add(action);
+                var action = mean + std * noise;                
+                actions.Add(action);
             }
             return actions.ToArray();
         }
@@ -76,8 +71,7 @@ namespace RLMatrix.Agents.PPO.Implementations
             for (int i = 0; i < continuousHeads; i++)
             {
                 var mean = result[0, discreteHeads + i, 0].item<float>();
-                var clampedMean = Clamp(mean, continuousActions[i].min, continuousActions[i].max);
-                actions.Add(clampedMean);
+                actions.Add(mean);
             }
             return actions.ToArray();
         }

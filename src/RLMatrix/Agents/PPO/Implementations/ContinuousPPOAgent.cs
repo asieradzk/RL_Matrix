@@ -53,50 +53,15 @@ namespace RLMatrix.Agents.PPO.Implementations
 
                 for (int i = 0; i < states.Length; i++)
                 {
-                    actions[i].discreteActions = new int[DiscreteDimensions.Length];
-                    actions[i].continuousActions = new float[ContinuousActionBounds.Length];
-
-                    int discreteIndex = 0;
-                    int continuousIndex = 0;
-
-                    for (int j = 0; j < DiscreteDimensions.Length + ContinuousActionBounds.Length; j++)
+                    if (isTraining)
                     {
-                        if (j < DiscreteDimensions.Length)
-                        {
-                            var actionProbs = result[i, j];
-                            if (isTraining)
-                            {
-                                var actionSample = torch.multinomial(actionProbs, 1, true);
-                                actions[i].discreteActions[discreteIndex] = (int)actionSample.item<long>();
-                            }
-                            else
-                            {
-                                var actionIndex = actionProbs.argmax();
-                                actions[i].discreteActions[discreteIndex] = (int)actionIndex.item<long>();
-                            }
-                            discreteIndex++;
-                        }
-                        else
-                        {
-                            var (min, max) = ContinuousActionBounds[continuousIndex];
-                            var mu = result[i, j, 0];
-                            var sigma = result[i, j, 1].exp();
-
-                            float action;
-                            if (isTraining)
-                            {
-                                var distribution = torch.distributions.Normal(mu, sigma);
-                                action = distribution.sample().item<float>();
-                            }
-                            else
-                            {
-                                action = mu.item<float>();
-                            }
-
-                            action = Clamp(action, min, max);
-                            actions[i].continuousActions[continuousIndex] = action;
-                            continuousIndex++;
-                        }
+                        actions[i].discreteActions = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(result[i].unsqueeze(0), DiscreteDimensions);
+                        actions[i].continuousActions = PPOActionSelection<T>.SampleContinuousActions(result[i].unsqueeze(0), DiscreteDimensions, ContinuousActionBounds);
+                    }
+                    else
+                    {
+                        actions[i].discreteActions = PPOActionSelection<T>.SelectGreedyDiscreteActions(result[i].unsqueeze(0), DiscreteDimensions);
+                        actions[i].continuousActions = PPOActionSelection<T>.SelectMeanContinuousActions(result[i].unsqueeze(0), DiscreteDimensions, ContinuousActionBounds);
                     }
                 }
 

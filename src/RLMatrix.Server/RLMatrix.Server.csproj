@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj" />
-    <ProjectReference Include="..\RLMatrix.Common\RLMatrix.Common.csproj" />
     <ProjectReference Include="..\RLMatrix\RLMatrix.csproj" />
   </ItemGroup>
 

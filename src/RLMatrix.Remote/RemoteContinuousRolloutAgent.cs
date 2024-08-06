@@ -49,7 +49,17 @@ namespace RLMatrix.Agents.SignalR
 
         public async Task Step(bool isTraining = true)
         {
-            List<Task<(Guid environmentId, TState state)>> stateTaskList = new();
+
+#if NET8_0_OR_GREATER
+
+#else
+StepSync();
+return;
+#endif
+
+
+
+            List<Task<(Guid environmentId, TState state)>> stateTaskList = new List<Task<(Guid environmentId, TState state)>>();
             foreach (var env in _environments)
             {
                 var stateTask = GetStateAsync(env.Key, env.Value);
@@ -59,8 +69,7 @@ namespace RLMatrix.Agents.SignalR
 
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
             var actions = await GetActionsBatchAsync(payload, isTraining);
-
-            List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new();
+            List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new List<Task<(Guid environmentId, (float, bool) reward)>>();
             foreach (var action in actions)
             {
                 var env = _environments[action.Key];
@@ -71,7 +80,7 @@ namespace RLMatrix.Agents.SignalR
 
             await Task.WhenAll(rewardTaskList);
 
-            List<Task<(Guid environmentId, TState state)>> nextStateTaskList = new();
+            List<Task<(Guid environmentId, TState state)>> nextStateTaskList = new List<Task<(Guid environmentId, TState state)>>();
             foreach (var env in _environments)
             {
                 var stateTask = GetStateAsync(env.Key, env.Value);
@@ -79,8 +88,8 @@ namespace RLMatrix.Agents.SignalR
             }
             var nextStateResults = await Task.WhenAll(nextStateTaskList);
 
-            ConcurrentBag<TransitionPortable<TState>> transitionsToShip = new();
-            ConcurrentBag<double> rewards = new();
+            ConcurrentBag<TransitionPortable<TState>> transitionsToShip = new ConcurrentBag<TransitionPortable<TState>>();
+            ConcurrentBag<double> rewards = new ConcurrentBag<double>();
             var completedEpisodes = new List<(Guid environmentId, bool done)>();
 
             foreach (var env in _environments)
@@ -107,7 +116,6 @@ namespace RLMatrix.Agents.SignalR
                 }
             }
 
-
             if (transitionsToShip.Count > 0 && isTraining)
             {
                 await _connection.InvokeAsync("UploadTransitions", transitionsToShip.ToList().ToDTOList());
@@ -121,8 +129,13 @@ namespace RLMatrix.Agents.SignalR
             }
         }
 
+#if NET8_0_OR_GREATER
         public async ValueTask<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
+#else
+        public async Task<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
+#endif
         {
+
             var stateInfoDTOs = stateInfos.PackList();
             var actionResponse = await _connection.InvokeAsync<ActionResponseDTO>("SelectActions", stateInfoDTOs, isTraining);
 
@@ -158,28 +171,138 @@ namespace RLMatrix.Agents.SignalR
             return (environmentId, state);
         }
 
+
+
+        public void StepSync(bool isTraining = true)
+        {
+            List<(Guid environmentId, TState state)> stateResults = new List<(Guid environmentId, TState state)>();
+            foreach (var env in _environments)
+            {
+                var state = GetStateSync(env.Key, env.Value);
+                stateResults.Add(state);
+            }
+
+            var payload = stateResults;
+            var actions = GetActionsBatchSync(payload, isTraining);
+
+            List<(Guid environmentId, (float, bool) reward)> rewardResults = new List<(Guid environmentId, (float, bool) reward)>();
+            foreach (var action in actions)
+            {
+                var env = _environments[action.Key];
+                var reward = env.Step(action.Value.discreteActions, action.Value.continuousActions).GetAwaiter().GetResult();
+                rewardResults.Add((action.Key, reward));
+            }
+
+            List<(Guid environmentId, TState state)> nextStateResults = new List<(Guid environmentId, TState state)>();
+            foreach (var env in _environments)
+            {
+                var state = GetStateSync(env.Key, env.Value);
+                nextStateResults.Add(state);
+            }
+
+            var transitionsToShip = new List<TransitionPortable<TState>>();
+            var rewards = new List<double>();
+            var completedEpisodes = new List<(Guid environmentId, bool done)>();
+
+            foreach (var env in _environments)
+            {
+                var key = env.Key;
+                var episode = _envPairs[key];
+                var stateResult = stateResults.First(x => x.environmentId == key);
+                var state = stateResult.state;
+                var action = actions[key];
+                var stepResult = rewardResults.First(x => x.environmentId == key);
+                var reward = stepResult.Item2.Item1;
+                var isDone = stepResult.Item2.Item2;
+                var nextState = nextStateResults.First(x => x.environmentId == key).state;
+                episode.AddTransition(state, isDone, action.discreteActions, action.continuousActions, reward);
+                if (isDone)
+                {
+                    transitionsToShip.AddRange(episode.CompletedEpisodes);
+                    rewards.Add(episode.cumulativeReward);
+                    episode.CompletedEpisodes.Clear();
+                    completedEpisodes.Add((key, true));
+                }
+            }
+
+            if (transitionsToShip.Count > 0 && isTraining)
+            {
+                _connection.InvokeAsync("UploadTransitions", transitionsToShip.ToDTOList()).ConfigureAwait(false).GetAwaiter().GetResult();
+            }
+
+            _connection.InvokeAsync("ResetStates", completedEpisodes).ConfigureAwait(false).GetAwaiter().GetResult();
+
+            if (isTraining)
+            {
+                _connection.InvokeAsync("OptimizeModel").ConfigureAwait(false).GetAwaiter().GetResult();
+            }
+        }
+
+        private (Guid environmentId, TState state) GetStateSync(Guid environmentId, IContinuousEnvironmentAsync<TState> env)
+        {
+            var state = DeepCopy(env.GetCurrentState().GetAwaiter().GetResult());
+            return (environmentId, state);
+        }
+
+        private Dictionary<Guid, (int[] discreteActions, float[] continuousActions)> GetActionsBatchSync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
+        {
+            var stateInfoDTOs = stateInfos.PackList();
+            var actionResponse = _connection.InvokeAsync<ActionResponseDTO>("SelectActions", stateInfoDTOs, isTraining).ConfigureAwait(false).GetAwaiter().GetResult();
+
+            return actionResponse.Actions.ToDictionary(
+                kvp => kvp.Key,
+                kvp => (kvp.Value.DiscreteActions, kvp.Value.ContinuousActions)
+            );
+        }
+
+
+
+#if NET8_0_OR_GREATER
         public async ValueTask Save()
+#else
+        public async Task Save()
+#endif
         {
             await _connection.InvokeAsync("Save");
         }
 
+#if NET8_0_OR_GREATER
         public async ValueTask Load()
+#else
+        public async Task Load()
+#endif
         {
             await _connection.InvokeAsync("Load");
         }
 
+#if NET8_0_OR_GREATER
         public ValueTask Save(string path)
+#else
+        public Task Save(string path)
+#endif
         {
             Console.WriteLine("Path not supported in remote agent.");
             _connection.InvokeAsync("Save");
+#if NET8_0_OR_GREATER
             return ValueTask.CompletedTask;
+#else
+            return Task.CompletedTask;
+#endif
         }
 
+#if NET8_0_OR_GREATER
         public ValueTask Load(string path)
+#else
+        public Task Load(string path)
+#endif
         {
             Console.WriteLine("Path not supported in remote agent.");
             _connection.InvokeAsync("Load");
+#if NET8_0_OR_GREATER
             return ValueTask.CompletedTask;
+#else
+            return Task.CompletedTask;
+#endif
         }
     }
 }

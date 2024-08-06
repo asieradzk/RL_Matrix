@@ -58,7 +58,6 @@ namespace RLMatrix
                 using (var actionLogits = logits.select(1, i))
                 using (var actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1))
                 {
-                    
                     var res = torch.nn.functional.log_softmax(actionLogits, dim: 1).gather(dim: 1, index: actionTaken);
                     discreteLogProbs.Add(res);
                 }
@@ -67,14 +66,14 @@ namespace RLMatrix
             // Continuous action log probabilities
             for (int i = 0; i < contActions; i++)
             {
-#if  NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 using (var mean = logits[.., discreteActions + i, 0].unsqueeze(1))
-                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1).clamp(-20, 2))
+                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1))
                 using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
 #else
-                using (var mean = logits[GetIndices(logits.size(0)), discreteActions + i, 0].unsqueeze(1))
-                using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1).clamp(-20, 2))
-                using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
+        using (var mean = logits[GetIndices(logits.size(0)), discreteActions + i, 0].unsqueeze(1))
+        using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1))
+        using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
 #endif
                 {
                     var std = torch.exp(logStd);
@@ -82,19 +81,17 @@ namespace RLMatrix
                     var squared_diff = torch.pow(diff / std, 2);
                     var log_prob = (-0.5f * squared_diff - logStd - 0.5f * (float)Math.Log(2 * Math.PI));
                     continuousLogProbs.Add(log_prob);
-                    
                 }
             }
+
             // Combine discrete and continuous log probabilities
             using (var combinedLogProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1))
             {
                 var res = combinedLogProbs.squeeze();
-                logits.Dispose();
                 return res;
             }
         }
 
-  
         public (Tensor logprobs, Tensor entropy) get_log_prob_entropy<StateTensor>(StateTensor states, Tensor actions, int discreteActions, int contActions)
         {
             Tensor logits;
@@ -122,7 +119,7 @@ namespace RLMatrix
                 using (var actionProbs = torch.nn.functional.softmax(actionLogits, dim: 1))
                 using (var actionTaken = actions.select(1, i).to(ScalarType.Int64).unsqueeze(-1))
                 {
-                    discreteLogProbs.Add(torch.log(actionProbs).gather(dim: 1, index: actionTaken));
+                    discreteLogProbs.Add(torch.log(actionProbs + 1e-10).gather(dim: 1, index: actionTaken));
                     discreteEntropies.Add(-(actionProbs * torch.log(actionProbs + 1e-10)).sum(1, keepdim: true));
                 }
             }
@@ -130,17 +127,16 @@ namespace RLMatrix
             // Continuous action log probabilities and entropy
             for (int i = 0; i < contActions; i++)
             {
-#if  NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 using (var mean = logits[.., discreteActions + i, 0].unsqueeze(1))
-                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1).clamp(-20, 2))
+                using (var logStd = logits[.., discreteActions + contActions + i, 0].unsqueeze(1))
                 using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
 #else
-                using (var mean = logits[GetIndices(logits.size(0)), discreteActions + i, 0].unsqueeze(1))
-                using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1).clamp(-20, 2))
-                using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
+        using (var mean = logits[GetIndices(logits.size(0)), discreteActions + i, 0].unsqueeze(1))
+        using (var logStd = logits[GetIndices(logits.size(0)), discreteActions + contActions + i, 0].unsqueeze(1))
+        using (var actionTaken = actions.select(1, discreteActions + i).unsqueeze(1))
 #endif
                 {
-
                     var std = torch.exp(logStd);
                     var diff = actionTaken - mean;
                     var squared_diff = torch.pow(diff / std, 2);
@@ -150,18 +146,21 @@ namespace RLMatrix
                     continuousEntropies.Add(entropy);
                 }
             }
+
             // Combine discrete and continuous log probabilities and entropies
             using (var combinedLogProbs = torch.cat(discreteLogProbs.Concat(continuousLogProbs).ToArray(), dim: 1))
             using (var combinedEntropies = torch.cat(discreteEntropies.Concat(continuousEntropies).ToArray(), dim: 1))
             {
                 var logProbs = combinedLogProbs.squeeze();
                 var totalEntropy = combinedEntropies.mean(new long[] { 1 }, true);
-                logits.Dispose();
                 return (logProbs, totalEntropy);
             }
         }
 
+
+
     }
+
 
     public class PPOActorNet1D : PPOActorNet
     {
@@ -190,7 +189,7 @@ namespace RLMatrix
                 // Initialize LSTM layer if useRnn is true
                 lstmLayer = nn.LSTM(inputs, hiddenSize, depth, batchFirst: true, dropout: 0.05f);
                 // width = hiddenSize; // The output of LSTM layer is now the input for the heads
-               
+
             }
 
             // Base layers
@@ -203,13 +202,13 @@ namespace RLMatrix
                 fcModules.Add(Linear(inputs, width));
             }
 
-            
+
             for (int i = 1; i < depth; i++)
             {
                 fcModules.Add(Linear(width, width));
-                
+
             }
-           
+
 
             // Discrete Heads
             foreach (var actionSize in discreteActions)
@@ -240,12 +239,12 @@ namespace RLMatrix
             // Process continuous heads (mean) and apply tanh to bound them within [-1, 1]
             for (int i = 0; i < continuousHeadsMean.Count; i++)
             {
-                var continuousOutput = tanh(continuousHeadsMean[i].forward(x));  // Apply tanh to bound within [-1, 1]
+                var continuousOutput = continuousHeadsMean[i].forward(x);  // Apply tanh to bound within [-1, 1]
 
                 // Remap continuous means from [-1, 1] to the desired action bounds
-                var low = continuousActionBounds[i].Item1;
-                var high = continuousActionBounds[i].Item2;
-                continuousOutput = (continuousOutput + 1) / 2 * (high - low) + low;  // Remap to [low, high]
+                // var low = continuousActionBounds[i].Item1;
+                //  var high = continuousActionBounds[i].Item2;
+                //  continuousOutput = (continuousOutput + 1) / 2 * (high - low) + low;  // Remap to [low, high]
 
                 var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
 #if NET8_0_OR_GREATER
@@ -260,7 +259,7 @@ namespace RLMatrix
             // Process continuous heads (log std)
             for (int i = 0; i < continuousHeadsLogStd.Count; i++)
             {
-                var continuousOutput = functional.softplus(continuousHeadsLogStd[i].forward(x));
+                var continuousOutput = continuousHeadsLogStd[i].forward(x);
                 var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
 #if NET8_0_OR_GREATER
                 paddedOutput[.., 0] = continuousOutput.squeeze(-1);
@@ -282,7 +281,7 @@ namespace RLMatrix
                 x = x.unsqueeze(0);
             }
 
-            if(useRnn && x.dim() == 2)
+            if (useRnn && x.dim() == 2)
             {
                 x = x.unsqueeze(0);
             }
@@ -296,7 +295,7 @@ namespace RLMatrix
                 x = res.Item1;
                 x = x.reshape(new long[] { -1, x.size(2) });
                 x = functional.tanh(fcModules.First().forward(x));
-        
+
             }
             else
             {
@@ -359,8 +358,8 @@ namespace RLMatrix
             return (result, hiddenState, cellState);
         }
         */
-        
-        
+
+
         public override (Tensor, Tensor, Tensor) forward(Tensor x, Tensor? state, Tensor? state2)
         {
             if (x.dim() == 1)
@@ -399,7 +398,7 @@ namespace RLMatrix
             var result = ApplyHeads(x);
             return (result, resultHiddenState.Item1, resultHiddenState.Item2);
         }
-      
+
         public override Tensor forward(PackedSequence x)
         {
             // Unpack the PackedSequence
@@ -559,12 +558,12 @@ namespace RLMatrix
             // Process continuous heads (mean) and apply tanh to bound them within [-1, 1]
             for (int i = 0; i < continuousHeadsMean.Count; i++)
             {
-                var continuousOutput = tanh(continuousHeadsMean[i].forward(x));  // Apply tanh to bound within [-1, 1]
+                var continuousOutput = continuousHeadsMean[i].forward(x);  // Apply tanh to bound within [-1, 1]
 
                 // Remap continuous means from [-1, 1] to the desired action bounds
-                var low = continuousActionBounds[i].Item1;
-                var high = continuousActionBounds[i].Item2;
-                continuousOutput = (continuousOutput + 1) / 2 * (high - low) + low;  // Remap to [low, high]
+                //   var low = continuousActionBounds[i].Item1;
+                //   var high = continuousActionBounds[i].Item2;
+                //  continuousOutput = (continuousOutput + 1) / 2 * (high - low) + low;  // Remap to [low, high]
 
                 var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
 #if NET8_0_OR_GREATER
@@ -578,7 +577,7 @@ namespace RLMatrix
             // Process continuous heads (log std)
             for (int i = 0; i < continuousHeadsLogStd.Count; i++)
             {
-                var continuousOutput = functional.softplus(continuousHeadsLogStd[i].forward(x));
+                var continuousOutput = continuousHeadsLogStd[i].forward(x);
                 var paddedOutput = torch.zeros(continuousOutput.size(0), headSize, device: x.device);
 #if NET8_0_OR_GREATER
                 paddedOutput[.., 0] = continuousOutput.squeeze(-1);

@@ -50,15 +50,6 @@ namespace RLMatrix.Agents.SignalR
         public async Task Step(bool isTraining = true)
         {
 
-#if NET8_0_OR_GREATER
-
-#else
-StepSync();
-return;
-#endif
-
-
-
             List<Task<(Guid environmentId, TState state)>> stateTaskList = new List<Task<(Guid environmentId, TState state)>>();
             foreach (var env in _environments)
             {

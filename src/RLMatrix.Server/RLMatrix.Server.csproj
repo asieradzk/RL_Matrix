@@ -1,16 +1,54 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<PackageId>RLMatrix.Server</PackageId>
+		<Version>0.4.0</Version>
+		<Authors>Adrian Sieradzki</Authors>
+		<Company>Adrian Sieradzki</Company>
+		<Description>Server components for Deep Reinforcement Learning in .NET</Description>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageProjectUrl>https://github.com/asieradzk/RL_Matrix</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/asieradzk/RL_Matrix.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageTags>Reinforcement Learning, RL, Agent, Policy, DQN, PPO, DDPG, MCTS, ML, Machine Learning, Deep Reinforcement Learning, Server</PackageTags>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
 
+
+	<ItemGroup>
+		<None Include="..\..\LICENSE.txt" Pack="true" PackagePath="" />
+		<None Include="..\..\icon.png" Pack="true" PackagePath="" />
+		<None Include="..\..\README.md" Pack="true" PackagePath="" />
+	</ItemGroup>
+
+
+
+	<!--publish-->
+
+
+	<!--<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.6" />
+		<PackageReference Include="RLMatrix" Version="0.4.0" />
+		<PackageReference Include="RLMatrix.Remote" Version="0.4.0" />
+	</ItemGroup>-->
+
+
+
+	<!--dev-->
+	
   <ItemGroup>
     <ProjectReference Include="..\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj" />
     <ProjectReference Include="..\RLMatrix\RLMatrix.csproj" />
   </ItemGroup>
 
+	
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.6" />

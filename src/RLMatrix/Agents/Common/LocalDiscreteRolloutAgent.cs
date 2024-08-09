@@ -130,6 +130,83 @@ namespace RLMatrix.Agents.Common
             await _agent.OptimizeModelAsync();
         }
 
+        public void StepSync(bool isTraining = true)
+        {
+            List<(Guid environmentId, TState state)> stateResults = new List<(Guid environmentId, TState state)>();
+            foreach (var env in _environments)
+            {
+                var state = GetStateSync(env.Key, env.Value);
+                stateResults.Add(state);
+            }
+
+            List<(Guid environmentId, TState state)> payload = stateResults;
+            var actions = GetActionsBatchSync(payload, isTraining);
+
+            List<(Guid environmentId, (float, bool) reward)> rewardResults = new List<(Guid environmentId, (float, bool) reward)>();
+            foreach (var action in actions)
+            {
+                var env = _environments[action.Key];
+                var reward = env.Step(action.Value).GetAwaiter().GetResult();
+                rewardResults.Add((action.Key, reward));
+            }
+
+            List<(Guid environmentId, TState state)> nextStateResults = new List<(Guid environmentId, TState state)>();
+            foreach (var env in _environments)
+            {
+                var state = GetStateSync(env.Key, env.Value);
+                nextStateResults.Add(state);
+            }
+
+            var transitionsToShip = new List<TransitionPortable<TState>>();
+            var rewards = new List<double>();
+            var completedEpisodes = new List<(Guid environmentId, bool done)>();
+
+            foreach (var env in _environments)
+            {
+                var key = env.Key;
+                var episode = _ennvPairs[key];
+                var stateResult = stateResults.First(x => x.environmentId == key);
+                var state = stateResult.state;
+                var action = actions[key];
+                var stepResult = rewardResults.First(x => x.environmentId == key);
+                var reward = stepResult.Item2.Item1;
+                var isDone = stepResult.Item2.Item2;
+                var nextState = nextStateResults.First(x => x.environmentId == key).state;
+                episode.AddTransition(state, isDone, action, null, reward);
+                if (isDone)
+                {
+                    transitionsToShip.AddRange(episode.CompletedEpisodes);
+                    rewards.Add(episode.cumulativeReward);
+                    episode.CompletedEpisodes.Clear();
+                    completedEpisodes.Add((key, true));
+                }
+            }
+
+            if (transitionsToShip.Count > 0)
+            {
+                _agent.UploadTransitionsAsync(transitionsToShip).GetAwaiter().GetResult();
+            }
+
+            _agent.ResetStates(completedEpisodes).GetAwaiter().GetResult();
+
+            if (isTraining)
+            {
+                _agent.OptimizeModelAsync().GetAwaiter().GetResult();
+            }
+        }
+
+        private (Guid environmentId, TState state) GetStateSync(Guid environmentId, IEnvironmentAsync<TState> env)
+        {
+            var state = DeepCopy(env.GetCurrentState().GetAwaiter().GetResult());
+            return (environmentId, state);
+        }
+
+        private Dictionary<Guid, int[]> GetActionsBatchSync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
+        {
+            return _agent.SelectActionsBatchAsync(stateInfos, isTraining).GetAwaiter().GetResult();
+        }
+
+
         /// <summary>
         /// Gets actions for a batch of states asynchronously.
         /// </summary>

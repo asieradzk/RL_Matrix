@@ -47,7 +47,8 @@ namespace RLMatrix.Agents.Common
             var stateResults = await Task.WhenAll(stateTaskList);
 
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
-            var actions = await _agent.SelectActionsBatchAsync(payload, isTraining);
+
+            var actions = await Task.Run(async () => await _agent.SelectActionsBatchAsync(payload, isTraining).ConfigureAwait(true));
 
             List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new List<Task<(Guid environmentId, (float, bool) reward)>>();
             foreach (var action in actions)
@@ -123,6 +124,76 @@ namespace RLMatrix.Agents.Common
         /// <param name="stateInfos">The list of state information.</param>
         /// <param name="isTraining">Indicates whether the agent is in training mode.</param>
         /// <returns>A dictionary of actions for each environment.</returns>
+        /// 
+
+
+        //TODO: hacked method to enable this to work with Unity. Probably shouldnt use it will be depracated in the future
+        public void StepSync(bool isTraining = true)
+        {
+            List<(Guid environmentId, TState state)> stateResults = new List<(Guid environmentId, TState state)>();
+            foreach (var env in _environments)
+            {
+                var state = GetStateSync(env.Key, env.Value);
+                stateResults.Add(state);
+            }
+
+            var actions = GetActionsBatchSync(stateResults, isTraining);
+
+            List<(Guid environmentId, (float, bool) reward)> rewardResults = new List<(Guid environmentId, (float, bool) reward)>();
+            foreach (var action in actions)
+            {
+                var env = _environments[action.Key];
+                var reward = env.Step(action.Value.discreteActions, action.Value.continuousActions).GetAwaiter().GetResult();
+                rewardResults.Add((action.Key, reward));
+            }
+
+            var transitionsToShip = new List<TransitionPortable<TState>>();
+            var completedEpisodes = new List<(Guid environmentId, bool done)>();
+
+            foreach (var env in _environments)
+            {
+                var key = env.Key;
+                var episode = _ennvPairs[key];
+                var stateResult = stateResults.First(x => x.environmentId == key);
+                var state = stateResult.state;
+                var action = actions[key];
+                var stepResult = rewardResults.First(x => x.environmentId == key);
+                var reward = stepResult.Item2.Item1;
+                var isDone = stepResult.Item2.Item2;
+                var nextState = GetStateSync(key, env.Value).state;
+                episode.AddTransition(state, isDone, action.discreteActions, action.continuousActions, reward);
+                if (isDone)
+                {
+                    transitionsToShip.AddRange(episode.CompletedEpisodes);
+                    episode.CompletedEpisodes.Clear();
+                    completedEpisodes.Add((key, true));
+                }
+            }
+
+            if (transitionsToShip.Count > 0 && isTraining)
+            {
+                _agent.UploadTransitionsAsync(transitionsToShip).GetAwaiter().GetResult();
+            }
+
+            _agent.ResetStates(completedEpisodes).GetAwaiter().GetResult();
+
+            if (isTraining)
+            {
+                _agent.OptimizeModelAsync().GetAwaiter().GetResult();
+            }
+        }
+
+        private (Guid environmentId, TState state) GetStateSync(Guid environmentId, IContinuousEnvironmentAsync<TState> env)
+        {
+            var state = DeepCopy(env.GetCurrentState().GetAwaiter().GetResult());
+            return (environmentId, state);
+        }
+
+        private Dictionary<Guid, (int[] discreteActions, float[] continuousActions)> GetActionsBatchSync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
+        {
+            return _agent.SelectActionsBatchAsync(stateInfos, isTraining).GetAwaiter().GetResult();
+        }
+
         public async Task<Dictionary<Guid, (int[] discreteActions, float[] continuousActions)>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
         {
             return await _agent.SelectActionsBatchAsync(stateInfos, isTraining);

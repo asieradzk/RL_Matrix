@@ -9,7 +9,7 @@
 		<Platforms>AnyCPU</Platforms>
 
 		<PackageId>RLMatrix.Common</PackageId>
-		<Version>0.3.0</Version>
+		<Version>0.4.0</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<Description>Deep Reinforcement Learning in .NET</Description>
@@ -37,9 +37,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="OneOf" Version="3.0.271" />
 	</ItemGroup>

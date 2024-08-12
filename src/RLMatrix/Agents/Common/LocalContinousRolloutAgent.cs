@@ -147,7 +147,15 @@ namespace RLMatrix.Agents.Common
                 rewardResults.Add((action.Key, reward));
             }
 
+            List<(Guid environmentId, TState state)> nextStateResults = new List<(Guid environmentId, TState state)>();
+            foreach (var env in _environments)
+            {
+                var state = GetStateSync(env.Key, env.Value);
+                nextStateResults.Add(state);
+            }
+
             var transitionsToShip = new List<TransitionPortable<TState>>();
+            var rewards = new List<double>();
             var completedEpisodes = new List<(Guid environmentId, bool done)>();
 
             foreach (var env in _environments)
@@ -160,11 +168,12 @@ namespace RLMatrix.Agents.Common
                 var stepResult = rewardResults.First(x => x.environmentId == key);
                 var reward = stepResult.Item2.Item1;
                 var isDone = stepResult.Item2.Item2;
-                var nextState = GetStateSync(key, env.Value).state;
+                var nextState = nextStateResults.First(x => x.environmentId == key).state;
                 episode.AddTransition(state, isDone, action.discreteActions, action.continuousActions, reward);
                 if (isDone)
                 {
                     transitionsToShip.AddRange(episode.CompletedEpisodes);
+                    rewards.Add(episode.cumulativeReward);
                     episode.CompletedEpisodes.Clear();
                     completedEpisodes.Add((key, true));
                 }

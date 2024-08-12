@@ -11,6 +11,9 @@ using System.Threading;
 
 namespace RLMatrix.Dashboard
 {
+    /// <summary>
+    /// Implements a SignalR-based dashboard client for real-time experiment data reporting.
+    /// </summary>
     public class SignalRDashboardClient : IDashboardClient, IAsyncDisposable
     {
         private HubConnection _hubConnection;
@@ -40,6 +43,7 @@ namespace RLMatrix.Dashboard
 
         private readonly Guid _experimentId;
         private bool _isConnected = false;
+        private bool _hasEverConnected = false;
         private IDisposable _dataSubscription;
 
         private ConcurrentQueue<ExperimentData> _dataQueue = new ConcurrentQueue<ExperimentData>();
@@ -50,7 +54,7 @@ namespace RLMatrix.Dashboard
         {
             _hubConnection = new HubConnectionBuilder()
                 .WithUrl(hubUrl)
-                .WithAutomaticReconnect(new[] { TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
+                .WithAutomaticReconnect(new[] { TimeSpan.FromSeconds(0), TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(30) })
                 .Build();
 
             SetupCallbacks();
@@ -112,9 +116,20 @@ namespace RLMatrix.Dashboard
             {
                 try
                 {
-                    await _hubConnection.StartAsync();
-                    _isConnected = true;
-                    Console.WriteLine("Connected to dashboard");
+                    if (_hubConnection.State == HubConnectionState.Disconnected)
+                    {
+                        await _hubConnection.StartAsync();
+                        _isConnected = true;
+                        _hasEverConnected = true;
+                        Console.WriteLine("Connected to dashboard");
+                    }
+                    else
+                    {
+                        await _hubConnection.StopAsync();
+                        await _hubConnection.StartAsync();
+                        _isConnected = true;
+                        Console.WriteLine("Reconnected to dashboard");
+                    }
                 }
                 catch (Exception e)
                 {
@@ -151,12 +166,41 @@ namespace RLMatrix.Dashboard
                     {
                         _dataQueue.Enqueue(data);
                     }
-                    await StartAsync();
+                    batch.Clear();
+                    await AttemptReconnect();
                 }
                 finally
                 {
                     _sendSemaphore.Release();
                 }
+            }
+        }
+
+        private async Task AttemptReconnect()
+        {
+            if (_hasEverConnected)
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    try
+                    {
+                        if (_hubConnection.State != HubConnectionState.Disconnected)
+                        {
+                            await _hubConnection.StopAsync();
+                        }
+                        await StartAsync();
+                        if (_isConnected)
+                        {
+                            Console.WriteLine($"Reconnected to dashboard after {i + 1} attempts");
+                            return;
+                        }
+                    }
+                    catch
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(1));
+                    }
+                }
+                Console.WriteLine("Failed to reconnect after 10 attempts");
             }
         }
 

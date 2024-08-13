@@ -5,7 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageId>RLMatrix.Remote</PackageId>
-		<Version>0.4.2</Version>
+		<Version>0.4.3</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<Description>Remote components for Deep Reinforcement Learning in .NET</Description>
@@ -32,7 +32,7 @@
 	
 	<!--publish-->
 	<ItemGroup>
-		<PackageReference Include="RLMatrix.Common.Remote" Version="0.4.0" />
+		<PackageReference Include="RLMatrix.Common.Remote" Version="0.4.3" />
 	</ItemGroup>
 	
 	<!--dev-->

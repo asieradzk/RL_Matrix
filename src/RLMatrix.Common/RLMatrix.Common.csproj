@@ -9,7 +9,7 @@
 		<Platforms>AnyCPU</Platforms>
 
 		<PackageId>RLMatrix.Common</PackageId>
-		<Version>0.4.0</Version>
+		<Version>0.4.3</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<Description>Deep Reinforcement Learning in .NET</Description>

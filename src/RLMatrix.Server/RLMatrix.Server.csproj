@@ -5,7 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageId>RLMatrix.Server</PackageId>
-		<Version>0.4.0</Version>
+		<Version>0.4.3</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<Description>Server components for Deep Reinforcement Learning in .NET</Description>
@@ -31,19 +31,19 @@
 	<!--publish-->
 
 
-	<!--<ItemGroup>
+	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.6" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.6" />
-		<PackageReference Include="RLMatrix" Version="0.4.0" />
-		<PackageReference Include="RLMatrix.Remote" Version="0.4.0" />
-	</ItemGroup>-->
+		<PackageReference Include="RLMatrix" Version="0.4.3" />
+		<PackageReference Include="RLMatrix.Remote" Version="0.4.3" />
+	</ItemGroup>
 
 
 
 	<!--dev-->
 	
-  <ItemGroup>
+  <!--<ItemGroup>
     <ProjectReference Include="..\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj" />
     <ProjectReference Include="..\RLMatrix\RLMatrix.csproj" />
   </ItemGroup>
@@ -53,7 +53,7 @@
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.6" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.6" />
-	</ItemGroup>
+	</ItemGroup>-->
 
 
 	<ItemGroup>

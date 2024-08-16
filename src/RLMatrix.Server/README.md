@@ -7,6 +7,8 @@ Dive into the future of type-safe Deep Reinforcement Learning with .NET & RL Mat
 [![NuGet](https://img.shields.io/nuget/v/RLMatrix.WinformsChart.svg?label=WinformsChart-nuget)](https://www.nuget.org/packages/RLMatrix.WinformsChart/)
 [![NuGet](https://img.shields.io/nuget/v/RLMatrix.Godot.svg?label=RLMatrix.Godot-nuget)](https://www.nuget.org/packages/RLMatrix.Godot/)[
 ![TorchSharp](https://img.shields.io/badge/Made%20With-TorchSharp-8A2BE2)](https://github.com/dotnet/TorchSharp)
+![discord](https://img.shields.io/badge/-discord-link?label=join&link=https%3A%2F%2Fdiscord.gg%2FRYnyUQGd)
+
 
 ## 🌟 Featured Algorithms:
 

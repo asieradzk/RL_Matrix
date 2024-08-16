@@ -85,6 +85,7 @@ public static class TransitionExtensions
 {
     public static IList<TransitionInMemory<TState>> ToTransitionInMemory<TState>(this IEnumerable<TransitionPortable<TState>> portableTransitions)
     {
+        portableTransitions.Reverse();
         var transitionMap = new Dictionary<Guid, TransitionInMemory<TState>>();
 
         foreach (var portableTransition in portableTransitions)

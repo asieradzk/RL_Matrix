@@ -1,6 +1,5 @@
 using Godot;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using RLMatrix;
 using OneOf;
@@ -8,7 +7,7 @@ using OneOf;
 public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[]>
 {
     [Export] public RigidBody3D Ball { get; set; }
-    [Export] public Node3D Head { get; set; }
+    [Export] public RigidBody3D Head { get; set; }
     [Export] public float HeadRadius { get; set; } = 5f;
 
     private int poolingRate = 1;
@@ -16,29 +15,22 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
     private int stepsSoft = 0;
     private int stepsHard = 0;
 
-    int _maxStepsHard = 5000;
-    private int maxStepsHard
-    {
-        get => _maxStepsHard / poolingRate;
-        set => _maxStepsHard = value;
-    }
+    private int _maxStepsHard = 5000;
+    private int maxStepsHard => _maxStepsHard / poolingRate;
 
-    int _maxStepsSoft = 1000;
-    private int maxStepsSoft
-    {
-        get => _maxStepsSoft / poolingRate;
-        set => _maxStepsSoft = value;
-    }
+    private int _maxStepsSoft = 1000;
+    private int maxStepsSoft => _maxStepsSoft / poolingRate;
 
     public OneOf<int, (int, int)> StateSize { get; set; }
     public int[] DiscreteActionSize { get; set; } = Array.Empty<int>();
-    public (float min, float max)[] ContinuousActionBounds { get; set; } = new (float min, float max)[]
+    public (float min, float max)[] ContinuousActionBounds { get; set; } = new[]
     {
         (-1f, 1f),
         (-1f, 1f),
     };
 
     private bool isDone;
+    private const float MaxAngularVelocity = 3f;
 
     public void Initialize(int poolingRate = 1)
     {
@@ -53,20 +45,20 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
     {
         for (int i = 0; i < poolingRate; i++)
         {
-            float reward = Reward();
+            float reward = CalculateReward();
             poolingHelper.CollectObservation(reward);
         }
     }
 
     public Task<float[]> GetCurrentState()
     {
-        if (isDone && AmIHardDone())
+        if (isDone && IsHardDone())
         {
             Reset();
             poolingHelper.HardReset(GetObservations);
             isDone = false;
         }
-        else if (isDone && AmISoftDone())
+        else if (isDone && IsSoftDone())
         {
             stepsSoft = 0;
             isDone = false;
@@ -79,11 +71,11 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
     {
         stepsSoft = 0;
         stepsHard = 0;
-        ResetMe();
+        ResetEnvironment();
         isDone = false;
         poolingHelper.HardReset(GetObservations);
 
-        if (IsDoneCheck())
+        if (IsDone())
         {
             throw new Exception("Done flag still raised after reset - did you intend to reset?");
         }
@@ -98,37 +90,31 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
 
         ApplyActions(continuousActions);
 
-        float stepReward = Reward();
+        float stepReward = CalculateReward();
         poolingHelper.CollectObservation(stepReward);
 
         float totalReward = poolingHelper.GetAndResetAccumulatedReward();
-        isDone = AmIHardDone() || AmISoftDone();
+        isDone = IsHardDone() || IsSoftDone();
 
         poolingHelper.SetAction(continuousActions);
 
         return Task.FromResult((totalReward, isDone));
     }
 
-    private bool AmIHardDone()
-    {
-        return (stepsHard >= maxStepsHard || IsDoneCheck());
-    }
+    private bool IsHardDone() => stepsHard >= maxStepsHard || IsDone();
 
-    private bool AmISoftDone()
-    {
-        return (stepsSoft >= maxStepsSoft);
-    }
+    private bool IsSoftDone() => stepsSoft >= maxStepsSoft;
 
     public void GhostStep()
     {
-        if(AmIHardDone() || AmISoftDone())
+        if (IsHardDone() || IsSoftDone())
             return;
 
         if (poolingHelper.HasAction)
         {
             ApplyActions(poolingHelper.GetLastAction());
         }
-        float reward = Reward();
+        float reward = CalculateReward();
         poolingHelper.CollectObservation(reward);
     }
 
@@ -141,79 +127,56 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
             BallOffsetObservation().X / HeadRadius,
             BallOffsetObservation().Y / HeadRadius,
             BallOffsetObservation().Z / HeadRadius,
-            BallVelocityObservation().X,
-            BallVelocityObservation().Y,
-            BallVelocityObservation().Z
+            Ball.LinearVelocity.X / 10f,
+            Ball.LinearVelocity.Y / 10f,
+            Ball.LinearVelocity.Z / 10f
         };
     }
 
+    float modifier = 0.5f;
     private void ApplyActions(float[] actions)
     {
-        HeadRotationActionXAxis(actions[0]);
-        HeadRotationActionZAxis(actions[1]);
+        Vector3 angularVelocity = new Vector3(
+            actions[0] * modifier* MaxAngularVelocity,
+            0,
+            actions[1] * modifier* MaxAngularVelocity
+        );
+        Head.AngularVelocity = angularVelocity;
     }
 
-    public void HeadRotationActionZAxis(float rotation)
-    {
-        if ((Head.Rotation.Z < 0.25f && rotation > 0f) ||
-            (Head.Rotation.Z > -0.25f && rotation < 0f))
-        {
-            Head.RotateZ(2f * rotation * (float)GetProcessDeltaTime());
-        }
-    }
+    private Vector3 BallOffsetObservation() => Ball.GlobalPosition - Head.GlobalPosition;
 
-    public void HeadRotationActionXAxis(float rotation)
-    {
-        if ((Head.Rotation.X < 0.25f && rotation > 0f) ||
-            (Head.Rotation.X > -0.25f && rotation < 0f))
-        {
-            Head.RotateX(2f * rotation * (float)GetProcessDeltaTime());
-        }
-    }
-
-    public Vector3 BallOffsetObservation()
-    {
-        return Ball.GlobalPosition - Head.GlobalPosition;
-    }
-
-    public Vector3 BallVelocityObservation()
-    {
-        return Ball.LinearVelocity;
-    }
-
-    public float Reward()
+    private float CalculateReward()
     {
         Vector3 ballOffset = BallOffsetObservation();
         if (ballOffset.Y < -2f || Mathf.Abs(ballOffset.X) > HeadRadius || Mathf.Abs(ballOffset.Z) > HeadRadius)
         {
             return -1f;
         }
-        else
-        {
-            return 0.1f;
-        }
+        return 0.1f;
     }
 
-    public bool IsDoneCheck()
+    private bool IsDone()
     {
         Vector3 ballOffset = BallOffsetObservation();
         return ballOffset.Y < -2f || Mathf.Abs(ballOffset.X) > HeadRadius || Mathf.Abs(ballOffset.Z) > HeadRadius;
     }
 
-    public void ResetMe()
+    private void ResetEnvironment()
     {
         Head.Rotation = new Vector3(
             Mathf.DegToRad((float)GD.RandRange(-10.0, 10.0)),
             0,
             Mathf.DegToRad((float)GD.RandRange(-10.0, 10.0))
         );
+        Head.AngularVelocity = Vector3.Zero;
         Ball.LinearVelocity = Vector3.Zero;
         Ball.AngularVelocity = Vector3.Zero;
-        
-        float spawnRadius = HeadRadius * 0.5f;
+    
+        float spawnRadius = HeadRadius * 0.15f;
         Vector3 randomOffset = new Vector3(
             (float)GD.RandRange(-spawnRadius, spawnRadius),
-            HeadRadius * 0.8f,
+            HeadRadius * 0.3f,
             (float)GD.RandRange(-spawnRadius, spawnRadius)
         );
         Ball.GlobalPosition = Head.GlobalPosition + randomOffset;

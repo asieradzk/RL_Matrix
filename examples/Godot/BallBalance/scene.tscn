@@ -19,14 +19,1597 @@ Ball = NodePath("ball")
 Head = NodePath("head")
 
 [node name="head" parent="BallBalanceEnv" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
 freeze_mode = 1
 continuous_cd = true
-
-[node name="CollisionShape3D" parent="BallBalanceEnv/head" index="0"]
-transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
 
 [node name="ball" parent="BallBalanceEnv" index="1"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
 can_sleep = false
 
+[node name="BallBalanceEnv2" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv2" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv2" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv3" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv3" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv3" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv4" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv4" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv4" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv5" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv5" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv5" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv6" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv6" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv6" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv7" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv7" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv7" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv8" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv8" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv8" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv9" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv9" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv9" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv10" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv10" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv10" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv11" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv11" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv11" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv12" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv12" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv12" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv13" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv13" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv13" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv14" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv14" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv14" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv15" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv15" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv15" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv16" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv16" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv16" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv17" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv17" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv17" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv18" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv18" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv18" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv19" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv19" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv19" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv20" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, -11.3875, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv20" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv20" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv21" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv21" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv21" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv22" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv22" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv22" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv23" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv23" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv23" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv24" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv24" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv24" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv25" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv25" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv25" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv26" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv26" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv26" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv27" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv27" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv27" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv28" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv28" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv28" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv29" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv29" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv29" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv30" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, -34.2112, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv30" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv30" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv31" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv31" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv31" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv32" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv32" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv32" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv33" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv33" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv33" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv34" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv34" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv34" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv35" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv35" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv35" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv36" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv36" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv36" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv37" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv37" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv37" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv38" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv38" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv38" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv39" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv39" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv39" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv40" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, -61.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv40" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv40" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv41" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv41" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv41" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv42" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv42" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv42" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv43" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv43" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv43" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv44" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv44" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv44" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv45" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv45" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv45" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv46" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv46" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv46" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv47" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv47" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv47" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv48" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv48" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv48" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv49" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv49" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv49" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv50" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, -82.3282, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv50" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv50" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv51" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv51" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv51" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv52" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv52" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv52" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv53" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv53" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv53" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv54" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv54" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv54" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv55" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv55" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv55" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv56" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv56" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv56" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv57" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv57" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv57" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv58" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv58" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv58" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv59" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv59" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv59" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv60" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, 118.02, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv60" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv60" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv61" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv61" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv61" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv62" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv62" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv62" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv63" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv63" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv63" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv64" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv64" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv64" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv65" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv65" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv65" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv66" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv66" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv66" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv67" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv67" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv67" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv68" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv68" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv68" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv69" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv69" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv69" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv70" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, 100.632, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv70" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv70" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv71" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv71" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv71" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv72" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv72" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv72" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv73" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv73" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv73" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv74" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv74" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv74" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv75" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv75" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv75" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv76" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv76" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv76" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv77" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv77" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv77" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv78" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv78" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv78" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv79" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv79" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv79" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv80" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, 77.8087, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv80" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv80" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv81" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv81" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv81" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv82" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv82" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv82" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv83" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv83" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv83" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv84" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv84" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv84" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv85" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv85" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv85" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv86" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv86" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv86" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv87" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv87" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv87" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv88" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv88" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv88" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv89" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv89" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv89" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv90" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, 50.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv90" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv90" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv91" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv91" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv91" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv92" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.46065, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv92" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv92" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv93" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3516, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv93" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv93" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv94" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.1707, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv94" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv94" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv95" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7806, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv95" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv95" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv96" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -53.3352, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv96" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv96" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv97" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.8746, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv97" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv97" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv98" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.9837, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv98" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv98" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv99" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.1646, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv99" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv99" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
+[node name="BallBalanceEnv100" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.5547, 29.6917, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
+
+[node name="head" parent="BallBalanceEnv100" index="0"]
+axis_lock_angular_x = false
+mass = 2000.0
+freeze_mode = 1
+continuous_cd = true
+
+[node name="ball" parent="BallBalanceEnv100" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
+can_sleep = false
+
 [editable path="BallBalanceEnv"]
+[editable path="BallBalanceEnv2"]
+[editable path="BallBalanceEnv3"]
+[editable path="BallBalanceEnv4"]
+[editable path="BallBalanceEnv5"]
+[editable path="BallBalanceEnv6"]
+[editable path="BallBalanceEnv7"]
+[editable path="BallBalanceEnv8"]
+[editable path="BallBalanceEnv9"]
+[editable path="BallBalanceEnv10"]
+[editable path="BallBalanceEnv11"]
+[editable path="BallBalanceEnv12"]
+[editable path="BallBalanceEnv13"]
+[editable path="BallBalanceEnv14"]
+[editable path="BallBalanceEnv15"]
+[editable path="BallBalanceEnv16"]
+[editable path="BallBalanceEnv17"]
+[editable path="BallBalanceEnv18"]
+[editable path="BallBalanceEnv19"]
+[editable path="BallBalanceEnv20"]
+[editable path="BallBalanceEnv21"]
+[editable path="BallBalanceEnv22"]
+[editable path="BallBalanceEnv23"]
+[editable path="BallBalanceEnv24"]
+[editable path="BallBalanceEnv25"]
+[editable path="BallBalanceEnv26"]
+[editable path="BallBalanceEnv27"]
+[editable path="BallBalanceEnv28"]
+[editable path="BallBalanceEnv29"]
+[editable path="BallBalanceEnv30"]
+[editable path="BallBalanceEnv31"]
+[editable path="BallBalanceEnv32"]
+[editable path="BallBalanceEnv33"]
+[editable path="BallBalanceEnv34"]
+[editable path="BallBalanceEnv35"]
+[editable path="BallBalanceEnv36"]
+[editable path="BallBalanceEnv37"]
+[editable path="BallBalanceEnv38"]
+[editable path="BallBalanceEnv39"]
+[editable path="BallBalanceEnv40"]
+[editable path="BallBalanceEnv41"]
+[editable path="BallBalanceEnv42"]
+[editable path="BallBalanceEnv43"]
+[editable path="BallBalanceEnv44"]
+[editable path="BallBalanceEnv45"]
+[editable path="BallBalanceEnv46"]
+[editable path="BallBalanceEnv47"]
+[editable path="BallBalanceEnv48"]
+[editable path="BallBalanceEnv49"]
+[editable path="BallBalanceEnv50"]
+[editable path="BallBalanceEnv51"]
+[editable path="BallBalanceEnv52"]
+[editable path="BallBalanceEnv53"]
+[editable path="BallBalanceEnv54"]
+[editable path="BallBalanceEnv55"]
+[editable path="BallBalanceEnv56"]
+[editable path="BallBalanceEnv57"]
+[editable path="BallBalanceEnv58"]
+[editable path="BallBalanceEnv59"]
+[editable path="BallBalanceEnv60"]
+[editable path="BallBalanceEnv61"]
+[editable path="BallBalanceEnv62"]
+[editable path="BallBalanceEnv63"]
+[editable path="BallBalanceEnv64"]
+[editable path="BallBalanceEnv65"]
+[editable path="BallBalanceEnv66"]
+[editable path="BallBalanceEnv67"]
+[editable path="BallBalanceEnv68"]
+[editable path="BallBalanceEnv69"]
+[editable path="BallBalanceEnv70"]
+[editable path="BallBalanceEnv71"]
+[editable path="BallBalanceEnv72"]
+[editable path="BallBalanceEnv73"]
+[editable path="BallBalanceEnv74"]
+[editable path="BallBalanceEnv75"]
+[editable path="BallBalanceEnv76"]
+[editable path="BallBalanceEnv77"]
+[editable path="BallBalanceEnv78"]
+[editable path="BallBalanceEnv79"]
+[editable path="BallBalanceEnv80"]
+[editable path="BallBalanceEnv81"]
+[editable path="BallBalanceEnv82"]
+[editable path="BallBalanceEnv83"]
+[editable path="BallBalanceEnv84"]
+[editable path="BallBalanceEnv85"]
+[editable path="BallBalanceEnv86"]
+[editable path="BallBalanceEnv87"]
+[editable path="BallBalanceEnv88"]
+[editable path="BallBalanceEnv89"]
+[editable path="BallBalanceEnv90"]
+[editable path="BallBalanceEnv91"]
+[editable path="BallBalanceEnv92"]
+[editable path="BallBalanceEnv93"]
+[editable path="BallBalanceEnv94"]
+[editable path="BallBalanceEnv95"]
+[editable path="BallBalanceEnv96"]
+[editable path="BallBalanceEnv97"]
+[editable path="BallBalanceEnv98"]
+[editable path="BallBalanceEnv99"]
+[editable path="BallBalanceEnv100"]

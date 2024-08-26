@@ -1,4 +1,3 @@
-// TrainingManager.cs
 using Godot;
 using System;
 using System.Collections.Generic;
@@ -11,7 +10,7 @@ public partial class BallBalanceTrainingManager : Node
 {
     [Export] private int poolingRate = 5;
     [Export] private float timeScale = 1f;
-    [Export] private float stepInterval = 0.03f;
+    [Export] private float stepInterval = 0.02f;
 
     private PPOAgentOptions optsppo = new PPOAgentOptions(
         batchSize: 64,
@@ -34,6 +33,7 @@ public partial class BallBalanceTrainingManager : Node
     private List<BallBalanceEnv> myEnvs;
     private int stepCounter = 0;
     private float accumulatedTime = 0f;
+    private int stepsTooSlowInRow = 0;
 
     public override void _Ready()
     {
@@ -52,13 +52,14 @@ public partial class BallBalanceTrainingManager : Node
 
         _ = InitializeAgent();
     }
-    
+
     private List<T> GetAllChildrenOfType<T>(Node parentNode) where T : class
     {
         List<T> resultList = new List<T>();
         AddChildrenOfType(parentNode, resultList);
         return resultList;
     }
+
     private void AddChildrenOfType<T>(Node node, List<T> resultList) where T : class
     {
         foreach (Node child in node.GetChildren())
@@ -67,7 +68,7 @@ public partial class BallBalanceTrainingManager : Node
             {
                 resultList.Add(typedChild);
             }
-            AddChildrenOfType(child, resultList); // Recursive call to check the children of the current child
+            AddChildrenOfType(child, resultList);
         }
     }
 
@@ -95,10 +96,29 @@ public partial class BallBalanceTrainingManager : Node
 
         accumulatedTime += (float)delta;
 
-        if (accumulatedTime >= stepInterval / Engine.TimeScale)
+        while (accumulatedTime >= stepInterval / Engine.TimeScale)
         {
+            /*
+            if(accumulatedTime > 2 * stepInterval)
+            {
+                stepsTooSlowInRow++;
+
+                if(stepsTooSlowInRow > 10)
+                {
+                    GD.PrintErr("Too slow, throttling.");
+                    stepsTooSlowInRow = 0;
+                    timeScale *= 0.9f;
+                    Engine.TimeScale = timeScale;
+                }
+            }
+            else
+            {
+                stepsTooSlowInRow = 0;
+            }
+            */
+            
             PerformStep();
-            accumulatedTime = 0f;
+            accumulatedTime -= stepInterval / (float)Engine.TimeScale;
         }
     }
 

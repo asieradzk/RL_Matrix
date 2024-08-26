@@ -20,13 +20,13 @@ a) Having a capital or value exceeding $100,000 USD
 b) Having annual revenue exceeding $100,000 USD
 c) Being a subsidiary, parent, or affiliate of any company meeting either of the above criteria
 
-To obtain a commercial license, please contact contact@exmachinasoft.com.
+To obtain a commercial license, please contact adrian@sieradzki.io.
 
 ## 3. License Selection
 
 - MIT License: If you are an individual, academic institution, or organization that does not meet any of the criteria for the commercial license, you may use RLMatrix under the MIT License.
 - Commercial License: If your organization meets any of the criteria for the commercial license, you must obtain a commercial license to use RLMatrix. This includes, but is not limited to, large corporations, their subsidiaries, and affiliates.
-- If you are uncertain about which license applies to your use case, please contact Adrian Sieradzki at contact@exmachinasoft.com for clarification.
+- If you are uncertain about which license applies to your use case, please contact Adrian Sieradzki at adrian@sieradzki.io for clarification.
 
 ## 4. Scope of Use
 
@@ -144,4 +144,4 @@ We reserve the right to modify these license terms at any time. Any changes will
 For any questions or concerns regarding this dual-license model, please contact:
 
 Adrian Sieradzki
-contact@exmachinasoft.com
+adrian@sieradzki.io

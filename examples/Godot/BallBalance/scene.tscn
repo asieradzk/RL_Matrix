@@ -1,41 +1,32 @@
 [gd_scene load_steps=3 format=3 uid="uid://ccqmtviv11mx0"]
 
 [ext_resource type="Script" path="res://Scripts/BallBalanceTrainingManager.cs" id="1_ybubf"]
-[ext_resource type="PackedScene" path="res://ball_balance_env.tscn" id="2_5vexp"]
+[ext_resource type="PackedScene" uid="uid://ddffpm3jellm6" path="res://ball_balance_env.tscn" id="2_5vexp"]
 
 [node name="Scene" type="Node3D"]
 script = ExtResource("1_ybubf")
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.996195, 0.0871557, 0, -0.0871557, 0.996195, 0, 4, 25)
+transform = Transform3D(1, 0, 0, 0, 0.96167, 0.274211, 0, -0.274211, 0.96167, 0, 11.8128, 25)
 fov = 37.8493
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.87462, -0.276687, 0.398101, 0, 0.821149, 0.570714, -0.48481, -0.499157, 0.718193, 0, 0, 11.1672)
 
-[node name="BallBalanceEnv" parent="." instance=ExtResource("2_5vexp")]
+[node name="BallBalanceEnv" parent="." node_paths=PackedStringArray("Ball", "Head") instance=ExtResource("2_5vexp")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+Ball = NodePath("ball")
+Head = NodePath("head")
 
 [node name="head" parent="BallBalanceEnv" index="0"]
 freeze_mode = 1
 continuous_cd = true
 
+[node name="CollisionShape3D" parent="BallBalanceEnv/head" index="0"]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
+
 [node name="ball" parent="BallBalanceEnv" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005, 2.97477, 0)
 can_sleep = false
-
-[node name="BallBalanceEnv2" parent="." instance=ExtResource("2_5vexp")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2, 0)
-
-[node name="BallBalanceEnv3" parent="." instance=ExtResource("2_5vexp")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, -2, 0)
-
-[node name="BallBalanceEnv4" parent="." instance=ExtResource("2_5vexp")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, -2, 0)
-
-[node name="BallBalanceEnv5" parent="." instance=ExtResource("2_5vexp")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 6, 0)
-
-[node name="BallBalanceEnv6" parent="." instance=ExtResource("2_5vexp")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 6, 0)
 
 [editable path="BallBalanceEnv"]

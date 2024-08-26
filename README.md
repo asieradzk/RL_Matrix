@@ -109,7 +109,7 @@ Notice that TrainEpisode method was removed.
 As we innovate, anticipate breaking changes. We'll keep you in the loop!
 ## 💌 Get in Touch:
 Questions? Ideas? Collaborations? Drop a line at:
-📧 contact@exmachinasoft.com
+📧 adrian@sieradzki.io
 
 ## 🤝 License:
 RLMatrix is licensed under the [RLMatrix Comprehensive Dual License Agreement](https://github.com/asieradzk/RL_Matrix/blob/master/LICENSE.txt)

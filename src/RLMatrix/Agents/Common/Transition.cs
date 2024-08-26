@@ -83,11 +83,19 @@ namespace RLMatrix.Agents.Common
 
 public static class TransitionExtensions
 {
+    //TODO: Not optimised for multi episode batches
+    //TODO: This can be multi-threaded optimised
+    /// <summary>
+    /// Converts a collection of portable transitions to a list of in-memory transitions, preserving episode boundaries.
+    /// </summary>
+    /// <typeparam name="TState">The type of the state in the transitions.</typeparam>
+    /// <param name="portableTransitions">The collection of portable transitions to convert.</param>
+    /// <returns>A list of in-memory transitions, with episode boundaries preserved.</returns>
     public static IList<TransitionInMemory<TState>> ToTransitionInMemory<TState>(this IEnumerable<TransitionPortable<TState>> portableTransitions)
     {
-        portableTransitions.Reverse();
         var transitionMap = new Dictionary<Guid, TransitionInMemory<TState>>();
 
+        // Create TransitionInMemory objects
         foreach (var portableTransition in portableTransitions)
         {
             var transition = new TransitionInMemory<TState>(
@@ -99,14 +107,13 @@ public static class TransitionExtensions
                 null,
                 null
             );
-
             transitionMap[portableTransition.guid] = transition;
         }
 
+        // Link transitions and set next states
         foreach (var portableTransition in portableTransitions)
         {
             var transition = transitionMap[portableTransition.guid];
-
             if (portableTransition.nextTransitionGuid.HasValue)
             {
                 var nextTransition = transitionMap[portableTransition.nextTransitionGuid.Value];
@@ -116,15 +123,20 @@ public static class TransitionExtensions
             }
         }
 
-        var firstTransition = transitionMap.Values.FirstOrDefault(t => t.previousTransition == null);
+        // Find all first transitions (start of episodes)
+        var firstTransitions = transitionMap.Values.Where(t => t.previousTransition == null).ToList();
 
         var transitions = new List<TransitionInMemory<TState>>();
 
-        var currentTransition = firstTransition;
-        while (currentTransition != null)
+        // Process each episode
+        foreach (var firstTransition in firstTransitions)
         {
-            transitions.Add(currentTransition);
-            currentTransition = currentTransition.nextTransition;
+            var currentTransition = firstTransition;
+            while (currentTransition != null)
+            {
+                transitions.Add(currentTransition);
+                currentTransition = currentTransition.nextTransition;
+            }
         }
 
         return transitions;

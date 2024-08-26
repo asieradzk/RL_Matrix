@@ -56,7 +56,6 @@ namespace RLMatrix.Agents.SignalR
 
         public async Task Step(bool isTraining = true)
         {
-
             List<Task<(Guid environmentId, TState state)>> stateTaskList = new List<Task<(Guid environmentId, TState state)>>();
             foreach (var env in _environments)
             {
@@ -87,11 +86,9 @@ namespace RLMatrix.Agents.SignalR
             }
             var nextStateResults = await Task.WhenAll(nextStateTaskList);
 
-            ConcurrentBag<TransitionPortable<TState>> transitionsToShip = new ConcurrentBag<TransitionPortable<TState>>();
-            ConcurrentBag<double> rewards = new ConcurrentBag<double>();
+            var transitionsByEnvironment = new Dictionary<Guid, List<TransitionPortable<TState>>>();
+            var rewards = new ConcurrentBag<double>();
             var completedEpisodes = new List<(Guid environmentId, bool done)>();
-
-            //TODO: Here and in other places parallelizm can be added
 
             foreach (var env in _environments)
             {
@@ -107,31 +104,100 @@ namespace RLMatrix.Agents.SignalR
                 episode.AddTransition(state, isDone, action, null, reward);
                 if (isDone)
                 {
-                    foreach (var transition in episode.CompletedEpisodes)
-                    {
-                        transitionsToShip.Add(transition);
-                    }
+                    transitionsByEnvironment[key] = episode.CompletedEpisodes.ToList();
                     rewards.Add(episode.cumulativeReward);
                     episode.CompletedEpisodes.Clear();
                     completedEpisodes.Add((key, true));
                 }
             }
 
-            if (transitionsToShip.Count > 0 && isTraining)
+            if (isTraining)
             {
-                await _connection.InvokeAsync("UploadTransitions", transitionsToShip.ToList().ToDTOList());
-            }
-            else
-            {
-                transitionsToShip = new ConcurrentBag<TransitionPortable<TState>>();
+                foreach (var kvp in transitionsByEnvironment)
+                {
+                    if (kvp.Value.Count > 0)
+                    {
+                        await _connection.InvokeAsync("UploadTransitions", kvp.Value.ToDTOList());
+                    }
+                }
             }
 
             await _connection.InvokeAsync("ResetStates", completedEpisodes);
 
-            if (!isTraining)
-                return;
+            if (isTraining)
+            {
+                await _connection.InvokeAsync("OptimizeModel");
+            }
+        }
 
-            await _connection.InvokeAsync("OptimizeModel");
+        public void StepSync(bool isTraining = true)
+        {
+            List<(Guid environmentId, TState state)> stateResults = new List<(Guid environmentId, TState state)>();
+            foreach (var env in _environments)
+            {
+                var state = GetStateSync(env.Key, env.Value);
+                stateResults.Add(state);
+            }
+
+            var actions = GetActionsBatchSync(stateResults, isTraining);
+
+            List<(Guid environmentId, (float, bool) reward)> rewardResults = new List<(Guid environmentId, (float, bool) reward)>();
+            foreach (var action in actions)
+            {
+                var env = _environments[action.Key];
+                var reward = env.Step(action.Value).GetAwaiter().GetResult();
+                rewardResults.Add((action.Key, reward));
+            }
+
+            List<(Guid environmentId, TState state)> nextStateResults = new List<(Guid environmentId, TState state)>();
+            foreach (var env in _environments)
+            {
+                var state = GetStateSync(env.Key, env.Value);
+                nextStateResults.Add(state);
+            }
+
+            var transitionsByEnvironment = new Dictionary<Guid, List<TransitionPortable<TState>>>();
+            var rewards = new List<double>();
+            var completedEpisodes = new List<(Guid environmentId, bool done)>();
+
+            foreach (var env in _environments)
+            {
+                var key = env.Key;
+                var episode = _envPairs[key];
+                var stateResult = stateResults.First(x => x.environmentId == key);
+                var state = stateResult.state;
+                var action = actions[key];
+                var stepResult = rewardResults.First(x => x.environmentId == key);
+                var reward = stepResult.Item2.Item1;
+                var isDone = stepResult.Item2.Item2;
+                var nextState = nextStateResults.First(x => x.environmentId == key).state;
+                episode.AddTransition(state, isDone, action, null, reward);
+                if (isDone)
+                {
+                    transitionsByEnvironment[key] = episode.CompletedEpisodes.ToList();
+                    rewards.Add(episode.cumulativeReward);
+                    episode.CompletedEpisodes.Clear();
+                    completedEpisodes.Add((key, true));
+                }
+            }
+
+            if (isTraining)
+            {
+                foreach (var kvp in transitionsByEnvironment)
+                {
+                    if (kvp.Value.Count > 0)
+                    {
+                        _connection.InvokeAsync("UploadTransitions", kvp.Value.ToDTOList()).GetAwaiter().GetResult();
+                    }
+                }
+            }
+
+            _connection.InvokeAsync("ResetStates", completedEpisodes).GetAwaiter().GetResult();
+
+            if (isTraining)
+            {
+                _connection.InvokeAsync("OptimizeModel").GetAwaiter().GetResult();
+            }
         }
 
         private (Guid environmentId, TState state) GetStateSync(Guid environmentId, IEnvironmentAsync<TState> env)

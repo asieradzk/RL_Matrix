@@ -1,46 +1,122 @@
+// TrainingManager.cs
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using RLMatrix;
-using RLMatrix.Godot;
+using RLMatrix.Agents.Common;
+using System.Threading.Tasks;
 
-
-
-//The inheritance is explained:
-//Always inherit the TrainingManagerBase - this has all the guts wiring RLMatrix to Godot
-//First generic parameter <T> is the environment type - this is the type of the environment you are training.
-//Training manger will find all children of the T and step on them independently collecting experiences
-//Second generic parameter <TState> is the shape of your observation vector.
-//As reminder if you use float[,] then by default we use CNN, if you use float[] then we use feed forward network
-public partial class BallBalanceTrainingManager : TrainingManagerBaseDiscrete<BallBalanceEnv, float[]>
+public partial class BallBalanceTrainingManager : Node
 {
-    protected override IDiscreteAgent<float[]> CreateAgent(List<IEnvironment<float[]>> environments)
+    [Export] private int poolingRate = 5;
+    [Export] private float timeScale = 1f;
+    [Export] private float stepInterval = 0.03f;
+
+    private PPOAgentOptions optsppo = new PPOAgentOptions(
+        batchSize: 64,
+        memorySize: 10000,
+        gamma: 0.99f,
+        gaeLambda: 0.95f,
+        lr: 3e-4f,
+        width: 128,
+        depth: 2,
+        clipEpsilon: 0.2f,
+        vClipRange: 0.2f,
+        cValue: 0.5f,
+        ppoEpochs: 3,
+        clipGradNorm: 0.5f,
+        entropyCoefficient: 0.005f,
+        useRNN: false
+    );
+
+    private LocalContinuousRolloutAgent<float[]> myAgent;
+    private List<BallBalanceEnv> myEnvs;
+    private int stepCounter = 0;
+    private float accumulatedTime = 0f;
+
+    public override void _Ready()
     {
-        //you can of course load any options you want from a file if you do not wish to re-compile every time you change something
-        var opts = new PPOAgentOptions(
-            batchSize: 1,           // Number of EPISODES agent interacts with environment before learning from its experience
-            memorySize: 10000,       // Size of the replay buffer
-            gamma: 0.99f,          // Discount factor for rewards
-            gaeLambda: 0.95f,      // Lambda factor for Generalized Advantage Estimation
-            lr: 1e-5f,            // Learning rate
-            clipEpsilon: 0.2f,     // Clipping factor for PPO's objective function
-            vClipRange: 0.2f,      // Clipping range for value loss
-            cValue: 0.5f,          // Coefficient for value loss
-            ppoEpochs: 1,            // Number of PPO epochs
-            clipGradNorm: 0.5f,    // Maximum allowed gradient norm
-            displayPlot: null
-        );
-        
-        return new PPOAgent<float[]>(opts, environments);
+        Engine.TimeScale = timeScale;
+        myEnvs = GetAllChildrenOfType<BallBalanceEnv>(this).ToList();
+
+        if (myEnvs.Count == 0)
+        {
+            GD.PrintErr("No BallBalanceEnv nodes found in children.");
+            return;
+        }
+
+        InitializeEnvironments();
+
+        GD.Print($"Found {myEnvs.Count} environments with pooling rate {poolingRate}.");
+
+        _ = InitializeAgent();
     }
     
-    
-    //Alternatively you can do the same to use DQN:
-    /*
-    protected override IDiscreteAgent<float[]> CreateAgent(List<IEnvironment<float[]>> enviroments)
+    private List<T> GetAllChildrenOfType<T>(Node parentNode) where T : class
     {
-        var opts = new DQNAgentOptions();
-        return new DQNAgent<float[]>(opts, enviroments);
+        List<T> resultList = new List<T>();
+        AddChildrenOfType(parentNode, resultList);
+        return resultList;
     }
-    */
+    private void AddChildrenOfType<T>(Node node, List<T> resultList) where T : class
+    {
+        foreach (Node child in node.GetChildren())
+        {
+            if (child is T typedChild)
+            {
+                resultList.Add(typedChild);
+            }
+            AddChildrenOfType(child, resultList); // Recursive call to check the children of the current child
+        }
+    }
+
+    private void InitializeEnvironments()
+    {
+        foreach (var env in myEnvs)
+        {
+            env.Initialize(poolingRate);
+        }
+    }
+
+    private async Task InitializeAgent()
+    {
+        await Task.Run(() =>
+        {
+            myAgent = new LocalContinuousRolloutAgent<float[]>(optsppo, myEnvs);
+        });
+
+        Engine.TimeScale = timeScale;
+    }
+
+    public override void _Process(double delta)
+    {
+        if (myAgent == null) return;
+
+        accumulatedTime += (float)delta;
+
+        if (accumulatedTime >= stepInterval / Engine.TimeScale)
+        {
+            PerformStep();
+            accumulatedTime = 0f;
+        }
+    }
+
+    private void PerformStep()
+    {
+        if (stepCounter % poolingRate == poolingRate - 1)
+        {
+            // Actual agent-env step
+            myAgent.StepSync(true);
+        }
+        else
+        {
+            // Ghost step
+            foreach (var env in myEnvs)
+            {
+                env.GhostStep();
+            }
+        }
+        stepCounter = (stepCounter + 1) % poolingRate;
+    }
 }

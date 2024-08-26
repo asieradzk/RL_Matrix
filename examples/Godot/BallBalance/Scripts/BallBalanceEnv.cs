@@ -1,100 +1,221 @@
 using Godot;
 using System;
 using System.Collections.Generic;
-using RLMatrix.Godot;
+using System.Threading.Tasks;
+using RLMatrix;
+using OneOf;
 
-
-//TState is the shape of input vector, alternative is float[,] for 2d inputs like images.
-//If you use float[,] then RLMatrix uses CNN as default.
-public partial class BallBalanceEnv : GodotEnvironmentDiscrete<float[]>
+public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[]>
 {
-	//--------------------------------------v---------These are are required properties from the base class
-	
-	public override List<List<Action>> myHeads { get; set; }
-	public override Action resetProvider => Reset;
-	public override Func<float[]> observationProvider => Observations;
-	public override Func<bool> isDoneProvider => IsDone;
-	public override int maxSteps { get; set; }
-	
-	//_________________________________________________^___ These are are required properties from the base class
-	
-	
-	
-	
-	//--------------------------------v user code v--------------------------------
-    
-	//User needs to specify RBs that we will be watching
-	[Export] public RigidBody3D head; //platform on which ball is balanced
-	[Export] public RigidBody3D ball;
-	
-	//lets create a reset method that moves ball above balancing platform & reset platform's rotation
-	//also need to reset forces on the ball
-	void Reset()
-	{
-		//local scale by default (nice)
-		//create some offset in the x between -0.5 and 0.5
-		var xOffset = (float)GD.RandRange(-0.5f, 0.5f);
-		ball.Position = new Vector3(xOffset, 3, 0);
-		ball.LinearVelocity = new Vector3(0,0,0);
-		ball.AngularVelocity = new Vector3(0,0,0);
-		//reset spinning platform (head)
-		head.Rotation = new Vector3(0,0,0);
-		head.AngularVelocity = new Vector3(0,0,0);
-		head.Position = new Vector3(0,0,0);
-	}
-	
-	//Create a method for finding if ball fell off te platform (you can also implement all this directly in properties above)
-	bool IsDone()
-	{
-		return ball.Position.Y < -2f;
-	}
+    [Export] public RigidBody3D Ball { get; set; }
+    [Export] public Node3D Head { get; set; }
+    [Export] public float HeadRadius { get; set; } = 5f;
 
-	
-	//RL agent will figure out the size of inputs for neural network based on this
-	//It is up to user to determine how to format and fold observations into a single array
-	//its also possible to use 2D float float[,] for observations and RLMatrix will use CNN as first layer for this by default
-	float[] Observations()
-	{
-		//lets observe head rotation in the z (1) axis as well as ball x and y position (2) and linear velocity (2) 
-		//this is a sum of 5 floats
-		
-		//if you dont feel like counting you can do this roundabout way:
-		List<float> myObservations = new();
-		myObservations.Add(head.Rotation.Z/10f); //Divide by 10 to normalise a little...
-		myObservations.Add(ball.Position.X);
-		myObservations.Add(ball.Position.Y);
-		myObservations.Add(ball.LinearVelocity.X);
-		myObservations.Add(ball.LinearVelocity.Y);
+    private int poolingRate = 1;
+    private RLMatrixPoolingHelper poolingHelper;
+    private int stepsSoft = 0;
+    private int stepsHard = 0;
 
-		return myObservations.ToArray();
-	}
-	
-	
-	//Finally we need to make some actions (outputs from neural network are mapped to these)
-	//This is also a good place to add rewards
-	void RotateLeft()
-	{
-		head.AngularVelocity = new Vector3(0,0,3);
-		AddReward(0.2f);
-	}
-	void RotateRight()
-	{
-		head.AngularVelocity = new Vector3(0,0,-3);
-		AddReward(0.2f);
-	}
+    int _maxStepsHard = 5000;
+    private int maxStepsHard
+    {
+        get => _maxStepsHard / poolingRate;
+        set => _maxStepsHard = value;
+    }
 
+    int _maxStepsSoft = 1000;
+    private int maxStepsSoft
+    {
+        get => _maxStepsSoft / poolingRate;
+        set => _maxStepsSoft = value;
+    }
 
-	//For clarity I assign these methods here but they can be also written straight into properties above
-	public override void _Ready()
-	{
-		
-		myHeads = new List<List<Action>> { new List<Action> { RotateLeft, RotateRight } };
-		maxSteps = 10000;
-		
-		
-		//the base Ready must be called after heads exist!
-		base._Ready();
-	}
-	//Now we loop back up and assign these to properties
-	//In the future after dev is more stable it should be done with attributes
+    public OneOf<int, (int, int)> StateSize { get; set; }
+    public int[] DiscreteActionSize { get; set; } = Array.Empty<int>();
+    public (float min, float max)[] ContinuousActionBounds { get; set; } = new (float min, float max)[]
+    {
+        (-1f, 1f),
+        (-1f, 1f),
+    };
+
+    private bool isDone;
+
+    public void Initialize(int poolingRate = 1)
+    {
+        this.poolingRate = poolingRate;
+        poolingHelper = new RLMatrixPoolingHelper(poolingRate, ContinuousActionBounds.Length, GetObservations);
+        StateSize = poolingRate * 8;
+        isDone = true;
+        InitializeObservations();
+    }
+
+    private void InitializeObservations()
+    {
+        for (int i = 0; i < poolingRate; i++)
+        {
+            float reward = Reward();
+            poolingHelper.CollectObservation(reward);
+        }
+    }
+
+    public Task<float[]> GetCurrentState()
+    {
+        if (isDone && AmIHardDone())
+        {
+            Reset();
+            poolingHelper.HardReset(GetObservations);
+            isDone = false;
+        }
+        else if (isDone && AmISoftDone())
+        {
+            stepsSoft = 0;
+            isDone = false;
+        }
+
+        return Task.FromResult(poolingHelper.GetPooledObservations());
+    }
+
+    public Task Reset()
+    {
+        stepsSoft = 0;
+        stepsHard = 0;
+        ResetMe();
+        isDone = false;
+        poolingHelper.HardReset(GetObservations);
+
+        if (IsDoneCheck())
+        {
+            throw new Exception("Done flag still raised after reset - did you intend to reset?");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<(float reward, bool done)> Step(int[] discreteActions, float[] continuousActions)
+    {
+        stepsSoft++;
+        stepsHard++;
+
+        ApplyActions(continuousActions);
+
+        float stepReward = Reward();
+        poolingHelper.CollectObservation(stepReward);
+
+        float totalReward = poolingHelper.GetAndResetAccumulatedReward();
+        isDone = AmIHardDone() || AmISoftDone();
+
+        poolingHelper.SetAction(continuousActions);
+
+        return Task.FromResult((totalReward, isDone));
+    }
+
+    private bool AmIHardDone()
+    {
+        return (stepsHard >= maxStepsHard || IsDoneCheck());
+    }
+
+    private bool AmISoftDone()
+    {
+        return (stepsSoft >= maxStepsSoft);
+    }
+
+    public void GhostStep()
+    {
+        if(AmIHardDone() || AmISoftDone())
+            return;
+
+        if (poolingHelper.HasAction)
+        {
+            ApplyActions(poolingHelper.GetLastAction());
+        }
+        float reward = Reward();
+        poolingHelper.CollectObservation(reward);
+    }
+
+    private float[] GetObservations()
+    {
+        return new float[]
+        {
+            Head.Rotation.X,
+            Head.Rotation.Z,
+            BallOffsetObservation().X / HeadRadius,
+            BallOffsetObservation().Y / HeadRadius,
+            BallOffsetObservation().Z / HeadRadius,
+            BallVelocityObservation().X,
+            BallVelocityObservation().Y,
+            BallVelocityObservation().Z
+        };
+    }
+
+    private void ApplyActions(float[] actions)
+    {
+        HeadRotationActionXAxis(actions[0]);
+        HeadRotationActionZAxis(actions[1]);
+    }
+
+    public void HeadRotationActionZAxis(float rotation)
+    {
+        if ((Head.Rotation.Z < 0.25f && rotation > 0f) ||
+            (Head.Rotation.Z > -0.25f && rotation < 0f))
+        {
+            Head.RotateZ(2f * rotation * (float)GetProcessDeltaTime());
+        }
+    }
+
+    public void HeadRotationActionXAxis(float rotation)
+    {
+        if ((Head.Rotation.X < 0.25f && rotation > 0f) ||
+            (Head.Rotation.X > -0.25f && rotation < 0f))
+        {
+            Head.RotateX(2f * rotation * (float)GetProcessDeltaTime());
+        }
+    }
+
+    public Vector3 BallOffsetObservation()
+    {
+        return Ball.GlobalPosition - Head.GlobalPosition;
+    }
+
+    public Vector3 BallVelocityObservation()
+    {
+        return Ball.LinearVelocity;
+    }
+
+    public float Reward()
+    {
+        Vector3 ballOffset = BallOffsetObservation();
+        if (ballOffset.Y < -2f || Mathf.Abs(ballOffset.X) > HeadRadius || Mathf.Abs(ballOffset.Z) > HeadRadius)
+        {
+            return -1f;
+        }
+        else
+        {
+            return 0.1f;
+        }
+    }
+
+    public bool IsDoneCheck()
+    {
+        Vector3 ballOffset = BallOffsetObservation();
+        return ballOffset.Y < -2f || Mathf.Abs(ballOffset.X) > HeadRadius || Mathf.Abs(ballOffset.Z) > HeadRadius;
+    }
+
+    public void ResetMe()
+    {
+        Head.Rotation = new Vector3(
+            Mathf.DegToRad((float)GD.RandRange(-10.0, 10.0)),
+            0,
+            Mathf.DegToRad((float)GD.RandRange(-10.0, 10.0))
+        );
+        Ball.LinearVelocity = Vector3.Zero;
+        Ball.AngularVelocity = Vector3.Zero;
+        
+        float spawnRadius = HeadRadius * 0.5f;
+        Vector3 randomOffset = new Vector3(
+            (float)GD.RandRange(-spawnRadius, spawnRadius),
+            HeadRadius * 0.8f,
+            (float)GD.RandRange(-spawnRadius, spawnRadius)
+        );
+        Ball.GlobalPosition = Head.GlobalPosition + randomOffset;
+    }
 }

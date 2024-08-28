@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using RLMatrix;
 using RLMatrix.Agents.Common;
+using RLMatrix.Common.Remote;
 using System.Threading.Tasks;
+using RLMatrix.Agents.SignalR;
 
 public partial class BallBalanceTrainingManager : Node
 {
@@ -29,7 +31,10 @@ public partial class BallBalanceTrainingManager : Node
         useRNN: false
     );
 
-    private LocalContinuousRolloutAgent<float[]> myAgent;
+    //local
+    private LocalContinuousRolloutAgent<float[]> myAgent; 
+   //remote
+   //private RemoteContinuousRolloutAgent<float[]> myAgent;
     private List<BallBalanceEnv> myEnvs;
     private int stepCounter = 0;
     private float accumulatedTime = 0f;
@@ -84,7 +89,11 @@ public partial class BallBalanceTrainingManager : Node
     {
         await Task.Run(() =>
         {
+            //local
             myAgent = new LocalContinuousRolloutAgent<float[]>(optsppo, myEnvs);
+            
+            //remote
+          //  myAgent = new RemoteContinuousRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, myEnvs);
         });
 
         Engine.TimeScale = timeScale;

@@ -5,6 +5,8 @@
 
 [node name="Scene" type="Node3D"]
 script = ExtResource("1_ybubf")
+poolingRate = 10
+timeScale = 2.0
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.96167, 0.274211, 0, -0.274211, 0.96167, 0, 11.8128, 25)

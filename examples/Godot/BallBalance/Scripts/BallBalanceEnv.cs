@@ -133,7 +133,7 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
         };
     }
 
-    float modifier = 0.5f;
+    float modifier = 0.2f;
     private void ApplyActions(float[] actions)
     {
         Vector3 angularVelocity = new Vector3(
@@ -153,7 +153,7 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
         {
             return -1f;
         }
-        return 0.1f;
+        return 1f;
     }
 
     private bool IsDone()

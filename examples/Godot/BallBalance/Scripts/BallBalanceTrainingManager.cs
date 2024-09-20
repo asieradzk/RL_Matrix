@@ -19,15 +19,15 @@ public partial class BallBalanceTrainingManager : Node
         memorySize: 10000,
         gamma: 0.99f,
         gaeLambda: 0.95f,
-        lr: 3e-4f,
+        lr: 1e-3f,
         width: 128,
         depth: 2,
         clipEpsilon: 0.2f,
         vClipRange: 0.2f,
         cValue: 0.5f,
-        ppoEpochs: 3,
+        ppoEpochs: 10,
         clipGradNorm: 0.5f,
-        entropyCoefficient: 0.005f,
+        entropyCoefficient: 0.0005f,
         useRNN: false
     );
 
@@ -42,6 +42,8 @@ public partial class BallBalanceTrainingManager : Node
 
     public override void _Ready()
     {
+
+        
         Engine.TimeScale = timeScale;
         myEnvs = GetAllChildrenOfType<BallBalanceEnv>(this).ToList();
 
@@ -135,8 +137,12 @@ public partial class BallBalanceTrainingManager : Node
     {
         if (stepCounter % poolingRate == poolingRate - 1)
         {
+            //pause time
+            var cacheScale = Engine.TimeScale;
+            Engine.TimeScale = 0f;
             // Actual agent-env step
             myAgent.StepSync(true);
+            Engine.TimeScale = cacheScale;
         }
         else
         {

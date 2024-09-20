@@ -34,3 +34,4 @@ enabled=PackedStringArray("res://addons/debug_menu/plugin.cfg")
 [physics]
 
 3d/physics_engine="JoltPhysics3D"
+3d/default_gravity_vector=Vector3(0, -3, 0)

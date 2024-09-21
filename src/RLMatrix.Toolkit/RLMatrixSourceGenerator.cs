@@ -143,24 +143,41 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("        private (Action<int> method, int maxValue)[] _actionMethodsWithCaps;");
             sb.AppendLine("        private Action<float>[] _continuousActionMethods;");
         }
+
         private void GenerateProperties(StringBuilder sb, EnvironmentInfo info)
         {
-            sb.AppendLine("        public OneOf<int, (int, int)> StateSize { get; set; }");
-
-            int maxDiscreteActionSize = info.DiscreteActionMethods
-                .Max(m => (int)m.GetAttributes()
-                    .First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute))
-                    .ConstructorArguments[0].Value);
-
-            int discreteActionCount = info.DiscreteActionMethods.Length;
-            string discreteActionSizes = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, discreteActionCount));
-            sb.AppendLine($"        public int[] DiscreteActionSize {{ get; set; }} = new int[] {{ {discreteActionSizes} }};");
-
-            if (info is ContinuousEnvironmentInfo continuousInfo)
+            if (info is ContinuousEnvironmentInfo)
             {
-                sb.AppendLine($"        public (float min, float max)[] ContinuousActionBounds {{ get; set; }} = new (float min, float max)[] {{ {string.Join(", ", continuousInfo.ContinuousActionBounds.Select(b => $"({b.min}f, {b.max}f)"))} }};");
+                sb.AppendLine("        public OneOf<int, (int, int)> StateSize { get; set; }");
+
+                int maxDiscreteActionSize = info.DiscreteActionMethods
+                    .Max(m => (int)m.GetAttributes()
+                        .First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute))
+                        .ConstructorArguments[0].Value);
+
+                int discreteActionCount = info.DiscreteActionMethods.Length;
+                string discreteActionSizes = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, discreteActionCount));
+
+                sb.AppendLine($"        public int[] DiscreteActionSize {{ get; set; }} = new int[] {{ {discreteActionSizes} }};");
+                sb.AppendLine($"        public (float min, float max)[] ContinuousActionBounds {{ get; set; }} = new (float min, float max)[] {{ {string.Join(", ", ((ContinuousEnvironmentInfo)info).ContinuousActionBounds.Select(b => $"({b.min}f, {b.max}f)"))} }};");
+            }
+            else
+            {
+                sb.AppendLine("        public OneOf<int, (int, int)> stateSize { get; set; }");
+
+                int maxDiscreteActionSize = info.DiscreteActionMethods
+                    .Max(m => (int)m.GetAttributes()
+                        .First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute))
+                        .ConstructorArguments[0].Value);
+
+                int discreteActionCount = info.DiscreteActionMethods.Length;
+                string discreteActionSizes = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, discreteActionCount));
+
+                sb.AppendLine($"        public int[] actionSize {{ get; set; }} = new int[] {{ {discreteActionSizes} }};");
             }
         }
+
+
 
         private void GenerateConstructor(StringBuilder sb, EnvironmentInfo info)
         {
@@ -172,50 +189,49 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            _extraObservationSources = extraObservationSources ?? new List<IRLMatrixExtraObservationSource>();");
             sb.AppendLine();
 
-            int totalActionDimensions = info.DiscreteActionMethods.Length;
-            if (info is ContinuousEnvironmentInfo continuousInfo)
-            {
-                totalActionDimensions += continuousInfo.ContinuousActionMethods.Length;
-            }
-
-
             if (info is ContinuousEnvironmentInfo)
             {
-                sb.AppendLine($"            _poolingHelper = new RLMatrixPoolingHelper(_poolingRate, DiscreteActionSize.Length + ContinuousActionBounds.Length, _GetAllObservations);");
+                sb.AppendLine("            _poolingHelper = new RLMatrixPoolingHelper(_poolingRate, DiscreteActionSize.Length + ContinuousActionBounds.Length, _GetAllObservations);");
             }
             else
             {
-                sb.AppendLine($"            _poolingHelper = new RLMatrixPoolingHelper(_poolingRate, DiscreteActionSize.Length, _GetAllObservations);");
+                sb.AppendLine("            _poolingHelper = new RLMatrixPoolingHelper(_poolingRate, actionSize.Length, _GetAllObservations);");
             }
 
             sb.AppendLine();
             sb.AppendLine("            int baseObservationSize = _GetBaseObservationSize();");
             sb.AppendLine("            int extraObservationSize = _extraObservationSources.Sum(source => source.GetObservationSize());");
-            sb.AppendLine("            StateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
+
+            if (info is ContinuousEnvironmentInfo)
+            {
+                sb.AppendLine("            StateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
+            }
+            else
+            {
+                sb.AppendLine("            stateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
+            }
+
             sb.AppendLine();
             sb.AppendLine("            _rlMatrixEpisodeTerminated = true;");
             sb.AppendLine("            _InitializeObservations();");
             sb.AppendLine();
 
-            if (info.DiscreteActionMethods.Length > 0)
+            sb.AppendLine("            _actionMethodsWithCaps = new (Action<int>, int)[]");
+            sb.AppendLine("            {");
+            foreach (var method in info.DiscreteActionMethods)
             {
-                sb.AppendLine("            _actionMethodsWithCaps = new (Action<int>, int)[]");
-                sb.AppendLine("            {");
-                foreach (var method in info.DiscreteActionMethods)
-                {
-                    var attr = method.GetAttributes().First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute));
-                    var maxValue = attr.ConstructorArguments[0].Value;
-                    sb.AppendLine($"                ({method.Name}, {maxValue}),");
-                }
-                sb.AppendLine("            };");
+                var attr = method.GetAttributes().First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute));
+                var maxValue = attr.ConstructorArguments[0].Value;
+                sb.AppendLine($"                ({method.Name}, {maxValue}),");
             }
+            sb.AppendLine("            };");
 
-            if (info is ContinuousEnvironmentInfo continuousEnvInfo)
+            if (info is ContinuousEnvironmentInfo continuousInfo)
             {
                 sb.AppendLine();
                 sb.AppendLine("            _continuousActionMethods = new Action<float>[]");
                 sb.AppendLine("            {");
-                foreach (var method in continuousEnvInfo.ContinuousActionMethods)
+                foreach (var method in continuousInfo.ContinuousActionMethods)
                 {
                     sb.AppendLine($"                {method.Name},");
                 }
@@ -224,6 +240,7 @@ namespace RLMatrix.Toolkit
 
             sb.AppendLine("        }");
         }
+
         private void GenerateInitializeObservationsMethod(StringBuilder sb, EnvironmentInfo info)
         {
             sb.AppendLine("        private void _InitializeObservations()");
@@ -275,11 +292,12 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("        }");
         }
 
+
         private void GenerateStepMethod(StringBuilder sb, EnvironmentInfo info)
         {
             string methodSignature = info is ContinuousEnvironmentInfo
-                ? "public Task<(float reward, bool done)> Step(int[] discreteActions, float[] continuousActions)"
-                : "public Task<(float reward, bool done)> Step(int[] discreteActions)";
+                ? "public Task<(float, bool)> Step(int[] discreteActions, float[] continuousActions)"
+                : "public Task<(float, bool)> Step(int[] actionsIds)";
 
             sb.AppendLine($"        {methodSignature}");
             sb.AppendLine("        {");
@@ -288,11 +306,17 @@ namespace RLMatrix.Toolkit
             sb.AppendLine();
             sb.AppendLine("            for (int i = 0; i < _actionMethodsWithCaps.Length; i++)");
             sb.AppendLine("            {");
-            sb.AppendLine("                int cappedAction = Math.Min(discreteActions[i], _actionMethodsWithCaps[i].maxValue - 1);");
+            if (info is ContinuousEnvironmentInfo)
+            {
+                sb.AppendLine("                int cappedAction = Math.Min(discreteActions[i], _actionMethodsWithCaps[i].maxValue - 1);");
+            }
+            else
+            {
+                sb.AppendLine("                int cappedAction = Math.Min(actionsIds[i], _actionMethodsWithCaps[i].maxValue - 1);");
+            }
             sb.AppendLine("                _actionMethodsWithCaps[i].method(cappedAction);");
             sb.AppendLine("            }");
             sb.AppendLine();
-
             if (info is ContinuousEnvironmentInfo)
             {
                 sb.AppendLine("            for (int i = 0; i < _continuousActionMethods.Length; i++)");
@@ -301,7 +325,6 @@ namespace RLMatrix.Toolkit
                 sb.AppendLine("            }");
                 sb.AppendLine();
             }
-
             sb.AppendLine($"            float stepReward = {string.Join(" + ", info.RewardMethods.Select(m => $"{m.Name}()"))};");
             sb.AppendLine("            _poolingHelper.CollectObservation(stepReward);");
             sb.AppendLine();
@@ -309,21 +332,18 @@ namespace RLMatrix.Toolkit
             sb.AppendLine();
             sb.AppendLine("            _rlMatrixEpisodeTerminated = _IsHardDone() || _IsSoftDone();");
             sb.AppendLine();
-
             if (info is ContinuousEnvironmentInfo)
             {
                 sb.AppendLine("            _poolingHelper.SetAction(discreteActions.Select(a => (float)a).Concat(continuousActions).ToArray());");
             }
             else
             {
-                sb.AppendLine("            _poolingHelper.SetAction(discreteActions.Select(a => (float)a).ToArray());");
+                sb.AppendLine("            _poolingHelper.SetAction(actionsIds.Select(a => (float)a).ToArray());");
             }
-
             sb.AppendLine();
             sb.AppendLine("            return Task.FromResult((totalReward, _rlMatrixEpisodeTerminated));");
             sb.AppendLine("        }");
         }
-
 
         private void GenerateIsHardDoneMethod(StringBuilder sb, EnvironmentInfo info)
         {
@@ -356,7 +376,6 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("                    int cappedAction = Math.Min((int)actions[i], _actionMethodsWithCaps[i].maxValue - 1);");
             sb.AppendLine("                    _actionMethodsWithCaps[i].method(cappedAction);");
             sb.AppendLine("                }");
-
             if (info is ContinuousEnvironmentInfo)
             {
                 sb.AppendLine();
@@ -365,14 +384,11 @@ namespace RLMatrix.Toolkit
                 sb.AppendLine("                    _continuousActionMethods[i](actions[_actionMethodsWithCaps.Length + i]);");
                 sb.AppendLine("                }");
             }
-
             sb.AppendLine("            }");
             sb.AppendLine($"            float reward = {string.Join(" + ", info.RewardMethods.Select(m => $"{m.Name}()"))};");
             sb.AppendLine("            _poolingHelper.CollectObservation(reward);");
             sb.AppendLine("        }");
         }
-
-
         private void GenerateGetAllObservationsMethod(StringBuilder sb, EnvironmentInfo info)
         {
             sb.AppendLine("        private float[] _GetAllObservations()");

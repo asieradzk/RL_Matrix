@@ -112,7 +112,7 @@ namespace RLMatrix.Toolkit
 
             GenerateFields(sb);
             GenerateProperties(sb, info);
-            GenerateConstructor(sb, info);
+            GenerateRLInitMethod(sb, info);
             GenerateInitializeObservationsMethod(sb, info);
             GenerateGetCurrentStateMethod(sb);
             GenerateResetMethod(sb, info);
@@ -129,7 +129,6 @@ namespace RLMatrix.Toolkit
 
             return sb.ToString();
         }
-
         private void GenerateFields(StringBuilder sb)
         {
             sb.AppendLine("        private int _poolingRate;");
@@ -178,10 +177,10 @@ namespace RLMatrix.Toolkit
         }
 
 
-
-        private void GenerateConstructor(StringBuilder sb, EnvironmentInfo info)
+        private void GenerateRLInitMethod(StringBuilder sb, EnvironmentInfo info)
         {
-            sb.AppendLine($"        public {info.EnvironmentType.Name}(int poolingRate = 1, int maxStepsHard = 1000, int maxStepsSoft = 100, List<IRLMatrixExtraObservationSource> extraObservationSources = null)");
+            string returnType = info.EnvironmentType.Name;
+            sb.AppendLine($"        public virtual {returnType} RLInit(int poolingRate = 1, int maxStepsHard = 1000, int maxStepsSoft = 100, List<IRLMatrixExtraObservationSource> extraObservationSources = null)");
             sb.AppendLine("        {");
             sb.AppendLine("            _poolingRate = poolingRate;");
             sb.AppendLine("            _maxStepsHard = maxStepsHard / poolingRate;");
@@ -238,8 +237,10 @@ namespace RLMatrix.Toolkit
                 sb.AppendLine("            };");
             }
 
+            sb.AppendLine("            return this;");
             sb.AppendLine("        }");
         }
+
 
         private void GenerateInitializeObservationsMethod(StringBuilder sb, EnvironmentInfo info)
         {

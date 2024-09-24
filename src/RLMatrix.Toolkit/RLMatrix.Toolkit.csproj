@@ -8,7 +8,7 @@
 		<Version>0.4.3</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
-		<Description>Simplify RLMatrix IEnvironment setup with source generator</Description>
+		<Description>Environment (Source) Generator and other utilities for RLMatrix</Description>
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
 		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 		<PackageProjectUrl>https://github.com/asieradzk/RL_Matrix</PackageProjectUrl>

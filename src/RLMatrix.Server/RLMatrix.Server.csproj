@@ -5,7 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageId>RLMatrix.Server</PackageId>
-		<Version>0.4.3</Version>
+		<Version>0.4.3.1</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<Description>Server components for Deep Reinforcement Learning in .NET</Description>

@@ -65,14 +65,15 @@ namespace RLMatrix.Toolkit
         public ContinuousEnvironmentInfo(INamedTypeSymbol environmentType) : base(environmentType)
         {
             ContinuousActionMethods = GetMethodsWithAttribute<RLMatrixActionContinuousAttribute>();
-
-            DiscreteDimensions = DiscreteActionMethods
-                .Select(m => m.GetAttributes()
-                    .First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute))
-                    .ConstructorArguments[0].Value)
-                .Cast<int>()
-                .ToArray();
-
+            DiscreteDimensions = DiscreteActionMethods.Length > 0
+                ? DiscreteActionMethods
+                    .Select(m => m.GetAttributes()
+                        .FirstOrDefault(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute))
+                        ?.ConstructorArguments.FirstOrDefault().Value)
+                    .Where(v => v != null)
+                    .Cast<int>()
+                    .ToArray()
+                : new int[0];
             ContinuousActionBounds = ContinuousActionMethods
                 .Select(m =>
                 {

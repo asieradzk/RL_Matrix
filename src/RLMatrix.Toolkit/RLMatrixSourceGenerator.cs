@@ -129,6 +129,8 @@ namespace RLMatrix.Toolkit
 
             return sb.ToString();
         }
+
+
         private void GenerateFields(StringBuilder sb)
         {
             sb.AppendLine("        private int _poolingRate;");
@@ -143,31 +145,36 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("        private Action<float>[] _continuousActionMethods;");
         }
 
+
         private void GenerateProperties(StringBuilder sb, EnvironmentInfo info)
         {
-            if (info is ContinuousEnvironmentInfo)
+            if (info is ContinuousEnvironmentInfo continuousInfo)
             {
                 sb.AppendLine("        public OneOf<int, (int, int)> StateSize { get; set; }");
 
-                int maxDiscreteActionSize = info.DiscreteActionMethods
-                    .Max(m => (int)m.GetAttributes()
-                        .First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute))
-                        .ConstructorArguments[0].Value);
+                if (continuousInfo.DiscreteDimensions.Length > 0)
+                {
+                    int maxDiscreteActionSize = continuousInfo.DiscreteDimensions.Max();
+                    string discreteActionSizes = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, continuousInfo.DiscreteDimensions.Length));
+                    sb.AppendLine($"        public int[] DiscreteActionSize {{ get; set; }} = new int[] {{ {discreteActionSizes} }};");
+                }
+                else
+                {
+                    sb.AppendLine("        public int[] DiscreteActionSize { get; set; } = new int[0];");
+                }
 
-                int discreteActionCount = info.DiscreteActionMethods.Length;
-                string discreteActionSizes = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, discreteActionCount));
-
-                sb.AppendLine($"        public int[] DiscreteActionSize {{ get; set; }} = new int[] {{ {discreteActionSizes} }};");
-                sb.AppendLine($"        public (float min, float max)[] ContinuousActionBounds {{ get; set; }} = new (float min, float max)[] {{ {string.Join(", ", ((ContinuousEnvironmentInfo)info).ContinuousActionBounds.Select(b => $"({b.min}f, {b.max}f)"))} }};");
+                sb.AppendLine($"        public (float min, float max)[] ContinuousActionBounds {{ get; set; }} = new (float min, float max)[] {{ {string.Join(", ", continuousInfo.ContinuousActionBounds.Select(b => $"({b.min}f, {b.max}f)"))} }};");
             }
             else
             {
                 sb.AppendLine("        public OneOf<int, (int, int)> stateSize { get; set; }");
 
-                int maxDiscreteActionSize = info.DiscreteActionMethods
-                    .Max(m => (int)m.GetAttributes()
-                        .First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute))
-                        .ConstructorArguments[0].Value);
+                int maxDiscreteActionSize = info.DiscreteActionMethods.Length > 0
+                    ? info.DiscreteActionMethods
+                        .Max(m => (int)m.GetAttributes()
+                            .First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute))
+                            .ConstructorArguments[0].Value)
+                    : 0;
 
                 int discreteActionCount = info.DiscreteActionMethods.Length;
                 string discreteActionSizes = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, discreteActionCount));
@@ -175,7 +182,6 @@ namespace RLMatrix.Toolkit
                 sb.AppendLine($"        public int[] actionSize {{ get; set; }} = new int[] {{ {discreteActionSizes} }};");
             }
         }
-
 
         private void GenerateRLInitMethod(StringBuilder sb, EnvironmentInfo info)
         {
@@ -188,51 +194,63 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            _extraObservationSources = extraObservationSources ?? new List<IRLMatrixExtraObservationSource>();");
             sb.AppendLine();
 
-            if (info is ContinuousEnvironmentInfo)
-            {
-                sb.AppendLine("            _poolingHelper = new RLMatrixPoolingHelper(_poolingRate, DiscreteActionSize.Length + ContinuousActionBounds.Length, _GetAllObservations);");
-            }
-            else
-            {
-                sb.AppendLine("            _poolingHelper = new RLMatrixPoolingHelper(_poolingRate, actionSize.Length, _GetAllObservations);");
-            }
-
-            sb.AppendLine();
-            sb.AppendLine("            int baseObservationSize = _GetBaseObservationSize();");
-            sb.AppendLine("            int extraObservationSize = _extraObservationSources.Sum(source => source.GetObservationSize());");
-
-            if (info is ContinuousEnvironmentInfo)
-            {
-                sb.AppendLine("            StateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
-            }
-            else
-            {
-                sb.AppendLine("            stateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
-            }
-
-            sb.AppendLine();
-            sb.AppendLine("            _rlMatrixEpisodeTerminated = true;");
-            sb.AppendLine("            _InitializeObservations();");
-            sb.AppendLine();
-
-            sb.AppendLine("            _actionMethodsWithCaps = new (Action<int>, int)[]");
-            sb.AppendLine("            {");
-            foreach (var method in info.DiscreteActionMethods)
-            {
-                var attr = method.GetAttributes().First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute));
-                var maxValue = attr.ConstructorArguments[0].Value;
-                sb.AppendLine($"                ({method.Name}, {maxValue}),");
-            }
-            sb.AppendLine("            };");
-
             if (info is ContinuousEnvironmentInfo continuousInfo)
             {
+                sb.AppendLine($"            _poolingHelper = new RLMatrixPoolingHelper(_poolingRate, DiscreteActionSize.Length + ContinuousActionBounds.Length, _GetAllObservations);");
+                sb.AppendLine();
+                sb.AppendLine("            int baseObservationSize = _GetBaseObservationSize();");
+                sb.AppendLine("            int extraObservationSize = _extraObservationSources.Sum(source => source.GetObservationSize());");
+                sb.AppendLine("            StateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
+                sb.AppendLine();
+                sb.AppendLine("            _rlMatrixEpisodeTerminated = true;");
+                sb.AppendLine("            _InitializeObservations();");
+                sb.AppendLine();
+
+                if (continuousInfo.DiscreteDimensions.Length > 0)
+                {
+                    sb.AppendLine("            _actionMethodsWithCaps = new (Action<int>, int)[]");
+                    sb.AppendLine("            {");
+                    foreach (var method in info.DiscreteActionMethods)
+                    {
+                        var attr = method.GetAttributes().First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute));
+                        var maxValue = attr.ConstructorArguments[0].Value;
+                        sb.AppendLine($"                ({method.Name}, {maxValue}),");
+                    }
+                    sb.AppendLine("            };");
+                }
+                else
+                {
+                    sb.AppendLine("            _actionMethodsWithCaps = new (Action<int>, int)[0];");
+                }
+
                 sb.AppendLine();
                 sb.AppendLine("            _continuousActionMethods = new Action<float>[]");
                 sb.AppendLine("            {");
                 foreach (var method in continuousInfo.ContinuousActionMethods)
                 {
                     sb.AppendLine($"                {method.Name},");
+                }
+                sb.AppendLine("            };");
+            }
+            else
+            {
+                sb.AppendLine($"            _poolingHelper = new RLMatrixPoolingHelper(_poolingRate, actionSize.Length, _GetAllObservations);");
+                sb.AppendLine();
+                sb.AppendLine("            int baseObservationSize = _GetBaseObservationSize();");
+                sb.AppendLine("            int extraObservationSize = _extraObservationSources.Sum(source => source.GetObservationSize());");
+                sb.AppendLine("            stateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
+                sb.AppendLine();
+                sb.AppendLine("            _rlMatrixEpisodeTerminated = true;");
+                sb.AppendLine("            _InitializeObservations();");
+                sb.AppendLine();
+
+                sb.AppendLine("            _actionMethodsWithCaps = new (Action<int>, int)[]");
+                sb.AppendLine("            {");
+                foreach (var method in info.DiscreteActionMethods)
+                {
+                    var attr = method.GetAttributes().First(a => a.AttributeClass.Name == nameof(RLMatrixActionDiscreteAttribute));
+                    var maxValue = attr.ConstructorArguments[0].Value;
+                    sb.AppendLine($"                ({method.Name}, {maxValue}),");
                 }
                 sb.AppendLine("            };");
             }
@@ -293,7 +311,6 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("        }");
         }
 
-
         private void GenerateStepMethod(StringBuilder sb, EnvironmentInfo info)
         {
             string methodSignature = info is ContinuousEnvironmentInfo
@@ -305,27 +322,44 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            _stepsSoft++;");
             sb.AppendLine("            _stepsHard++;");
             sb.AppendLine();
-            sb.AppendLine("            for (int i = 0; i < _actionMethodsWithCaps.Length; i++)");
-            sb.AppendLine("            {");
-            if (info is ContinuousEnvironmentInfo)
+
+            if (info is ContinuousEnvironmentInfo continuousInfo)
             {
-                sb.AppendLine("                int cappedAction = Math.Min(discreteActions[i], _actionMethodsWithCaps[i].maxValue - 1);");
-            }
-            else
-            {
-                sb.AppendLine("                int cappedAction = Math.Min(actionsIds[i], _actionMethodsWithCaps[i].maxValue - 1);");
-            }
-            sb.AppendLine("                _actionMethodsWithCaps[i].method(cappedAction);");
-            sb.AppendLine("            }");
-            sb.AppendLine();
-            if (info is ContinuousEnvironmentInfo)
-            {
+                if (continuousInfo.DiscreteDimensions.Length > 0)
+                {
+                    sb.AppendLine("            for (int i = 0; i < _actionMethodsWithCaps.Length; i++)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine("                int cappedAction = Math.Min(discreteActions[i], _actionMethodsWithCaps[i].maxValue - 1);");
+                    sb.AppendLine("                _actionMethodsWithCaps[i].method(cappedAction);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine();
+                }
+
                 sb.AppendLine("            for (int i = 0; i < _continuousActionMethods.Length; i++)");
                 sb.AppendLine("            {");
                 sb.AppendLine("                _continuousActionMethods[i](continuousActions[i]);");
                 sb.AppendLine("            }");
-                sb.AppendLine();
+
+                if (continuousInfo.DiscreteDimensions.Length > 0)
+                {
+                    sb.AppendLine("            _poolingHelper.SetAction(discreteActions.Select(a => (float)a).Concat(continuousActions).ToArray());");
+                }
+                else
+                {
+                    sb.AppendLine("            _poolingHelper.SetAction(continuousActions);");
+                }
             }
+            else
+            {
+                sb.AppendLine("            for (int i = 0; i < _actionMethodsWithCaps.Length; i++)");
+                sb.AppendLine("            {");
+                sb.AppendLine("                int cappedAction = Math.Min(actionsIds[i], _actionMethodsWithCaps[i].maxValue - 1);");
+                sb.AppendLine("                _actionMethodsWithCaps[i].method(cappedAction);");
+                sb.AppendLine("            }");
+                sb.AppendLine("            _poolingHelper.SetAction(actionsIds.Select(a => (float)a).ToArray());");
+            }
+
+            sb.AppendLine();
             sb.AppendLine($"            float stepReward = {string.Join(" + ", info.RewardMethods.Select(m => $"{m.Name}()"))};");
             sb.AppendLine("            _poolingHelper.CollectObservation(stepReward);");
             sb.AppendLine();
@@ -333,18 +367,10 @@ namespace RLMatrix.Toolkit
             sb.AppendLine();
             sb.AppendLine("            _rlMatrixEpisodeTerminated = _IsHardDone() || _IsSoftDone();");
             sb.AppendLine();
-            if (info is ContinuousEnvironmentInfo)
-            {
-                sb.AppendLine("            _poolingHelper.SetAction(discreteActions.Select(a => (float)a).Concat(continuousActions).ToArray());");
-            }
-            else
-            {
-                sb.AppendLine("            _poolingHelper.SetAction(actionsIds.Select(a => (float)a).ToArray());");
-            }
-            sb.AppendLine();
             sb.AppendLine("            return Task.FromResult((totalReward, _rlMatrixEpisodeTerminated));");
             sb.AppendLine("        }");
         }
+
 
         private void GenerateIsHardDoneMethod(StringBuilder sb, EnvironmentInfo info)
         {
@@ -372,19 +398,35 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            if (_poolingHelper.HasAction)");
             sb.AppendLine("            {");
             sb.AppendLine("                var actions = _poolingHelper.GetLastAction();");
-            sb.AppendLine("                for (int i = 0; i < _actionMethodsWithCaps.Length; i++)");
-            sb.AppendLine("                {");
-            sb.AppendLine("                    int cappedAction = Math.Min((int)actions[i], _actionMethodsWithCaps[i].maxValue - 1);");
-            sb.AppendLine("                    _actionMethodsWithCaps[i].method(cappedAction);");
-            sb.AppendLine("                }");
-            if (info is ContinuousEnvironmentInfo)
+            sb.AppendLine("                int actionIndex = 0;");
+
+            if (info is ContinuousEnvironmentInfo continuousInfo)
             {
-                sb.AppendLine();
+                if (continuousInfo.DiscreteDimensions.Length > 0)
+                {
+                    sb.AppendLine("                for (int i = 0; i < _actionMethodsWithCaps.Length; i++)");
+                    sb.AppendLine("                {");
+                    sb.AppendLine("                    int cappedAction = Math.Min((int)actions[actionIndex], _actionMethodsWithCaps[i].maxValue - 1);");
+                    sb.AppendLine("                    _actionMethodsWithCaps[i].method(cappedAction);");
+                    sb.AppendLine("                    actionIndex++;");
+                    sb.AppendLine("                }");
+                }
+
                 sb.AppendLine("                for (int i = 0; i < _continuousActionMethods.Length; i++)");
                 sb.AppendLine("                {");
-                sb.AppendLine("                    _continuousActionMethods[i](actions[_actionMethodsWithCaps.Length + i]);");
+                sb.AppendLine("                    _continuousActionMethods[i](actions[actionIndex]);");
+                sb.AppendLine("                    actionIndex++;");
                 sb.AppendLine("                }");
             }
+            else
+            {
+                sb.AppendLine("                for (int i = 0; i < _actionMethodsWithCaps.Length; i++)");
+                sb.AppendLine("                {");
+                sb.AppendLine("                    int cappedAction = Math.Min((int)actions[i], _actionMethodsWithCaps[i].maxValue - 1);");
+                sb.AppendLine("                    _actionMethodsWithCaps[i].method(cappedAction);");
+                sb.AppendLine("                }");
+            }
+
             sb.AppendLine("            }");
             sb.AppendLine($"            float reward = {string.Join(" + ", info.RewardMethods.Select(m => $"{m.Name}()"))};");
             sb.AppendLine("            _poolingHelper.CollectObservation(reward);");

@@ -11,7 +11,6 @@ namespace RLMatrix.Toolkit
         public IMethodSymbol[] RewardMethods { get; }
         public IMethodSymbol DoneMethod { get; }
         public IMethodSymbol ResetMethod { get; }
-
         public string DoneMethodName => DoneMethod?.Name;
         public string ResetMethodName => ResetMethod?.Name;
 

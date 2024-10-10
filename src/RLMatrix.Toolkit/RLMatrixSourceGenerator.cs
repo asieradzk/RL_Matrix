@@ -121,7 +121,7 @@ namespace RLMatrix.Toolkit
             GenerateIsSoftDoneMethod(sb);
             GenerateGhostStepMethod(sb, info);
             GenerateGetAllObservationsMethod(sb, info);
-            GenerateGetBaseObservationSizeMethod(sb);
+            GenerateGetBaseObservationSizeMethod(sb, info);
             GenerateGetBaseObservationsMethod(sb, info);
 
             sb.AppendLine("    }");
@@ -442,28 +442,35 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("        }");
         }
 
-        private void GenerateGetBaseObservationSizeMethod(StringBuilder sb)
+        private void GenerateGetBaseObservationsMethod(StringBuilder sb, EnvironmentInfo info)
+        {
+            sb.AppendLine("        private float[] _GetBaseObservations()");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var observations = new List<float>();");
+
+            foreach (var method in info.ObservationMethods)
+            {
+                if (method.ReturnType.SpecialType == SpecialType.System_Single)
+                {
+                    sb.AppendLine($"            observations.Add({method.Name}());");
+                }
+                else if (method.ReturnType is IArrayTypeSymbol arrayType &&
+                         arrayType.ElementType.SpecialType == SpecialType.System_Single)
+                {
+                    sb.AppendLine($"            observations.AddRange({method.Name}());");
+                }
+            }
+
+            sb.AppendLine("            return observations.ToArray();");
+            sb.AppendLine("        }");
+        }
+        private void GenerateGetBaseObservationSizeMethod(StringBuilder sb, EnvironmentInfo info)
         {
             sb.AppendLine("        private int _GetBaseObservationSize()");
             sb.AppendLine("        {");
             sb.AppendLine("            return _GetBaseObservations().Length;");
             sb.AppendLine("        }");
         }
-
-        private void GenerateGetBaseObservationsMethod(StringBuilder sb, EnvironmentInfo info)
-        {
-            sb.AppendLine("        private float[] _GetBaseObservations()");
-            sb.AppendLine("        {");
-            sb.AppendLine("            return new float[]");
-            sb.AppendLine("            {");
-            foreach (var method in info.ObservationMethods)
-            {
-                sb.AppendLine($"                {method.Name}(),");
-            }
-            sb.AppendLine("            };");
-            sb.AppendLine("        }");
-        }
-
     }
 
     public class RLMatrixSyntaxReceiver : ISyntaxContextReceiver

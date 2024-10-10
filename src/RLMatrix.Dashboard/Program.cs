@@ -12,17 +12,22 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-
-
 var environment = builder.Environment.EnvironmentName;
 
 if (environment == "Development")
 {
     builder.WebHost.UseUrls("https://localhost:7126", "http://localhost:5069");
+    builder.Services.AddHttpClient("UnsafeHttpClient").ConfigurePrimaryHttpMessageHandler(() =>
+    {
+        return new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+        };
+    });
 }
 else
 {
-    builder.WebHost.UseUrls("https://localhost:7126","http://localhost:5069");
+    builder.WebHost.UseUrls("https://localhost:7126", "http://localhost:5069");
 }
 
 builder.Services.AddRazorPages();
@@ -34,9 +39,9 @@ builder.Services.AddSignalR(options =>
     options.KeepAliveInterval = TimeSpan.FromMinutes(3.5);
     options.MaximumReceiveMessageSize = 1024 * 1024 * 1024; // 1 GB
 }).AddJsonProtocol(options => {
-
     options.PayloadSerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals;
 });
+
 builder.Services.AddSingleton<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddSingleton<Subject<ExperimentData>>();
@@ -47,15 +52,17 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
 }
+else
+{
+    // Disable HTTPS redirection in development
+    app.UseHttpsRedirection();
+}
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-
 app.MapBlazorHub();
 app.MapHub<ExperimentDataHub>("/experimentdatahub");
 app.MapFallbackToPage("/_Host");
-
 
 _ = Task.Run(() =>
 {
@@ -70,7 +77,7 @@ static void OpenBrowser(string url)
 {
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
-        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); 
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
     }
     else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
     {
@@ -78,6 +85,5 @@ static void OpenBrowser(string url)
     }
     else
     {
-        
     }
 }

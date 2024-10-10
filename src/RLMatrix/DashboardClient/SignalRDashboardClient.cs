@@ -50,12 +50,22 @@ namespace RLMatrix.Dashboard
         private Timer _sendTimer;
         private SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
 
-        public SignalRDashboardClient(string hubUrl = "https://localhost:7126/experimentdatahub")
+        public SignalRDashboardClient(string hubUrl = "http://localhost:5069/experimentdatahub")
         {
             _hubConnection = new HubConnectionBuilder()
-                .WithUrl(hubUrl)
-                .WithAutomaticReconnect(new[] { TimeSpan.FromSeconds(0), TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(30) })
-                .Build();
+        .WithUrl(hubUrl, options =>
+        {
+            options.HttpMessageHandlerFactory = (message) =>
+            {
+                if (message is HttpClientHandler clientHandler)
+                {
+                    clientHandler.ServerCertificateCustomValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true;
+                }
+                return message;
+            };
+        })
+        .WithAutomaticReconnect(new[] { TimeSpan.FromSeconds(0), TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(30) })
+        .Build();
 
             SetupCallbacks();
             _experimentId = Guid.NewGuid();

@@ -17,6 +17,7 @@
 		<PackageTags>Reinforcement Learning, RL, Agent, Policy, DQN, PPO, DDPG, MCTS, ML, Machine Learning, Deep Reinforcement Learning, Server</PackageTags>
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 	</PropertyGroup>
 
 

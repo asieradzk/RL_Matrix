@@ -22,7 +22,8 @@ namespace RLMatrix
         /// <param name="actionSizes">The sizes of the action space.</param>
         /// <param name="stateSizes">The sizes of the state space.</param>
         /// <param name="agentComposer">The optional agent composer.</param>
-        public LocalDiscreteQAgent(DQNAgentOptions opts, int[] actionSizes, OneOf<int, (int, int)> stateSizes, IDiscreteQAgentFactory<T> agentComposer = null)
+        public LocalDiscreteQAgent(DQNAgentOptions opts, int[] actionSizes, OneOf<int, (int, int)> stateSizes, 
+          IDiscreteQAgentFactory<T> agentComposer = null)
         {
             _agent = agentComposer?.ComposeAgent(opts) ?? DiscreteQAgentFactory<T>.ComposeQAgent(opts, actionSizes, stateSizes);
         }

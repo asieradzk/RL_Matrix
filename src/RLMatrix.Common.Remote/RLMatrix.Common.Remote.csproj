@@ -5,7 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageId>RLMatrix.Common.Remote</PackageId>
-		<Version>0.4.3</Version>
+		<Version>0.4.3.8</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<Description>Remote components for Deep Reinforcement Learning in .NET</Description>
@@ -37,7 +37,7 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.6" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.6" />
-		<PackageReference Include="RLMatrix.Common" Version="0.4.0" />		
+		<PackageReference Include="RLMatrix.Common" Version="0.4.3.8" />		
 	</ItemGroup>
 	
 	

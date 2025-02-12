@@ -38,4 +38,28 @@ namespace RLMatrix.Toolkit
 
     [AttributeUsage(AttributeTargets.Method)]
     public class RLMatrixResetAttribute : Attribute { }
+
+
+
+    //----------------------------------------------Stubs for future semantics integration----------------------------------------------
+    [AttributeUsage(AttributeTargets.Class)]
+    public class RLMatrixEnvironmentDescriptionAttribute : Attribute
+    {
+        public string Description { get; }
+        public RLMatrixEnvironmentDescriptionAttribute(string description) => Description = description;
+    }
+
+    [AttributeUsage(AttributeTargets.Method)]
+    public class RLMatrixObservationDescriptionAttribute : Attribute
+    {
+        public string Description { get; }
+        public RLMatrixObservationDescriptionAttribute(string description) => Description = description;
+    }
+
+    [AttributeUsage(AttributeTargets.Method)]
+    public class RLMatrixActionDescriptionAttribute : Attribute
+    {
+        public string Description { get; }
+        public RLMatrixActionDescriptionAttribute(string description) => Description = description;
+    }
 }

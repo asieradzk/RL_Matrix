@@ -14,6 +14,8 @@ using static TorchSharp.torch;
 using static TorchSharp.torch.optim;
 using static TorchSharp.torchvision;
 
+
+//TODO: All GAIL needs to be re-implemented. No longer works
 public class GAIL<T>
 {
 

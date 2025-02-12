@@ -17,6 +17,7 @@
 		<PackageTags>Reinforcement Learning, RL, Agent, Policy, DQN, PPO, DDPG, MCTS, ML, Machine Learning, Deep Reinforcement Learning, Remote</PackageTags>
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
 		<DefineConstants>NET8_0</DefineConstants>

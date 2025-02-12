@@ -1,4 +1,10 @@
-﻿![RLMatrixBanner](https://i.imgur.com/x5x6Ph8.png)
+Add 
+
+DashboardProvider.EnableConsoleLogging(1);
+
+before any operations. You won't be able to switch back to dashboard during that session
+ 
+ ![RLMatrixBanner](https://i.imgur.com/x5x6Ph8.png)
 
 # 🚀 RL Matrix - Pure C# Deep Reinforcement Learning Experience with TorchSharp!
 

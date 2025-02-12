@@ -18,7 +18,7 @@
 
 	<PropertyGroup>
 		<PackageId>RLMatrix</PackageId>
-		<Version>0.4.3.3</Version>
+		<Version>0.4.3.8</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
@@ -29,6 +29,7 @@
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 	</PropertyGroup>
 
 	<ItemGroup>

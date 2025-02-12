@@ -17,7 +17,6 @@ namespace RLMatrix.Agents.Common
         protected readonly Dictionary<Guid, IEnvironmentAsync<TState>> _environments;
         protected readonly Dictionary<Guid, Episode<TState>> _ennvPairs;
         protected readonly IDiscreteProxy<TState> _agent;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="LocalDiscreteRolloutAgent{TState}"/> class with DQN agent options.
         /// </summary>

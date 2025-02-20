@@ -364,3 +364,6 @@ FodyWeavers.xsd
 
 # Ignore .idea folder
 .idea/
+
+# Ignore DotSettings files
+*.DotSettings

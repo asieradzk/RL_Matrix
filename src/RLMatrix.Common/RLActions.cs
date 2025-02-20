@@ -46,7 +46,6 @@ public sealed record RLActions
             : Discrete(discreteActions);
     }
 
-    // TODO: re-enable these after
-    //public static implicit operator RLActions(int[] discreteActions) => Discrete(discreteActions);
-    //public static implicit operator RLActions((int[] DiscreteActions, float[] ContinuousActions) tuple) => Continuous(tuple.DiscreteActions, tuple.ContinuousActions);
+    public static implicit operator RLActions(int[] discreteActions) => Discrete(discreteActions);
+    public static implicit operator RLActions((int[] DiscreteActions, float[] ContinuousActions) tuple) => Continuous(tuple.DiscreteActions, tuple.ContinuousActions);
 }

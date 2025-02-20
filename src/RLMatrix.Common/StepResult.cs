@@ -5,4 +5,7 @@
 /// </summary>
 /// <param name="Reward">The reward from the step.</param>
 /// <param name="IsDone">Whether this step should be the last.</param>
-public record StepResult(float Reward, bool IsDone);
+public record StepResult(float Reward, bool IsDone)
+{
+    public static implicit operator StepResult((float Reward, bool IsDone) tuple) => new(tuple.Reward, tuple.IsDone);
+}

@@ -11,9 +11,9 @@ before any operations. You won't be able to switch back to dashboard during that
 Dive into the future of type-safe Deep Reinforcement Learning with .NET & RL Matrix, powered by the might of TorchSharp. RL Matrix stands out as a user-friendly toolkit offering a collection of RL algorithms—primed for plug, play, and prosper!
 [![NuGet](https://img.shields.io/nuget/v/RLMatrix.svg?label=RLMatrix-nuget)](https://www.nuget.org/packages/RLMatrix/)
 [![NuGet](https://img.shields.io/nuget/v/RLMatrix.WinformsChart.svg?label=WinformsChart-nuget)](https://www.nuget.org/packages/RLMatrix.WinformsChart/)
-[![NuGet](https://img.shields.io/nuget/v/RLMatrix.Godot.svg?label=RLMatrix.Godot-nuget)](https://www.nuget.org/packages/RLMatrix.Godot/)[
-![TorchSharp](https://img.shields.io/badge/Made%20With-TorchSharp-8A2BE2)](https://github.com/dotnet/TorchSharp)
-![discord](https://img.shields.io/badge/-discord-link?label=join&link=https://discord.gg/ppgr44rBHn)](https://discord.gg/ppgr44rBHn)
+[![NuGet](https://img.shields.io/nuget/v/RLMatrix.Godot.svg?label=RLMatrix.Godot-nuget)](https://www.nuget.org/packages/RLMatrix.Godot/)
+[![TorchSharp](https://img.shields.io/badge/Made%20With-TorchSharp-8A2BE2)](https://github.com/dotnet/TorchSharp)
+[![discord](https://img.shields.io/badge/-discord-link?label=join&link=https://discord.gg/ppgr44rBHn)](https://discord.gg/ppgr44rBHn)
 
 
 ## 🌟 Featured Algorithms:

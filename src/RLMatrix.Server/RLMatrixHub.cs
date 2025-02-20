@@ -9,6 +9,7 @@ public class RLMatrixHub(IRLMatrixService service) : Hub
     public Task InitializeAsync(AgentOptionsDTO opts, int[] discreteActionDimensions, ContinuousActionDimensions[] continuousActionDimensions, StateSizesDTO stateSizes)
     {
         Console.WriteLine($"Initializing... request from {Context.ConnectionId}");
+        
         try
         {
             Console.WriteLine("Initialized");

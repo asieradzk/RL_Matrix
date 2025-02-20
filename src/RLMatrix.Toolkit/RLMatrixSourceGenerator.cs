@@ -97,7 +97,6 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using System.Linq;");
         sb.AppendLine("using System.Threading.Tasks;");
-        sb.AppendLine("using OneOf;");
         sb.AppendLine("using RLMatrix;");
         sb.AppendLine("using RLMatrix.Toolkit;");
         sb.AppendLine();
@@ -105,7 +104,7 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
         sb.AppendLine($"namespace {info.EnvironmentType.ContainingNamespace}");
         sb.AppendLine("{");
 
-        var interfaceName = info is ContinuousEnvironmentInfo ? "IContinuousEnvironmentAsync<float[]>" : "IEnvironmentAsync<float[]>";
+        var interfaceName = info is ContinuousEnvironmentInfo ? "IContinuousEnvironment<float[]>" : "IDiscreteEnvironment<float[]>";
         sb.AppendLine($"    public partial class {info.EnvironmentType.Name} : {interfaceName}");
         sb.AppendLine("    {");
 
@@ -147,27 +146,25 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
 
     private static void GenerateProperties(StringBuilder sb, EnvironmentInfo info)
     {
+        sb.AppendLine("        public StateDimensions StateDimensions { get; set; }");
+        
         if (info is ContinuousEnvironmentInfo continuousInfo)
         {
-            sb.AppendLine("        public OneOf<int, (int, int)> StateSize { get; set; }");
-
             if (continuousInfo.DiscreteDimensions.Length > 0)
             {
-                var maxDiscreteActionSize = continuousInfo.DiscreteDimensions.Max();
-                var discreteActionSizes = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, continuousInfo.DiscreteDimensions.Length));
-                sb.AppendLine($"        public int[] DiscreteActionSize {{ get; set; }} = new int[] {{ {discreteActionSizes} }};");
+                var maxDiscreteActionDimension = continuousInfo.DiscreteDimensions.Max();
+                var discreteActionDimensions = string.Join(", ", Enumerable.Repeat(maxDiscreteActionDimension, continuousInfo.DiscreteDimensions.Length));
+                sb.AppendLine($"        public int[] DiscreteActionDimensions {{ get; set; }} = [{{ {discreteActionDimensions} }}];");
             }
             else
             {
-                sb.AppendLine("        public int[] DiscreteActionSize { get; set; } = new int[0];");
+                sb.AppendLine("        public int[] DiscreteActionDimensions { get; set; } = [];");
             }
 
-            sb.AppendLine($"        public (float min, float max)[] ContinuousActionBounds {{ get; set; }} = new (float min, float max)[] {{ {string.Join(", ", continuousInfo.ContinuousActionDimensions.Select(b => $"({b.Min}f, {b.Max}f)"))} }};");
+            sb.AppendLine($"        public ContinuousActionDimensions[] ContinuousActionDimensions {{ get; set; }} = [{{ {string.Join(", ", continuousInfo.ContinuousActionDimensions.Select(b => $"({b.Min}f, {b.Max}f)"))} }}];");
         }
         else
         {
-            sb.AppendLine("        public OneOf<int, (int, int)> stateSize { get; set; }");
-
             var maxDiscreteActionSize = info.DiscreteActionMethods.Length > 0
                 ? info.DiscreteActionMethods
                     .Max(m => (int)m.GetAttributes()
@@ -176,9 +173,9 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
                 : 0;
 
             var discreteActionCount = info.DiscreteActionMethods.Length;
-            var discreteActionSizes = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, discreteActionCount));
+            var discreteActionDimensions = string.Join(", ", Enumerable.Repeat(maxDiscreteActionSize, discreteActionCount));
 
-            sb.AppendLine($"        public int[] actionSize {{ get; set; }} = new int[] {{ {discreteActionSizes} }};");
+            sb.AppendLine($"        public int[] DiscreteActionDimensions {{ get; set; }} = [{{ {discreteActionDimensions} }}];");
         }
     }
 
@@ -199,7 +196,7 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
             sb.AppendLine();
             sb.AppendLine("            int baseObservationSize = _GetBaseObservationSize();");
             sb.AppendLine("            int extraObservationSize = _extraObservationSources.Sum(source => source.GetObservationSize());");
-            sb.AppendLine("            StateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
+            sb.AppendLine("            StateDimensions = _poolingRate * (baseObservationSize + extraObservationSize);");
             sb.AppendLine();
             sb.AppendLine("            _rlMatrixEpisodeTerminated = true;");
             sb.AppendLine("            _InitializeObservations();");
@@ -273,11 +270,11 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
 
     private static void GenerateGetCurrentStateMethod(StringBuilder sb)
     {
-        sb.AppendLine("        public Task<float[]> GetCurrentState()");
+        sb.AppendLine("        public async ValueTask<float[]> GetCurrentStateAsync()");
         sb.AppendLine("        {");
         sb.AppendLine("            if (_rlMatrixEpisodeTerminated && _IsHardDone())");
         sb.AppendLine("            {");
-        sb.AppendLine("                Reset();");
+        sb.AppendLine("                await ResetAsync();");
         sb.AppendLine("                _poolingHelper.HardReset(_GetAllObservations);");
         sb.AppendLine("                _rlMatrixEpisodeTerminated = false;");
         sb.AppendLine("            }");
@@ -287,13 +284,13 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
         sb.AppendLine("                _rlMatrixEpisodeTerminated = false;");
         sb.AppendLine("            }");
         sb.AppendLine();
-        sb.AppendLine("            return Task.FromResult(_poolingHelper.GetPooledObservations());");
+        sb.AppendLine("            return _poolingHelper.GetPooledObservations();");
         sb.AppendLine("        }");
     }
 
     private static void GenerateResetMethod(StringBuilder sb, EnvironmentInfo info)
     {
-        sb.AppendLine("        public Task Reset()");
+        sb.AppendLine("        public ValueTask ResetAsync()");
         sb.AppendLine("        {");
         sb.AppendLine("            _stepsSoft = 0;");
         sb.AppendLine("            _stepsHard = 0;");
@@ -301,20 +298,18 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
         sb.AppendLine("            _rlMatrixEpisodeTerminated = false;");
         sb.AppendLine("            _poolingHelper.HardReset(_GetAllObservations);");
         sb.AppendLine();
-        sb.AppendLine($"            if ({info.DoneMethod!.Name}())");
+        sb.AppendLine($"           if ({info.DoneMethod!.Name}())");
         sb.AppendLine("            {");
         sb.AppendLine("                throw new Exception(\"Done flag still raised after reset - did you intend to reset?\");");
         sb.AppendLine("            }");
         sb.AppendLine();
-        sb.AppendLine("            return Task.CompletedTask;");
+        sb.AppendLine("            return new();");
         sb.AppendLine("        }");
     }
 
     private static void GenerateStepMethod(StringBuilder sb, EnvironmentInfo info)
     {
-        var methodSignature = info is ContinuousEnvironmentInfo
-            ? "public Task<(float, bool)> Step(int[] discreteActions, float[] continuousActions)"
-            : "public Task<(float, bool)> Step(int[] actionsIds)";
+        var methodSignature = "public ValueTask<StepResult> StepAsync(RLActions actions)";
 
         sb.AppendLine($"        {methodSignature}");
         sb.AppendLine("        {");
@@ -366,7 +361,7 @@ public class RLMatrixSourceGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine("            _rlMatrixEpisodeTerminated = _IsHardDone() || _IsSoftDone();");
         sb.AppendLine();
-        sb.AppendLine("            return Task.FromResult((totalReward, _rlMatrixEpisodeTerminated));");
+        sb.AppendLine("            return new((totalReward, _rlMatrixEpisodeTerminated));");
         sb.AppendLine("        }");
     }
 

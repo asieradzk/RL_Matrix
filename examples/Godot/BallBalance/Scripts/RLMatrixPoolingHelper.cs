@@ -26,7 +26,7 @@ public class RLMatrixPoolingHelper
 
     private void InitializeObservations()
     {
-        for (int i = 0; i < poolingRate; i++)
+        for (var i = 0; i < poolingRate; i++)
         {
             CollectObservation(0f);
         }
@@ -45,7 +45,7 @@ public class RLMatrixPoolingHelper
 
     public void CollectObservation(float reward)
     {
-        float[] currentObservation = getObservationFunc();
+        var currentObservation = getObservationFunc();
         if (observationBuffer.Count >= poolingRate)
         {
             observationBuffer.Dequeue();
@@ -56,8 +56,8 @@ public class RLMatrixPoolingHelper
 
     public float[] GetPooledObservations()
     {
-        float[] pooledObservations = new float[singleObservationSize * poolingRate];
-        int index = 0;
+        var pooledObservations = new float[singleObservationSize * poolingRate];
+        var index = 0;
         foreach (var observation in observationBuffer)
         {
             Array.Copy(observation, 0, pooledObservations, index, singleObservationSize);
@@ -68,7 +68,7 @@ public class RLMatrixPoolingHelper
 
     public float GetAndResetAccumulatedReward()
     {
-        float reward = accumulatedReward;
+        var reward = accumulatedReward;
         accumulatedReward = 0f;
         return reward;
     }
@@ -88,9 +88,9 @@ public class RLMatrixPoolingHelper
         lastAction = new float[lastAction.Length];  // Reset the last action
 
         // Fill the buffer with new observations
-        for (int i = 0; i < poolingRate; i++)
+        for (var i = 0; i < poolingRate; i++)
         {
-            float[] newObservation = getInitialObservation();
+            var newObservation = getInitialObservation();
             observationBuffer.Enqueue(newObservation);
         }
     }

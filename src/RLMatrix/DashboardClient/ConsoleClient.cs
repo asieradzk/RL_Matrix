@@ -1,158 +1,144 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.SignalR.Client;
-using RLMatrix.Common;
-using RLMatrix.Common.Dashboard;
-using System.Threading;
 
-namespace RLMatrix.Dashboard
+namespace RLMatrix;
+
+/// <summary>
+///		A simple console-logging RLMatrix dashboard client.
+/// </summary>
+public class ConsoleClient : IDashboardClient
 {
-	/// <summary>
-	/// simple console logging
-	/// </summary>
-	public class ConsoleClient : IDashboardClient, IAsyncDisposable
+	private readonly BehaviorSubject<(float? Reward, float? CumulativeReward, int? EpisodeLength)> _episodeDataSubject = new((null, null, null));
+	private readonly BehaviorSubject<float?> _actorLossSubject = new(null);
+	private readonly BehaviorSubject<float?> _actorLearningRateSubject = new(null);
+	private readonly BehaviorSubject<float?> _criticLossSubject = new(null);
+	private readonly BehaviorSubject<float?> _criticLearningRateSubject = new(null);
+	private readonly BehaviorSubject<float?> _klDivergenceSubject = new(null);
+	private readonly BehaviorSubject<float?> _entropySubject = new(null);
+	private readonly BehaviorSubject<float?> _epsilonSubject = new(null);
+	private readonly BehaviorSubject<float?> _lossSubject = new(null);
+	private readonly BehaviorSubject<float?> _learningRateSubject = new(null);
+	private readonly Subject<ExperimentData> _dataSubject = new();
+
+	public IObservable<(float? Reward, float? CumulativeReward, int? EpisodeLength)> EpisodeData => _episodeDataSubject.AsObservable();
+	public IObservable<float?> ActorLoss => _actorLossSubject.AsObservable();
+	public IObservable<float?> ActorLearningRate => _actorLearningRateSubject.AsObservable();
+	public IObservable<float?> CriticLoss => _criticLossSubject.AsObservable();
+	public IObservable<float?> CriticLearningRate => _criticLearningRateSubject.AsObservable();
+	public IObservable<float?> KLDivergence => _klDivergenceSubject.AsObservable();
+	public IObservable<float?> Entropy => _entropySubject.AsObservable();
+	public IObservable<float?> Epsilon => _epsilonSubject.AsObservable();
+	public IObservable<float?> Loss => _lossSubject.AsObservable();
+	public IObservable<float?> LearningRate => _learningRateSubject.AsObservable();
+
+	private readonly IDisposable _dataSubscription;
+
+	private readonly ConcurrentQueue<ExperimentData> _dataQueue = new();
+	private readonly Timer _sendTimer;
+	
+	private int processedEpisodes;
+	private float cumulativeRewards;
+	
+	public ConsoleClient(int refreshInterval = 1)
 	{
-		private readonly BehaviorSubject<(double? Reward, double? CumulativeReward, int? EpisodeLength)> _episodeDataSubject =
-				new BehaviorSubject<(double? Reward, double? CumulativeReward, int? EpisodeLength)>((null, null, null));
-		private readonly BehaviorSubject<double?> _actorLossSubject = new BehaviorSubject<double?>(null);
-		private readonly BehaviorSubject<double?> _actorLearningRateSubject = new BehaviorSubject<double?>(null);
-		private readonly BehaviorSubject<double?> _criticLossSubject = new BehaviorSubject<double?>(null);
-		private readonly BehaviorSubject<double?> _criticLearningRateSubject = new BehaviorSubject<double?>(null);
-		private readonly BehaviorSubject<double?> _klDivergenceSubject = new BehaviorSubject<double?>(null);
-		private readonly BehaviorSubject<double?> _entropySubject = new BehaviorSubject<double?>(null);
-		private readonly BehaviorSubject<double?> _epsilonSubject = new BehaviorSubject<double?>(null);
-		private readonly BehaviorSubject<double?> _lossSubject = new BehaviorSubject<double?>(null);
-		private readonly BehaviorSubject<double?> _learningRateSubject = new BehaviorSubject<double?>(null);
-		private readonly Subject<ExperimentData> _dataSubject = new Subject<ExperimentData>();
-
-		public IObservable<(double? Reward, double? CumulativeReward, int? EpisodeLength)> EpisodeData => _episodeDataSubject.AsObservable();
-		public IObservable<double?> ActorLoss => _actorLossSubject.AsObservable();
-		public IObservable<double?> ActorLearningRate => _actorLearningRateSubject.AsObservable();
-		public IObservable<double?> CriticLoss => _criticLossSubject.AsObservable();
-		public IObservable<double?> CriticLearningRate => _criticLearningRateSubject.AsObservable();
-		public IObservable<double?> KLDivergence => _klDivergenceSubject.AsObservable();
-		public IObservable<double?> Entropy => _entropySubject.AsObservable();
-		public IObservable<double?> Epsilon => _epsilonSubject.AsObservable();
-		public IObservable<double?> Loss => _lossSubject.AsObservable();
-		public IObservable<double?> LearningRate => _learningRateSubject.AsObservable();
-
-		private readonly Guid _experimentId;
-		private IDisposable _dataSubscription;
-
-		private ConcurrentQueue<ExperimentData> _dataQueue = new ConcurrentQueue<ExperimentData>();
-		private Timer _sendTimer;
-		private int processedEpisodes;
-		double cumulativeRewards = 0;
-		int consoleUpdateIntervalSeconds = 1;
-		public ConsoleClient(int refreshInterval = 1)
-		{
-			consoleUpdateIntervalSeconds = refreshInterval;
-			_experimentId = Guid.NewGuid();
-			var latestOptimizationData = Observable.CombineLatest(
-					ActorLoss, ActorLearningRate, CriticLoss, CriticLearningRate,
-					KLDivergence, Entropy, Epsilon, Loss, LearningRate,
-					(actorLoss, actorLR, criticLoss, criticLR, klDivergence, entropy,
-						epsilon, loss, lr) =>
-							new
-							{
-								ActorLoss = actorLoss,
-								ActorLearningRate = actorLR,
-								CriticLoss = criticLoss,
-								CriticLearningRate = criticLR,
-								KLDivergence = klDivergence,
-								Entropy = entropy,
-								Epsilon = epsilon,
-								Loss = loss,
-								LearningRate = lr
-							});
-
-			_dataSubscription = EpisodeData
-					.Where(data => data.Reward.HasValue || data.CumulativeReward.HasValue || data.EpisodeLength.HasValue)
-					.WithLatestFrom(latestOptimizationData, (epData, optData) => new ExperimentData
-					{
-						ExperimentId = _experimentId,
-						Timestamp = DateTime.UtcNow,
-						Reward = epData.Reward,
-						CumulativeReward = epData.CumulativeReward,
-						EpisodeLength = epData.EpisodeLength,
-						ActorLoss = optData.ActorLoss,
-						ActorLearningRate = optData.ActorLearningRate,
-						CriticLoss = optData.CriticLoss,
-						CriticLearningRate = optData.CriticLearningRate,
-						KLDivergence = optData.KLDivergence,
-						Entropy = optData.Entropy,
-						Epsilon = optData.Epsilon,
-						Loss = optData.Loss,
-						LearningRate = optData.LearningRate
-					})
-					.Subscribe(data => _dataQueue.Enqueue(data));
-
-			_sendTimer = new Timer(SendQueuedData, null, TimeSpan.Zero, TimeSpan.FromSeconds(consoleUpdateIntervalSeconds));
-			Console.WriteLine("console mode");
-		}
-
-		void SendQueuedData(object? state)
-		{
-			for(int i=0; !_dataQueue.IsEmpty; i++)
-			{
-				if (_dataQueue.TryDequeue(out var data))
+		var experimentId = Guid.NewGuid();
+		var latestOptimizationData = Observable.CombineLatest(
+			ActorLoss, ActorLearningRate, CriticLoss, CriticLearningRate,
+			KLDivergence, Entropy, Epsilon, Loss, LearningRate,
+			(actorLoss, actorLR, criticLoss, criticLR, klDivergence, entropy,
+					epsilon, loss, lr) =>
+				new
 				{
-					if (data.Reward != null)
-						cumulativeRewards += data.Reward.Value;
-					processedEpisodes++;
+					ActorLoss = actorLoss,
+					ActorLearningRate = actorLR,
+					CriticLoss = criticLoss,
+					CriticLearningRate = criticLR,
+					KLDivergence = klDivergence,
+					Entropy = entropy,
+					Epsilon = epsilon,
+					Loss = loss,
+					LearningRate = lr
+				});
 
-					if (i == 0)
-					{
-						Console.WriteLine("ep=" + processedEpisodes + " cRwrds=" + cumulativeRewards.ToString("N3") + data.ToString());
-					}
+		_dataSubscription = EpisodeData
+			.Where(data => data.Reward.HasValue || data.CumulativeReward.HasValue || data.EpisodeLength.HasValue)
+			.WithLatestFrom(latestOptimizationData, (epData, optData) => new ExperimentData(experimentId, DateTimeOffset.UtcNow,
+				Reward: epData.Reward,
+				CumulativeReward: epData.CumulativeReward,
+				EpisodeLength: epData.EpisodeLength,
+				ActorLoss: optData.ActorLoss,
+				ActorLearningRate: optData.ActorLearningRate,
+				CriticLoss: optData.CriticLoss,
+				CriticLearningRate: optData.CriticLearningRate,
+				KLDivergence: optData.KLDivergence,
+				Entropy: optData.Entropy,
+				Epsilon: optData.Epsilon,
+				Loss: optData.Loss,
+				LearningRate: optData.LearningRate))
+			.Subscribe(data => _dataQueue.Enqueue(data));
+
+		_sendTimer = new Timer(SendQueuedData, null, TimeSpan.Zero, TimeSpan.FromSeconds(refreshInterval));
+		Console.WriteLine("console mode");
+	}
+
+	public Task AddDataPointAsync(ExperimentData data)
+	{
+		_dataSubject.OnNext(data);
+		return Task.CompletedTask;
+	}
+
+	public Task SaveModelAsync(string path) => Task.CompletedTask;
+	public Task LoadModelAsync(string path) => Task.CompletedTask;
+	public Task SaveBufferAsync(string path) => Task.CompletedTask;
+	public void UpdateEpisodeData(float? reward, float? cumReward, int? epLength) => _episodeDataSubject.OnNext((reward, cumReward, epLength));
+	public void UpdateActorLoss(float? loss) => _actorLossSubject.OnNext(loss);
+	public void UpdateActorLearningRate(float? lr) => _actorLearningRateSubject.OnNext(lr);
+	public void UpdateCriticLoss(float? loss) => _criticLossSubject.OnNext(loss);
+	public void UpdateCriticLearningRate(float? lr) => _criticLearningRateSubject.OnNext(lr);
+	public void UpdateKLDivergence(float? kl) => _klDivergenceSubject.OnNext(kl);
+	public void UpdateEntropy(float? entropy) => _entropySubject.OnNext(entropy);
+	public void UpdateEpsilon(float? epsilon) => _epsilonSubject.OnNext(epsilon);
+	public void UpdateLoss(float? loss) => _lossSubject.OnNext(loss);
+	public void UpdateLearningRate(float? lr) => _learningRateSubject.OnNext(lr);
+
+	public ValueTask DisposeAsync()
+	{
+		_dataSubscription.Dispose();
+		_sendTimer.Dispose();
+		_episodeDataSubject.Dispose();
+		_actorLossSubject.Dispose();
+		_actorLearningRateSubject.Dispose();
+		_criticLossSubject.Dispose();
+		_criticLearningRateSubject.Dispose();
+		_klDivergenceSubject.Dispose();
+		_entropySubject.Dispose();
+		_epsilonSubject.Dispose();
+		_lossSubject.Dispose();
+		_learningRateSubject.Dispose();
+		_dataSubject.Dispose();
+
+		return new();
+	}
+	
+	private void SendQueuedData(object? state)
+	{
+		for(var i = 0; !_dataQueue.IsEmpty; i++)
+		{
+			if (_dataQueue.TryDequeue(out var data))
+			{
+				if (data.Reward != null)
+					cumulativeRewards += data.Reward.Value;
+				
+				processedEpisodes++;
+
+				if (i == 0)
+				{
+					Console.WriteLine("ep=" + processedEpisodes + " cRwrds=" + cumulativeRewards.ToString("N3") + data);
 				}
-				else
-					return;
 			}
-		}
-
-		public Task AddDataPoint(ExperimentData data)
-		{
-			_dataSubject.OnNext(data);
-			return Task.CompletedTask;
-		}
-
-		public void UpdateEpisodeData(double? reward, double? cumReward, int? epLength) =>
-			 _episodeDataSubject.OnNext((reward, cumReward, epLength));
-
-		public void UpdateActorLoss(double? loss) => _actorLossSubject.OnNext(loss);
-		public void UpdateActorLearningRate(double? lr) => _actorLearningRateSubject.OnNext(lr);
-		public void UpdateCriticLoss(double? loss) => _criticLossSubject.OnNext(loss);
-		public void UpdateCriticLearningRate(double? lr) => _criticLearningRateSubject.OnNext(lr);
-		public void UpdateKLDivergence(double? kl) => _klDivergenceSubject.OnNext(kl);
-		public void UpdateEntropy(double? entropy) => _entropySubject.OnNext(entropy);
-		public void UpdateEpsilon(double? epsilon) => _epsilonSubject.OnNext(epsilon);
-		public void UpdateLoss(double? loss) => _lossSubject.OnNext(loss);
-		public void UpdateLearningRate(double? lr) => _learningRateSubject.OnNext(lr);
-
-		public Func<string, Task> SaveModel { get; set; }
-		public Func<string, Task> LoadModel { get; set; }
-		public Func<string, Task> SaveBuffer { get; set; }
-
-		public async ValueTask DisposeAsync()
-		{
-			_dataSubscription?.Dispose();
-			_sendTimer?.Dispose();
-			_episodeDataSubject.Dispose();
-			_actorLossSubject.Dispose();
-			_actorLearningRateSubject.Dispose();
-			_criticLossSubject.Dispose();
-			_criticLearningRateSubject.Dispose();
-			_klDivergenceSubject.Dispose();
-			_entropySubject.Dispose();
-			_epsilonSubject.Dispose();
-			_lossSubject.Dispose();
-			_learningRateSubject.Dispose();
-			_dataSubject.Dispose();
+			else
+				return;
 		}
 	}
 }

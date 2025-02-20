@@ -1,153 +1,94 @@
-﻿using OneOf;
-using RLMatrix.Agents.Common;
-using Tensorboard;
-using TorchSharp;
-using static TorchSharp.torch;
-using static TorchSharp.torch.nn;
-using static TorchSharp.torch.optim;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using RLMatrix.Common;
 
-namespace RLMatrix.Agents.PPO.Implementations
+namespace RLMatrix;
+
+public class LocalDiscretePPOAgent<TState> : IDiscreteProxy<TState>
+    where TState : notnull
 {
-    public class LocalDiscretePPOAgent<T> : IDiscreteProxy<T>
+    private readonly IDiscretePPOAgent<TState> _agent;
+    private readonly bool _useRnn;
+    private readonly Dictionary<Guid, (Tensor?, Tensor?)?> _memoriesStore = new();
+
+    public LocalDiscretePPOAgent(PPOAgentOptions options, int[] discreteActionDimensions, StateDimensions stateDimensions)
     {
-        private readonly IDiscretePPOAgent<T> _agent;
-        bool useRnn = false;
-        private Dictionary<Guid, (Tensor?, Tensor?)?> memoriesStore = new();
+        _agent = PPOAgentFactory.ComposeDiscretePPOAgent<TState>(options, discreteActionDimensions, stateDimensions);
+        _useRnn = options.UseRNN;
+    }
 
-        public LocalDiscretePPOAgent(PPOAgentOptions options, int[] ActionSizes, OneOf<int, (int, int)> StateSizes)
-        {
-            _agent = PPOAgentFactory<T>.ComposeDiscretePPOAgent(options, ActionSizes, StateSizes);
-            useRnn = options.UseRNN;
-        }
+    public async ValueTask<Dictionary<Guid, RLActions>> SelectBatchActionsAsync(IEnumerable<EnvironmentState<TState>> statesEnumerable, bool isTraining)
+    {
+        var states = statesEnumerable.ToList();
+        var actionDict = new Dictionary<Guid, RLActions>();
 
-#if NET8_0_OR_GREATER
-        public ValueTask LoadAsync(string path)
-#else
-        public Task LoadAsync(string path)
-#endif
+        if (_useRnn)
         {
-            _agent.Load(path);
-#if NET8_0_OR_GREATER
-            return ValueTask.CompletedTask;
-#else
-            return Task.CompletedTask;
-#endif
-        }
-
-#if NET8_0_OR_GREATER
-        public ValueTask OptimizeModelAsync()
-#else
-        public Task OptimizeModelAsync()
-#endif
-        {
-            _agent.OptimizeModel();
-#if NET8_0_OR_GREATER
-            return ValueTask.CompletedTask;
-#else
-            return Task.CompletedTask;
-#endif
-        }
-
-#if NET8_0_OR_GREATER
-        public ValueTask ResetStates(List<(Guid environmentId, bool dones)> environmentIds)
-#else
-        public Task ResetStates(List<(Guid environmentId, bool dones)> environmentIds)
-#endif
-        {
-            foreach (var (envId, done) in environmentIds)
+            var statesWithMemory = states.Select(info =>
             {
-                if (done && memoriesStore.ContainsKey(envId))
+                if (!_memoriesStore.TryGetValue(info.EnvironmentId, out var memoryTuple))
                 {
-                    memoriesStore[envId] = (null, null);
+                    memoryTuple = null;
+                    _memoriesStore[info.EnvironmentId] = memoryTuple;
                 }
-            }
-#if NET8_0_OR_GREATER
-            return ValueTask.CompletedTask;
-#else
-            return Task.CompletedTask;
-#endif
-        }
+                
+                return new RLMemoryState<TState>(info.State, memoryTuple?.Item1, memoryTuple?.Item2);
+            }).ToArray();
 
-#if NET8_0_OR_GREATER
-        public ValueTask SaveAsync(string path)
-#else
-        public Task SaveAsync(string path)
-#endif
-        {
-            _agent.Save(path);
-#if NET8_0_OR_GREATER
-            return ValueTask.CompletedTask;
-#else
-            return Task.CompletedTask;
-#endif
-        }
+            var actionsWithMemory = await _agent.SelectActionsRecurrentAsync(statesWithMemory, isTraining);
 
-#if NET8_0_OR_GREATER
-        public ValueTask<Dictionary<Guid, int[]>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
-#else
-        public Task<Dictionary<Guid, int[]>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
-#endif
-        {
-            Dictionary<Guid, int[]> actionDict = new Dictionary<Guid, int[]>();
-
-            if (useRnn)
+            for (var i = 0; i < states.Count; i++)
             {
-                (T state, Tensor? memoryState, Tensor? memoryState2)[] statesWithMemory = stateInfos.Select(info =>
-                {
-                    if (!memoriesStore.TryGetValue(info.environmentId, out var memoryTuple))
-                    {
-                        memoryTuple = null;
-                        memoriesStore[info.environmentId] = memoryTuple;
-                    }
-                    return (info.state, memoryTuple?.Item1, memoryTuple?.Item2);
-                }).ToArray();
-
-                (int[] actions, Tensor? memoryState, Tensor? memoryState2)[] actionsWithMemory = _agent.SelectActionsRecurrent(statesWithMemory, isTraining);
-
-                for (int i = 0; i < stateInfos.Count; i++)
-                {
-                    Guid environmentId = stateInfos[i].environmentId;
-                    int[] action = actionsWithMemory[i].actions;
-                    memoriesStore[environmentId] = (actionsWithMemory[i].memoryState, actionsWithMemory[i].memoryState2);
-                    actionDict[environmentId] = action;
-                }
+                var environmentId = states[i].EnvironmentId;
+                var action = actionsWithMemory[i].Actions;
+                
+                _memoriesStore[environmentId] = (actionsWithMemory[i].MemoryState, actionsWithMemory[i].MemoryState2);
+                actionDict[environmentId] = action;
             }
-            else
-            {
-                T[] states = stateInfos.Select(info => info.state).ToArray();
-                int[][] actions = _agent.SelectActions(states, isTraining);
-
-                for (int i = 0; i < stateInfos.Count; i++)
-                {
-                    Guid environmentId = stateInfos[i].environmentId;
-                    int[] action = actions[i];
-                    actionDict[environmentId] = action;
-                }
-            }
-
-#if NET8_0_OR_GREATER
-            return ValueTask.FromResult(actionDict);
-#else
-            return Task.FromResult(actionDict);
-#endif
         }
-
-#if NET8_0_OR_GREATER
-        public ValueTask UploadTransitionsAsync(IEnumerable<TransitionPortable<T>> transitions)
-#else
-        public Task UploadTransitionsAsync(IEnumerable<TransitionPortable<T>> transitions)
-#endif
+        else
         {
-            _agent.AddTransition(transitions);
-#if NET8_0_OR_GREATER
-            return ValueTask.CompletedTask;
-#else
-            return Task.CompletedTask;
-#endif
+            var actions = await _agent.SelectActionsAsync(states.Select(x => x.State).ToArray(), isTraining);
+
+            for (var i = 0; i < states.Count; i++)
+            {
+                var environmentId = states[i].EnvironmentId;
+                var action = actions[i];
+                actionDict[environmentId] = action;
+            }
         }
+
+        return actionDict;
+    }
+
+    public ValueTask ResetStatesAsync(List<(Guid EnvironmentId, bool IsDone)> environments)
+    {
+        foreach (var (envId, isDone) in environments)
+        {
+            if (isDone && _memoriesStore.ContainsKey(envId))
+            {
+                _memoriesStore[envId] = (null, null);
+            }
+        }
+
+        return new();
+    }
+
+    public ValueTask UploadTransitionsAsync(IEnumerable<Transition<TState>> transitions)
+    {
+        return _agent.AddTransitionsAsync(transitions);
+    }
+
+    public ValueTask OptimizeModelAsync()
+    {
+        return _agent.OptimizeModelAsync();
+    }
+
+    public ValueTask SaveAsync(string path)
+    {
+        return _agent.SaveAsync(path);
+    }
+
+    public ValueTask LoadAsync(string path)
+    {
+        return _agent.LoadAsync(path);
     }
 }

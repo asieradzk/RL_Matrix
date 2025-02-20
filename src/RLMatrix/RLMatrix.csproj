@@ -44,40 +44,21 @@
 		<None Include="..\..\README.md" Pack="true" PackagePath="" />
 	</ItemGroup>
 
-	
-	
-	
-	<!--release configuration-->
-
 	<ItemGroup>
 		<PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
-		<PackageReference Include="RLMatrix.Common" Version="0.4.3.8" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.13" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.13" />
 		<PackageReference Include="System.Reactive" Version="6.0.1" />
-		<PackageReference Include="TorchSharp-cuda-windows" Version="0.102.2" />
-		<PackageReference Include="TorchVision" Version="0.102.2" />
-		<PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
+		<PackageReference Include="TorchSharp-cuda-windows" Version="0.105.0" />
+		<PackageReference Include="TorchVision" Version="0.105.0" />
 	</ItemGroup>
-	
-	
-	
-	<!--dev configuration-->
 
-	<!--<ItemGroup>
-		<PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
-		<PackageReference Include="System.Reactive" Version="6.0.1" />
-		<PackageReference Include="TorchSharp-cuda-windows" Version="0.102.2" />
-		<PackageReference Include="TorchVision" Version="0.102.2" />
-		<PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+		<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\RLMatrix.Common\RLMatrix.Common.csproj" />
-	</ItemGroup>-->
-
-
+		<ProjectReference Include="..\RLMatrix.Common\RLMatrix.Common.csproj" />
+	</ItemGroup>
 
 </Project>

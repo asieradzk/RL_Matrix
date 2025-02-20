@@ -1,51 +1,45 @@
-﻿using RLMatrix.Common.Dashboard;
-using System;
-using System.Threading.Tasks;
+﻿namespace RLMatrix;
 
-namespace RLMatrix.Common
+/// <summary>
+///		Defines the contract for dashboard clients.
+/// </summary>
+public interface IDashboardClient : IAsyncDisposable
 {
 	/// <summary>
-	/// Defines the contract for dashboard clients.
+	///		Adds a new data point to the experiment data collection.
 	/// </summary>
-	public interface IDashboardClient
-	{
-		/// <summary>
-		/// Adds a new data point to the experiment data collection.
-		/// </summary>
-		/// <param name="experimentId">The unique identifier for the experiment.</param>
-		/// <param name="loss">The loss value.</param>
-		/// <param name="learningRate">The learning rate.</param>
-		/// <param name="reward">The reward value.</param>
-		/// <param name="cumulativeReward">The cumulative reward.</param>
-		/// <param name="episodeLength">The episode length.</param>
-		Task AddDataPoint(ExperimentData data);
+	/// <param name="data">The new experiment data point.</param>
+	Task AddDataPointAsync(ExperimentData data);
 
-		/// <summary>
-		/// Delegate for saving the model.
-		/// </summary>
-		/// <param name="path">The path where the model should be saved.</param>
-		Func<string, Task> SaveModel { get; set; }
+	/// <summary>
+	///		Saves the model to the specified path.
+	/// </summary>
+	/// <param name="path">The path to save to.</param>
+	/// <returns></returns>
+	Task SaveModelAsync(string path);
 
-		/// <summary>
-		/// Delegate for loading the model.
-		/// </summary>
-		/// <param name="path">The path from where the model should be loaded.</param>
-		Func<string, Task> LoadModel { get; set; }
+	/// <summary>
+	///		Loads the model from the specified path.
+	/// </summary>
+	/// <param name="path">The path to load from.</param>
+	/// <returns></returns>
+	Task LoadModelAsync(string path);
 
-		/// <summary>
-		/// Delegate for saving the buffer.
-		/// </summary>
-		/// <param name="path">The path where the buffer should be saved.</param>
-		Func<string, Task> SaveBuffer { get; set; }
-		public void UpdateEpisodeData(double? reward, double? cumReward, int? epLength);
-		public void UpdateActorLoss(double? loss);
-		public void UpdateActorLearningRate(double? lr);
-		public void UpdateCriticLoss(double? loss);
-		public void UpdateCriticLearningRate(double? lr);
-		public void UpdateKLDivergence(double? kl);
-		public void UpdateEntropy(double? entropy);
-		public void UpdateEpsilon(double? epsilon);
-		public void UpdateLoss(double? loss);
-		public void UpdateLearningRate(double? lr);
-	}
+	/// <summary>
+	///		Saves the buffer to the specified path.
+	/// </summary>
+	/// <param name="path">The path to save to.</param>
+	/// <returns></returns>
+	Task SaveBufferAsync(string path);
+	
+	public void UpdateEpisodeData(float? reward, float? cumReward, int? epLength);
+	public void UpdateActorLoss(float? loss);
+	public void UpdateActorLearningRate(float? lr);
+	public void UpdateCriticLoss(float? loss);
+	public void UpdateCriticLearningRate(float? lr);
+	public void UpdateKLDivergence(float? kl);
+	public void UpdateEntropy(float? entropy);
+	public void UpdateEpsilon(float? epsilon);
+	public void UpdateLoss(float? loss);
+	public void UpdateLearningRate(float? lr);
 }

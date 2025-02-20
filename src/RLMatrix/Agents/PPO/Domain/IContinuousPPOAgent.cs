@@ -1,13 +1,4 @@
-﻿using RLMatrix.Agents.Common;
+﻿namespace RLMatrix;
 
-namespace RLMatrix.Agents.PPO.Implementations
-{
-    public interface IContinuousPPOAgent<T> : IContinuousAgent<T>, IHasMemory<T>, IHasOptimizer<T>, ISavable, ISelectContinuousAndDiscreteActions<T>, ISelectContinuousAndDiscreteActionsRecurrent<T> //TODO: ISP violation
-    {
-
-    }
-}
-
-
-    
-
+//TODO: ISP violation?
+public interface IContinuousPPOAgent<TState> : IContinuousAgent<TState>, IRecurrentActionSelectable<TState> where TState : notnull;

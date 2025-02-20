@@ -1,7 +1,4 @@
-﻿using System;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using OneOf;
+﻿using OneOf;
 using RLMatrix;
 
 public class TrivialContinuousEnvironmentAsync : IContinuousEnvironmentAsync<float[]>
@@ -51,15 +48,15 @@ public class TrivialContinuousEnvironmentAsync : IContinuousEnvironmentAsync<flo
                 Reset().Wait(); // Reset if done
 
             float discreteOutput = discreteActions[0];
-            float continuousOutput = continuousActions[0];
+            var continuousOutput = continuousActions[0];
 
 
-            float discreteReward = discreteActionToGuess == discreteOutput ? CorrectAnswerReward : WrongAnswerPenalty;
-            float continuousReward = 1 - Math.Abs((continousActionToGuess - continuousOutput));
+            var discreteReward = discreteActionToGuess == discreteOutput ? CorrectAnswerReward : WrongAnswerPenalty;
+            var continuousReward = 1 - Math.Abs((continousActionToGuess - continuousOutput));
             Console.WriteLine($"Randomised num: {continousActionToGuess}, output num: {continuousOutput}");
 
-            float totalReward = 0 + continuousReward;
-            bool done = true;
+            var totalReward = 0 + continuousReward;
+            var done = true;
             isDone = true;
             // Console.WriteLine($"Total reward: {totalReward}");
 

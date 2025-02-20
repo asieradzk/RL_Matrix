@@ -1,7 +1,4 @@
 using RLMatrix.Server;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,9 +9,6 @@ var app = builder.Build();
 app.UseRLMatrixEndpoints();
 
 app.Run();
-
-
-
 
 //or configure by hand:
 /*

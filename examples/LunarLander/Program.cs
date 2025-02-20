@@ -10,7 +10,7 @@ var env = new Lander();
 var opts = new DQNAgentOptions(batchSize: 128, memorySize: 10000, gamma: 0.99f, epsStart: 1f, epsEnd: 0.05f, epsDecay: 50f, tau: 0.005f, lr: 1e-4f, displayPlot: chart);
 var dqnAgent = new D2QNAgent<float[]>(opts, env);
 
-for (int i = 0; i < 1000; i++)
+for (var i = 0; i < 1000; i++)
 {
     dqnAgent.TrainEpisode();
 }
@@ -38,7 +38,7 @@ var optsppo = new PPOAgentOptions(
 
 var myAgent = new PPOAgent<float[]>(optsppo, env);
 
-for (int i = 0; i < 1000; i++)
+for (var i = 0; i < 1000; i++)
 {
     myAgent.TrainEpisode();
 }

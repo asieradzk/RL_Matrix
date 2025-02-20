@@ -1,102 +1,60 @@
-﻿using OneOf;
-using RLMatrix.Agents.DQN.Domain;
-using TorchSharp;
-using static TorchSharp.torch;
-namespace RLMatrix.Agents.PPO.Implementations
+﻿using RLMatrix.Common;
+
+namespace RLMatrix;
+
+public static class PPOAgentFactory
 {
-    public static class PPOAgentFactory<T>
+    public static IDiscretePPOAgent<TState> ComposeDiscretePPOAgent<TState>(PPOAgentOptions options, int[] discreteActionDimensions, StateDimensions stateDimensions, IPPONetProvider? netProvider = null, IGAIL<TState>? gail = null)
+        where TState : notnull
     {
-        public static IDiscretePPOAgent<T> ComposeDiscretePPOAgent(PPOAgentOptions options, int[] ActionSizes, OneOf<int, (int, int)> StateSizes, IPPONetProvider<T> netProvider = null, IGAIL<T> gail = null)
+        netProvider ??= new PPONetProviderBase<TState>(options.Width, options.Depth, options.UseRNN);
+
+        var device = torch.device(torch.cuda.is_available() ? "cuda" : "cpu");
+        var envSize = new DiscreteEnvironmentSizeDTO(discreteActionDimensions, stateDimensions);
+        var actorNet = netProvider.CreateActorNet(envSize).to(device);
+        var criticNet = netProvider.CreateCriticNet(envSize).to(device);
+        var actorOptimizer = torch.optim.Adam(actorNet.parameters(), lr: options.LearningRate, amsgrad: true);
+        var criticOptimizer = torch.optim.Adam(criticNet.parameters(), lr: options.LearningRate, amsgrad: true);
+
+        //var actorLrScheduler = new optim.lr_scheduler.impl.StepLR(actorOptimizer, step_size: 1000, gamma: 0.9f);
+        //var criticlLrScheduler = new optim.lr_scheduler.impl.StepLR(actorOptimizer, step_size: 1000, gamma: 0.9f);
+        var actorLrScheduler = new CyclicLR(actorOptimizer, options.LearningRate * 0.5f, options.LearningRate * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
+        var criticLrScheduler = new CyclicLR(criticOptimizer, options.LearningRate * 0.5f, options.LearningRate * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
+        var ppoOptimizer = new PPOOptimizer<TState>(actorNet, criticNet, actorOptimizer, criticOptimizer, options, device, discreteActionDimensions, [], actorLrScheduler, criticLrScheduler, gail);
+        
+        if (options.UseRNN)
         {
-            netProvider ??= new PPONetProviderBase<T>(options.Width, options.Depth, options.UseRNN);
-
-            var device = torch.device(torch.cuda.is_available() ? "cuda" : "cpu");
-            var envSizeDTO = new DiscreteEnvSizeDTO { actionSize = ActionSizes, stateSize = StateSizes };
-            var actorNet = netProvider.CreateActorNet(envSizeDTO).to(device);
-            var criticNet = netProvider.CreateCriticNet(envSizeDTO).to(device);
-            var actorOptimizer = optim.Adam(actorNet.parameters(), lr: options.LR, amsgrad: true);
-            var criticOptimizer = optim.Adam(criticNet.parameters(), lr: options.LR, amsgrad: true);
-
-            //var actorLrScheduler = new optim.lr_scheduler.impl.StepLR(actorOptimizer, step_size: 1000, gamma: 0.9f);
-            //var criticlLrScheduler = new optim.lr_scheduler.impl.StepLR(actorOptimizer, step_size: 1000, gamma: 0.9f);
-             var actorLrScheduler = new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
-            var criticlLrScheduler = new optim.lr_scheduler.impl.CyclicLR(criticOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
-            var PPOOptimize = new PPOOptimize<T>(actorNet, criticNet, actorOptimizer, criticOptimizer, options, device, ActionSizes, new (float, float)[0], actorLrScheduler, criticlLrScheduler, gail);
-            if (options.UseRNN)
-            {
-                var Agent = new DiscreteRecurrentPPOAgent<T>
-                {
-                    actorNet = actorNet,
-                    criticNet = criticNet,
-                    Optimizer = PPOOptimize,
-                    Memory = new ReplayMemory<T>(options.MemorySize),
-                    ActionSizes = ActionSizes,
-                    Options = options,
-                    Device = device,
-                };
-                return Agent;
-            }
-            else
-            {
-                var Agent = new DiscretePPOAgent<T>
-                {
-                    actorNet = actorNet,
-                    criticNet = criticNet,
-                    Optimizer = PPOOptimize,
-                    Memory = new ReplayMemory<T>(options.MemorySize),
-                    ActionSizes = ActionSizes,
-                    Options = options,
-                    Device = device,
-                };
-                return Agent;
-            }
+            return new DiscreteRecurrentPPOAgent<TState>(
+                actorNet, criticNet, ppoOptimizer, new ReplayMemory<TState>(options.MemorySize), discreteActionDimensions, options, device);
         }
 
-        public static IContinuousPPOAgent<T> ComposeContinuousPPOAgent(PPOAgentOptions options, int[] DiscreteDimensions, OneOf<int, (int, int)> StateSizes, (float min, float max)[] ContinuousActionBounds, IPPONetProvider<T> netProvider = null, IGAIL<T> gail = null)
+        return new DiscretePPOAgent<TState>(
+            actorNet, criticNet, ppoOptimizer, new ReplayMemory<TState>(options.MemorySize), discreteActionDimensions, options, device);
+    }
+
+    public static IContinuousPPOAgent<TState> ComposeContinuousPPOAgent<TState>(PPOAgentOptions options, int[] discreteActionDimensions, StateDimensions stateDimensions, ContinuousActionDimensions[] continuousActionDimensions, IPPONetProvider? netProvider = null, IGAIL<TState>? gail = null)
+        where TState : notnull
+    {
+        netProvider ??= new PPONetProviderBase<TState>(options.Width, options.Depth, options.UseRNN);
+
+        var device = torch.device(torch.cuda.is_available() ? "cuda" : "cpu");
+        var envSize = new ContinuousEnvironmentSizeDTO(discreteActionDimensions, stateDimensions, continuousActionDimensions);
+        var actorNet = netProvider.CreateActorNet(envSize).to(device);
+        var criticNet = netProvider.CreateCriticNet(envSize).to(device);
+        var actorOptimizer = torch.optim.Adam(actorNet.parameters(), lr: options.LearningRate, amsgrad: true);
+        var criticOptimizer = torch.optim.Adam(criticNet.parameters(), lr: options.LearningRate, amsgrad: true);
+
+        var actorLrScheduler = new CyclicLR(actorOptimizer, options.LearningRate * 0.5f, options.LearningRate * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
+        var criticLrScheduler = new CyclicLR(criticOptimizer, options.LearningRate * 0.5f, options.LearningRate * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
+        var ppoOptimizer = new PPOOptimizer<TState>(actorNet, criticNet, actorOptimizer, criticOptimizer, options, device, discreteActionDimensions, continuousActionDimensions, actorLrScheduler, criticLrScheduler, gail);
+
+        if (options.UseRNN)
         {
-            netProvider ??= new PPONetProviderBase<T>(options.Width, options.Depth, options.UseRNN);
-
-            var device = torch.device(torch.cuda.is_available() ? "cuda" : "cpu");
-            var envSizeDTO = new ContinuousEnvSizeDTO { actionSize = DiscreteDimensions, continuousActionBounds = ContinuousActionBounds, stateSize = StateSizes };
-            var actorNet = netProvider.CreateActorNet(envSizeDTO).to(device);
-            var criticNet = netProvider.CreateCriticNet(envSizeDTO).to(device);
-            var actorOptimizer = optim.Adam(actorNet.parameters(), lr: options.LR, amsgrad: true);
-            var criticOptimizer = optim.Adam(criticNet.parameters(), lr: options.LR, amsgrad: true);
-
-            var actorLrScheduler = new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
-            var criticlLrScheduler = new optim.lr_scheduler.impl.CyclicLR(criticOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
-            var PPOOptimize = new PPOOptimize<T>(actorNet, criticNet, actorOptimizer, criticOptimizer, options, device, DiscreteDimensions, ContinuousActionBounds, actorLrScheduler, criticlLrScheduler, gail);
-
-            if (options.UseRNN)
-            {
-                var Agent = new ContinuousRecurrentPPOAgent<T>
-                {
-                    actorNet = actorNet,
-                    criticNet = criticNet,
-                    Optimizer = PPOOptimize,
-                    Memory = new ReplayMemory<T>(options.MemorySize),
-                    DiscreteDimensions = DiscreteDimensions,
-                    ContinuousActionBounds = ContinuousActionBounds,
-                    Options = options,
-                    Device = device,
-                };
-                return Agent;
-            }
-            else
-            {
-                var Agent = new ContinuousPPOAgent<T>
-                {
-                    actorNet = actorNet,
-                    criticNet = criticNet,
-                    Optimizer = PPOOptimize,
-                    Memory = new ReplayMemory<T>(options.MemorySize),
-                    DiscreteDimensions = DiscreteDimensions,
-                    ContinuousActionBounds = ContinuousActionBounds,
-                    Options = options,
-                    Device = device,
-                };
-                return Agent;
-            }
+            return new ContinuousRecurrentPPOAgent<TState>(
+                actorNet, criticNet, ppoOptimizer, new ReplayMemory<TState>(options.MemorySize), discreteActionDimensions, continuousActionDimensions, options, device);
         }
+
+        return new ContinuousPPOAgent<TState>(
+            actorNet, criticNet, ppoOptimizer, new ReplayMemory<TState>(options.MemorySize), discreteActionDimensions, continuousActionDimensions, options, device);
     }
 }

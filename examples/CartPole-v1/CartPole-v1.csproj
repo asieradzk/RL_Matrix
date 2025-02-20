@@ -17,5 +17,4 @@
 	<PackageReference Include="RLMatrix.WinformsChart" Version="0.1.0" />
   </ItemGroup>
 
-
 </Project>

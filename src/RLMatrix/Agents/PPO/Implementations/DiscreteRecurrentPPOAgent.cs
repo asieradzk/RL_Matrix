@@ -1,47 +1,48 @@
-﻿using RLMatrix.Agents.Common;
-using TorchSharp;
-using static TorchSharp.torch;
+﻿using RLMatrix.Common;
 
-namespace RLMatrix.Agents.PPO.Implementations
+namespace RLMatrix;
+
+public class DiscreteRecurrentPPOAgent<TState> : DiscretePPOAgent<TState>
+    where TState : notnull
 {
-    public class DiscreteRecurrentPPOAgent<T> : DiscretePPOAgent<T>
-    {
-        public override (int[] actions, Tensor? memoryState, Tensor? memoryState2)[] SelectActionsRecurrent((T state, Tensor? memoryState, Tensor? memoryState2)[] states, bool isTraining)
-        {
-            (int[], Tensor, Tensor)[] result = new (int[], Tensor, Tensor)[states.Length];
-            for (int i = 0; i < states.Length; i++)
-            {
-                using (var scope = torch.no_grad())
-                {
-                    Tensor stateTensor = Utilities<T>.StateToTensor(states[i].state, Device);
-                    var forwardResult = actorNet.forward(stateTensor, states[i].memoryState, states[i].memoryState2);
-                    if (isTraining)
-                    {
-                        int[] discreteActions = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(forwardResult.Item1, ActionSizes);
-                        result[i] = (discreteActions, forwardResult.Item2, forwardResult.Item3);
-                     
-                    }
-                    else
-                    {
-                        int[] discreteActions = PPOActionSelection<T>.SelectGreedyDiscreteActions(forwardResult.Item1, ActionSizes);
-                        result[i] = (discreteActions, forwardResult.Item2, forwardResult.Item3);
-                    }
+    public DiscreteRecurrentPPOAgent(PPOActorNet actorNet, PPOCriticNet criticNet, IOptimizer<TState> optimizer, IMemory<TState> memory, 
+        int[] discreteActionDimensions, PPOAgentOptions options, Device device) 
+        : base(actorNet, criticNet, optimizer, memory, discreteActionDimensions, options, device)
+    { }
 
-                    
+    public override ValueTask<ActionsState[]> SelectActionsRecurrentAsync(RLMemoryState<TState>[] states, bool isTraining)
+    {
+        var results = new ActionsState[states.Length];
+        
+        for (var i = 0; i < states.Length; i++)
+        {
+            using (torch.no_grad())
+            {
+                var stateTensor = Utilities<TState>.StateToTensor(states[i].State, Device);
+                var (res, memoryState, memoryState2) = ActorNet.forward(stateTensor, states[i].MemoryState, states[i].MemoryState2);
+                
+                if (isTraining)
+                {
+                    results[i] = new ActionsState(
+                        RLActions.Discrete(PPOActionSelection.SelectDiscreteActionsFromProbabilities(res, DiscreteActionDimensions)),
+                        memoryState,
+                        memoryState2);
+                }
+                else
+                {
+                    results[i] = new ActionsState(
+                        RLActions.Discrete(PPOActionSelection.SelectGreedyDiscreteActions(res, DiscreteActionDimensions)),
+                        memoryState,
+                        memoryState2);
                 }
             }
-            return result;
         }
+        
+        return new(results);
+    }
 
-
-        public new int[][] SelectActions(T[] states, bool isTraining)
-        {
-            Console.WriteLine("Using non recurrent action selection with recurrent agent, use (int[] actions, Tensor ? memoryState)[] signature instead");
-            throw new Exception("Using non recurrent action selection with recurrent agent, use (int[] actions, Tensor ? memoryState)[] signature instead");
-        }
+    public override ValueTask<RLActions[]> SelectActionsAsync(TState[] states, bool isTraining)
+    {
+        throw new Exception($"Using non recurrent action selection with recurrent agent, use {nameof(SelectActionsRecurrentAsync)} instead.");
     }
 }
-
-
-    
-

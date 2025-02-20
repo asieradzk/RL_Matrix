@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
-using RLMatrix.Server;
-using Microsoft.AspNetCore.SignalR;
+
+namespace RLMatrix.Server;
 
 public static class RLMatrixServerExtensions
 {

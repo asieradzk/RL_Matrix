@@ -52,7 +52,7 @@ public class CartPole : IEnvironment<float[]>
         var actionId = actionsIds[0];
 
         var (observation, reward, _done, information) = myEnv.Step(actionId);
-        SixLabors.ImageSharp.Image img = myEnv.Render();
+        var img = myEnv.Render();
         myState = observation.ToFloatArray();
         isDone = _done;
 

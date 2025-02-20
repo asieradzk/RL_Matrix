@@ -1,313 +1,302 @@
-﻿using OneOf;
-using RLMatrix.Agents.Common;
-using RLMatrix.Agents.PPO.Implementations;
-using RLMatrix.Common.Remote;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using RLMatrix.Common;
+using RLMatrix.Remote;
 
-namespace RLMatrix.Server
+namespace RLMatrix.Server;
+
+public interface IRLMatrixProxyAdapter : ISavable
 {
-    public interface IRLMatrixProxyAdapter
+    ValueTask<ActionResponseDTO> SelectBatchActionsAsync(List<StateInfoDTO> stateDTOs, bool isTraining);
+    ValueTask ResetStatesAsync(List<(Guid EnvironmentId, bool IsDone)> environmentIds);
+    ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions);
+    ValueTask OptimizeModelAsync();
+}
+
+public interface IRLMatrixService : IRLMatrixProxyAdapter
+{
+    Task InitializeAsync(IAgentOptions options, int[] discreteActionDimensions, ContinuousActionDimensions[] continuousActionDimensions, StateDimensions stateDimensions);
+    string SavePath { get; }
+}
+
+public class RLMatrixService(string savePath) : IRLMatrixService, IDisposable
+{
+    private IRLMatrixProxyAdapter? _proxyAdapter;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly CancellationTokenSource _optimizationCts = new();
+    //private Task? _continuousOptimizationTask; TODO : unused
+    private bool _isDqnAgent;
+
+    public string SavePath { get; } = savePath;
+
+    public async Task InitializeAsync(IAgentOptions options, int[] discreteActionDimensions, ContinuousActionDimensions[] continuousActionDimensions, StateDimensions stateDimensions)
     {
-        ValueTask<ActionResponseDTO> SelectActionsBatchAsync(List<StateInfoDTO> stateInfos, bool isTraining);
-        ValueTask ResetStates(List<(Guid environmentId, bool dones)> environmentIds);
-        ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions);
-        ValueTask OptimizeModelAsync();
-        ValueTask SaveAsync();
-        ValueTask LoadAsync();
+        await _semaphore.WaitAsync();
+        
+        try
+        {
+            if (_proxyAdapter != null)
+            {
+                throw new InvalidOperationException("Service already initialized.");
+            }
+
+            if (options is DQNAgentOptions)
+                _isDqnAgent = true;
+
+            _proxyAdapter = CreateProxyAdapter(options, discreteActionDimensions, continuousActionDimensions, stateDimensions);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
-    public interface IRLMatrixService : IRLMatrixProxyAdapter
+    public async ValueTask<ActionResponseDTO> SelectBatchActionsAsync(List<StateInfoDTO> stateDTOs, bool isTraining)
     {
-        void Initialize(OneOf<DQNAgentOptions, PPOAgentOptions> opts, int[] discreteActionSizes, (float min, float max)[] continuousActionBounds, OneOf<int, (int, int)> stateSizes);
+        await _semaphore.WaitAsync();
+
+        ThrowIfNotInitialized();
+        
+        try
+        {
+            return await _proxyAdapter!.SelectBatchActionsAsync(stateDTOs, isTraining);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
-    public class RLMatrixService : IRLMatrixService, IDisposable
+    public async ValueTask ResetStatesAsync(List<(Guid EnvironmentId, bool IsDone)> environmentIds)
     {
-        private IRLMatrixProxyAdapter? _proxyAdapter = null;
-        private readonly string _savePath;
-        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
-        private readonly CancellationTokenSource _optimizationCts = new CancellationTokenSource();
-        private Task? _continuousOptimizationTask;
-        private bool _isDqnAgent = false;
-
-        public RLMatrixService(string savePath)
+        await _semaphore.WaitAsync();
+        
+        ThrowIfNotInitialized();
+        
+        try
         {
-            _savePath = savePath;
+            await _proxyAdapter!.ResetStatesAsync(environmentIds);
         }
-
-        public void Initialize(OneOf<DQNAgentOptions, PPOAgentOptions> opts, int[] discreteActionSizes, (float min, float max)[] continuousActionBounds, OneOf<int, (int, int)> stateSizes)
+        finally
         {
-            _semaphore.Wait();
-            try
-            {
-                if (_proxyAdapter != null)
-                {
-                    throw new InvalidOperationException("Service already initialized");
-                }
-
-                opts.Switch(
-                    dqnOpts =>
-                    {
-                        _isDqnAgent = true;
-                        _proxyAdapter = CreateDQNAdapter(dqnOpts, discreteActionSizes, stateSizes);
-                        StartContinuousOptimization();
-                    },
-                    ppoOpts =>
-                    {
-                        _proxyAdapter = CreatePPOAdapter(ppoOpts, discreteActionSizes, continuousActionBounds, stateSizes);
-                    }
-                );
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
+            _semaphore.Release();
         }
+    }
 
-        public async ValueTask<ActionResponseDTO> SelectActionsBatchAsync(List<StateInfoDTO> stateInfos, bool isTraining)
+    public async ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions)
+    {
+        await _semaphore.WaitAsync();
+        
+        ThrowIfNotInitialized();
+        
+        try
         {
-            await _semaphore.WaitAsync();
-            try
-            {
-                var _ = _proxyAdapter ?? throw new InvalidOperationException("Service not initialized");
-                return await _proxyAdapter.SelectActionsBatchAsync(stateInfos, isTraining);
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
+            await _proxyAdapter!.UploadTransitionsAsync(transitions);
         }
-
-        public async ValueTask ResetStates(List<(Guid environmentId, bool dones)> environmentIds)
+        finally
         {
-            await _semaphore.WaitAsync();
-            try
-            {
-                var _ = _proxyAdapter ?? throw new InvalidOperationException("Service not initialized");
-                await _proxyAdapter.ResetStates(environmentIds);
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
+            _semaphore.Release();
         }
+    }
 
-        public async ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions)
+    public async ValueTask OptimizeModelAsync()
+    {
+        if (_isDqnAgent)
+            return;
+        
+        await _semaphore.WaitAsync();
+            
+        ThrowIfNotInitialized();
+            
+        try
         {
-            await _semaphore.WaitAsync();
-            try
-            {
-                var _ = _proxyAdapter ?? throw new InvalidOperationException("Service not initialized");
-                await _proxyAdapter.UploadTransitionsAsync(transitions);
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
+            await _proxyAdapter!.OptimizeModelAsync();
         }
-
-        public async ValueTask OptimizeModelAsync()
+        finally
         {
-            if (!_isDqnAgent)
+            _semaphore.Release();
+        }
+    }
+
+    public async ValueTask SaveAsync()
+    {
+        await _semaphore.WaitAsync();
+        
+        ThrowIfNotInitialized();
+        
+        try
+        {
+            await _proxyAdapter!.SaveAsync(SavePath);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async ValueTask LoadAsync()
+    {
+        await _semaphore.WaitAsync();
+        
+        ThrowIfNotInitialized();
+        
+        try
+        {
+            await _proxyAdapter!.LoadAsync(SavePath);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    /* TODO: unused?
+    private void StartContinuousOptimization()
+    {
+        _continuousOptimizationTask = Task.Run(async () =>
+        {
+            while (!_optimizationCts.IsCancellationRequested)
             {
                 await _semaphore.WaitAsync();
                 try
                 {
-                    var _ = _proxyAdapter ?? throw new InvalidOperationException("Service not initialized");
-                    await _proxyAdapter.OptimizeModelAsync();
+                    if (_proxyAdapter != null)
+                    {
+                        await _proxyAdapter.OptimizeModelAsync();
+                    }
                 }
                 finally
                 {
                     _semaphore.Release();
                 }
+                await Task.Delay(100);
             }
-        }
-
-        public async ValueTask SaveAsync()
-        {
-            await _semaphore.WaitAsync();
-            try
-            {
-                var _ = _proxyAdapter ?? throw new InvalidOperationException("Service not initialized");
-                await _proxyAdapter.SaveAsync();
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
-        public async ValueTask LoadAsync()
-        {
-            await _semaphore.WaitAsync();
-            try
-            {
-                var _ = _proxyAdapter ?? throw new InvalidOperationException("Service not initialized");
-                await _proxyAdapter.LoadAsync();
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
-        private void StartContinuousOptimization()
-        {
-            _continuousOptimizationTask = Task.Run(async () =>
-            {
-                while (!_optimizationCts.IsCancellationRequested)
-                {
-                    await _semaphore.WaitAsync();
-                    try
-                    {
-                        if (_proxyAdapter != null)
-                        {
-                            await _proxyAdapter.OptimizeModelAsync();
-                        }
-                    }
-                    finally
-                    {
-                        _semaphore.Release();
-                    }
-                    await Task.Delay(100);
-                }
-            });
-        }
-
-        public void Dispose()
-        {
-            _optimizationCts.Cancel();
-            _continuousOptimizationTask?.Wait();
-            _optimizationCts.Dispose();
-            _semaphore.Dispose();
-        }
-
-        private IRLMatrixProxyAdapter CreateDQNAdapter(DQNAgentOptions opts, int[] discreteActionSizes, OneOf<int, (int, int)> stateSizes)
-        {
-            return stateSizes.Match<IRLMatrixProxyAdapter>(
-                stateSize => new DiscreteProxyAdapterImpl<float[]>(
-                    new LocalDiscreteQAgent<float[]>(opts, discreteActionSizes, stateSize),
-                    _savePath),
-                sizes => new DiscreteProxyAdapterImpl<float[,]>(
-                    new LocalDiscreteQAgent<float[,]>(opts, discreteActionSizes, sizes),
-                    _savePath)
-            );
-        }
-
-        private IRLMatrixProxyAdapter CreatePPOAdapter(PPOAgentOptions opts, int[] discreteActionSizes, (float min, float max)[] continuousActionBounds, OneOf<int, (int, int)> stateSizes)
-        {
-            return stateSizes.Match<IRLMatrixProxyAdapter>(
-                stateSize => continuousActionBounds.Length == 0
-                    ? new DiscreteProxyAdapterImpl<float[]>(
-                        new LocalDiscretePPOAgent<float[]>(opts, discreteActionSizes, stateSize),
-                        _savePath)
-                    : new ContinuousProxyAdapterImpl<float[]>(
-                        new LocalContinuousPPOAgent<float[]>(opts, discreteActionSizes, stateSize, continuousActionBounds),
-                        _savePath),
-                sizes => continuousActionBounds.Length == 0
-                    ? new DiscreteProxyAdapterImpl<float[,]>(
-                        new LocalDiscretePPOAgent<float[,]>(opts, discreteActionSizes, sizes),
-                        _savePath)
-                    : new ContinuousProxyAdapterImpl<float[,]>(
-                        new LocalContinuousPPOAgent<float[,]>(opts, discreteActionSizes, sizes, continuousActionBounds),
-                        _savePath)
-            );
-        }
+        });
     }
+    */
 
-    class DiscreteProxyAdapterImpl<T> : IRLMatrixProxyAdapter
+    public void Dispose()
     {
-        private readonly IDiscreteProxy<T> _proxy;
-        private readonly string _savePath;
-
-        public DiscreteProxyAdapterImpl(IDiscreteProxy<T> proxy, string savePath)
-        {
-            _proxy = proxy;
-            _savePath = savePath;
-        }
-
-        public async ValueTask<ActionResponseDTO> SelectActionsBatchAsync(List<StateInfoDTO> stateInfosDTOs, bool isTraining)
-        {
-            var stateInfos = stateInfosDTOs.UnpackList<T>();
-            var actions = await _proxy.SelectActionsBatchAsync(stateInfos, isTraining);
-            var actionDTOs = actions.ToDictionary(kvp => kvp.Key, kvp => new ActionDTO(kvp.Value));
-            var resp = new ActionResponseDTO(actionDTOs);
-            return resp;
-        }
-
-        public ValueTask ResetStates(List<(Guid environmentId, bool dones)> environmentIds)
-        {
-            return _proxy.ResetStates(environmentIds);
-        }
-
-        public ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions)
-        {
-            var typedTransitions = transitions.FromDTOList<T>();
-            return _proxy.UploadTransitionsAsync(typedTransitions);
-        }
-
-        public ValueTask OptimizeModelAsync()
-        {
-            return _proxy.OptimizeModelAsync();
-        }
-
-        public ValueTask SaveAsync()
-        {
-            return _proxy.SaveAsync(_savePath);
-        }
-
-        public ValueTask LoadAsync()
-        {
-            return _proxy.LoadAsync(_savePath);
-        }
+        _optimizationCts.Cancel();
+        //_continuousOptimizationTask?.Wait(); TODO: unused
+        _optimizationCts.Dispose();
+        _semaphore.Dispose();
     }
 
-    class ContinuousProxyAdapterImpl<T> : IRLMatrixProxyAdapter
+    private IRLMatrixProxyAdapter CreateProxyAdapter(IAgentOptions opts, int[] discreteActionDimensions, ContinuousActionDimensions[]? continuousActionDimensions, StateDimensions stateDimensions)
     {
-        private readonly IContinuousProxy<T> _proxy;
-        private readonly string _savePath;
-
-        public ContinuousProxyAdapterImpl(IContinuousProxy<T> proxy, string savePath)
+        return opts switch
         {
-            _proxy = proxy;
-            _savePath = savePath;
-        }
-
-        public async ValueTask<ActionResponseDTO> SelectActionsBatchAsync(List<StateInfoDTO> stateInfosDTOs, bool isTraining)
-        {
-            var stateInfos = stateInfosDTOs.UnpackList<T>();
-            var actions = await _proxy.SelectActionsBatchAsync(stateInfos, isTraining);
-            var actionDTOs = actions.ToDictionary(kvp => kvp.Key, kvp => new ActionDTO(kvp.Value.discreteActions, kvp.Value.continuousActions));
-            return new ActionResponseDTO(actionDTOs);
-        }
-
-        public ValueTask ResetStates(List<(Guid environmentId, bool dones)> environmentIds)
-        {
-            return _proxy.ResetStates(environmentIds);
-        }
-
-        public ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions)
-        {
-            var typedTransitions = transitions.FromDTOList<T>();
-            return _proxy.UploadTransitionsAsync(typedTransitions);
-        }
-
-        public ValueTask OptimizeModelAsync()
-        {
-            return _proxy.OptimizeModelAsync();
-        }
-
-        public ValueTask SaveAsync()
-        {
-            return _proxy.SaveAsync(_savePath);
-        }
-
-        public ValueTask LoadAsync()
-        {
-            return _proxy.LoadAsync(_savePath);
-        }
+            DQNAgentOptions dqn => stateDimensions.Dimensions.Length switch
+            {
+                1 => new DiscreteProxyAdapterImpl<float[]>(new LocalDiscreteQAgent<float[]>(dqn, discreteActionDimensions, stateDimensions),
+                    SavePath),
+                2 => new DiscreteProxyAdapterImpl<float[,]>(new LocalDiscreteQAgent<float[,]>(dqn, discreteActionDimensions, stateDimensions),
+                    SavePath),
+                _ => throw new ArgumentOutOfRangeException(nameof(stateDimensions.Dimensions))
+            },
+            PPOAgentOptions ppo when continuousActionDimensions is not null => stateDimensions.Dimensions.Length switch
+            {
+                1 => new ContinuousProxyAdapterImpl<float[]>(new LocalContinuousPPOAgent<float[]>(ppo, discreteActionDimensions, continuousActionDimensions, stateDimensions), SavePath),
+                2 => new ContinuousProxyAdapterImpl<float[,]>(new LocalContinuousPPOAgent<float[,]>(ppo, discreteActionDimensions, continuousActionDimensions, stateDimensions), SavePath),
+                _ => throw new ArgumentOutOfRangeException(nameof(stateDimensions.Dimensions))
+            },
+            PPOAgentOptions ppo => stateDimensions.Dimensions.Length switch
+            {
+                1 => new DiscreteProxyAdapterImpl<float[]>(new LocalDiscretePPOAgent<float[]>(ppo, discreteActionDimensions, stateDimensions), SavePath),
+                2 => new DiscreteProxyAdapterImpl<float[,]>(new LocalDiscretePPOAgent<float[,]>(ppo, discreteActionDimensions, stateDimensions), SavePath),
+                _ => throw new ArgumentOutOfRangeException(nameof(stateDimensions.Dimensions))
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(opts))
+        };
     }
+
+    private void ThrowIfNotInitialized()
+    {
+        if (_proxyAdapter is null)
+            throw new InvalidOperationException("Service not initialized.");
+    }
+    
+    ValueTask ISavable.SaveAsync(string path) => SaveAsync();
+    ValueTask ISavable.LoadAsync(string path) => LoadAsync();
+}
+
+internal class DiscreteProxyAdapterImpl<TState>(IDiscreteProxy<TState> proxy, string savePath) : IRLMatrixProxyAdapter
+    where TState : notnull
+{
+    public async ValueTask<ActionResponseDTO> SelectBatchActionsAsync(List<StateInfoDTO> stateDTOs, bool isTraining)
+    {
+        var stateInfos = stateDTOs.FromDTOList<TState>();
+        var actions = await proxy.SelectBatchActionsAsync(stateInfos, isTraining);
+        var actionDTOs = actions.ToDictionary(kvp => kvp.Key, kvp => new ActionDTO(kvp.Value.DiscreteActions));
+        return new ActionResponseDTO(actionDTOs);
+    }
+
+    public ValueTask ResetStatesAsync(List<(Guid EnvironmentId, bool IsDone)> environmentIds)
+    {
+        return proxy.ResetStatesAsync(environmentIds);
+    }
+
+    public ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions)
+    {
+        var typedTransitions = transitions.FromDTOList<TState>();
+        return proxy.UploadTransitionsAsync(typedTransitions);
+    }
+
+    public ValueTask OptimizeModelAsync()
+    {
+        return proxy.OptimizeModelAsync();
+    }
+
+    public ValueTask SaveAsync()
+    {
+        return proxy.SaveAsync(savePath);
+    }
+
+    public ValueTask LoadAsync()
+    {
+        return proxy.LoadAsync(savePath);
+    }
+    
+    ValueTask ISavable.SaveAsync(string path) => SaveAsync();
+    ValueTask ISavable.LoadAsync(string path) => LoadAsync();
+}
+
+internal class ContinuousProxyAdapterImpl<TState>(IContinuousProxy<TState> proxy, string savePath) : IRLMatrixProxyAdapter
+    where TState : notnull
+{
+    public async ValueTask<ActionResponseDTO> SelectBatchActionsAsync(List<StateInfoDTO> stateDTOs, bool isTraining)
+    {
+        var stateInfos = stateDTOs.FromDTOList<TState>();
+        var actions = await proxy.SelectBatchActionsAsync(stateInfos, isTraining);
+        var actionDTOs = actions.ToDictionary(kvp => kvp.Key, kvp => new ActionDTO(kvp.Value.DiscreteActions, kvp.Value.ContinuousActions));
+        return new ActionResponseDTO(actionDTOs);
+    }
+
+    public ValueTask ResetStatesAsync(List<(Guid EnvironmentId, bool IsDone)> environmentIds)
+    {
+        return proxy.ResetStatesAsync(environmentIds);
+    }
+
+    public ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions)
+    {
+        var typedTransitions = transitions.FromDTOList<TState>();
+        return proxy.UploadTransitionsAsync(typedTransitions);
+    }
+
+    public ValueTask OptimizeModelAsync()
+    {
+        return proxy.OptimizeModelAsync();
+    }
+
+    public ValueTask SaveAsync()
+    {
+        return proxy.SaveAsync(savePath);
+    }
+
+    public ValueTask LoadAsync()
+    {
+        return proxy.LoadAsync(savePath);
+    }
+
+    ValueTask ISavable.SaveAsync(string path) => SaveAsync();
+    ValueTask ISavable.LoadAsync(string path) => LoadAsync();
 }

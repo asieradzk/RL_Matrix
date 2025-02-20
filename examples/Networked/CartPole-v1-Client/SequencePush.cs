@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using OneOf;
+﻿using OneOf;
 using RLMatrix;
 
 public class SequencePushEnv : IEnvironmentAsync<float[]>
@@ -66,7 +64,7 @@ public class SequencePushEnv : IEnvironmentAsync<float[]>
             isDone = true;
         }
 
-        float reward = actionsIds[0] == direction ? 1f : -2f;
+        var reward = actionsIds[0] == direction ? 1f : -2f;
         return Task.FromResult((reward, isDone));
     }
 }

@@ -1,13 +1,3 @@
-﻿using RLMatrix.Agents.Common;
+﻿namespace RLMatrix;
 
-namespace RLMatrix.Agents.PPO.Implementations
-{
-    public interface IDiscretePPOAgent<T> : IDiscreteAgentCore<T>, IHasMemory<T>, IHasOptimizer<T>, ISavable, ISelectActionsRecurrent<T> //TODO: ISP violation
-    {
-
-    }
-}
-
-
-    
-
+public interface IDiscretePPOAgent<TState> : IDiscreteAgent<TState>, IRecurrentActionSelectable<TState> where TState : notnull;

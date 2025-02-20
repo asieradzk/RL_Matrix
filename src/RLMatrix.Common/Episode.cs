@@ -1,36 +1,42 @@
-﻿namespace RLMatrix.Agents.Common
+﻿namespace RLMatrix.Common;
+
+/// <summary>
+///     Represents a single episode (or sequence of actions and transitions) between the reinforcement learning algorithm and its environment.
+/// </summary>
+/// <typeparam name="TState">The type that describes the state of the environment.</typeparam>
+public sealed class Episode<TState>
+    where TState : notnull
 {
-    public class Episode<T>
+    private Guid? _currentGuid;
+
+    /// <summary>
+    ///     The cumulative (total) reward of this episode.
+    /// </summary>
+    public float CumulativeReward { get; private set; }
+
+    /// <summary>
+    ///     All previously completed <see cref="Transition{TState}"/>s of this episode.
+    /// </summary>
+    public List<Transition<TState>> CompletedTransitions { get; } = [];
+
+    public void AddTransition(TState state, bool isDone, RLActions actions, float reward = 1f)
     {
-        Guid? guidCache;
-        public float cumulativeReward = 0;
-        private List<TransitionPortable<T>> TempBuffer = new();
-        public List<TransitionPortable<T>> CompletedEpisodes = new();
+        _currentGuid ??= Guid.NewGuid();
 
-        public void AddTransition(T state, bool isDone, int[] discreteActions, float[] continuousActions = null, float reward = 1f)
+        Guid? nextGuid = null;
+        if (!isDone)
         {
-            Guid? nextGuid = null;
-            if (guidCache == null)
-            {
-                guidCache = Guid.NewGuid();
-                cumulativeReward = 0;
-            }
-            if (!isDone)
-            {
-                nextGuid = Guid.NewGuid();
-            }
+            nextGuid = Guid.NewGuid();
+        }
 
-            continuousActions ??= new float[0];
+        var transition = new Transition<TState>(_currentGuid.Value, state, actions, reward, nextGuid);
 
-            var transition = new TransitionPortable<T>((Guid)guidCache, state, discreteActions, continuousActions, reward, nextGuid);
-            TempBuffer.Add(transition);
-            cumulativeReward += reward;
-            guidCache = nextGuid;
-            if (isDone)
-            {
-                CompletedEpisodes.AddRange(TempBuffer);
-                TempBuffer.Clear();
-            }
+        CumulativeReward += reward;
+        _currentGuid = nextGuid;
+
+        if (isDone)
+        {
+            CompletedTransitions.Add(transition);
         }
     }
 }

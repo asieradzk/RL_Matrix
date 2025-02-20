@@ -1,77 +1,53 @@
-﻿using RLMatrix.Common;
-using System;
-using System.Threading.Tasks;
+﻿namespace RLMatrix;
 
-namespace RLMatrix.Dashboard
+public class DashboardProvider : IAsyncDisposable
 {
-	public static class DashboardProvider
+	private readonly SemaphoreSlim _initSemaphore = new(1, 1);
+	private readonly bool _enableConsoleLogging;
+	private IDashboardClient? _client;
+	private readonly string _hubUrl;
+	private readonly int? _consoleLoggingUpdateInterval;
+
+	public DashboardProvider(string hubUrl = "https://localhost:7126/experimentdatahub", bool enableConsoleLogging = false, int? consoleLoggingUpdateInterval = null)
 	{
-		static bool consoleLogging = false;
-		static SignalRDashboardClient _instance;
-		static ConsoleClient _consoleInstance;
-		static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
-		public static bool EnableConsoleLogging(int updateInterval)
-		{
-			if(_instance== null && _consoleInstance == null)
-			{
-				_consoleInstance ??= new ConsoleClient(updateInterval);
-				consoleLogging = true;
-				return true;
-			}
-			return false;
-		}
-		public static IDashboardClient Instance
-		{
-			get
-			{
-				if(consoleLogging)
-				{
-					_consoleInstance ??= new ConsoleClient();
-					return _consoleInstance;
-				}
-				else
-				{
-					EnsureInitialized();
-					return _instance;
-				}
-				
-			}
-		}
+		_hubUrl = hubUrl;
+		_consoleLoggingUpdateInterval = consoleLoggingUpdateInterval;
+		_enableConsoleLogging = consoleLoggingUpdateInterval > 0 || enableConsoleLogging;
 
-		private static void EnsureInitialized()
+		Instance = this;
+	}
+
+	public static DashboardProvider Instance { get; private set; } = null!;
+
+	public async ValueTask<IDashboardClient> GetDashboardAsync()
+	{
+		if (_client is not null)
+			return _client;
+
+		await _initSemaphore.WaitAsync();
+		if (_client is not null)
+			return _client;
+
+		try
 		{
-			if (_instance == null)
+			if (_enableConsoleLogging)
 			{
-				_semaphore.Wait();
-				try
-				{
-					if (_instance == null)
-					{
-						Initialize();
-					}
-				}
-				finally
-				{
-					_semaphore.Release();
-				}
+				return _client = new ConsoleClient(_consoleLoggingUpdateInterval ?? 1);
 			}
-		}
+			
+			var client = new SignalRDashboardClient(_hubUrl);
+			await client.StartAsync();
 
-		private static async void Initialize(string hubUrl = "https://localhost:7126/experimentdatahub")
+			return _client = client;
+		}
+		finally
 		{
-			if (_instance != null) return;
-
-			_instance = new SignalRDashboardClient(hubUrl);
-			await _instance.StartAsync();
+			_initSemaphore.Release();
 		}
+	}
 
-		public static async ValueTask DisposeAsync()
-		{
-			if (_instance != null)
-			{
-				await _instance.DisposeAsync();
-				_instance = null;
-			}
-		}
+	public ValueTask DisposeAsync()
+	{
+		return _client?.DisposeAsync() ?? new();
 	}
 }

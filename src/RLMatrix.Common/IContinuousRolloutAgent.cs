@@ -1,6 +1,6 @@
-﻿namespace RLMatrix.Agents.Common
-{
-    public interface IContinuousRolloutAgent<TState> : IDiscreteRolloutAgent<TState>
-    {
-    }
-}
+﻿namespace RLMatrix.Common;
+
+/// <summary>
+///     Represents a continuous rollout agent for reinforcement learning.
+/// </summary>
+public interface IContinuousRolloutAgent : IRolloutAgent;

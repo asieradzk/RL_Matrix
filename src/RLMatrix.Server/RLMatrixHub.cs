@@ -1,40 +1,32 @@
-﻿using RLMatrix.Common.Remote;
-using RLMatrix.Server;
-using Microsoft.AspNetCore.SignalR;
-using OneOf;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using Microsoft.AspNetCore.SignalR;
+using RLMatrix.Common;
+using RLMatrix.Remote;
 
-public class RLMatrixHub : Hub
+namespace RLMatrix.Server;
+
+public class RLMatrixHub(IRLMatrixService service) : Hub
 {
-    private readonly IRLMatrixService _service;
-
-    public RLMatrixHub(IRLMatrixService service)
-    {
-        _service = service;
-    }
-
-    public async Task Initialize(AgentOptionsDTO opts, int[] discreteActionSizes, (float min, float max)[] continuousActionBounds, StateSizesDTO stateSizes)
+    public Task InitializeAsync(AgentOptionsDTO opts, int[] discreteActionDimensions, ContinuousActionDimensions[] continuousActionDimensions, StateSizesDTO stateSizes)
     {
         Console.WriteLine($"Initializing... request from {Context.ConnectionId}");
         try
         {
-            _service.Initialize(opts.ToAgentOptions(), discreteActionSizes, continuousActionBounds, stateSizes.ToOneOf());
             Console.WriteLine("Initialized");
+            return service.InitializeAsync(opts.ToAgentOptions(), discreteActionDimensions, continuousActionDimensions, stateSizes.ToStateDimensions());
         }
         catch (Exception ex)
         {
             Console.WriteLine("Failed to initialize the service.");
             Console.WriteLine(ex);
+            throw;
         }
     }
 
-    public async Task<ActionResponseDTO> SelectActions(List<StateInfoDTO> stateInfosDTOs, bool isTraining)
+    public ValueTask<ActionResponseDTO> SelectBatchActionsAsync(List<StateInfoDTO> stateInfosDTOs, bool isTraining)
     {
         try
         {
-            return await _service.SelectActionsBatchAsync(stateInfosDTOs, isTraining);
+            return service.SelectBatchActionsAsync(stateInfosDTOs, isTraining);
         }
         catch (Exception ex)
         {
@@ -44,11 +36,11 @@ public class RLMatrixHub : Hub
         }
     }
 
-    public async Task ResetStates(List<(Guid environmentId, bool dones)> environmentIds)
+    public ValueTask ResetStatesAsync(List<(Guid EnvironmentId, bool IsDone)> environments)
     {
         try
         {
-            await _service.ResetStates(environmentIds);
+            return service.ResetStatesAsync(environments);
         }
         catch (Exception ex)
         {
@@ -58,11 +50,11 @@ public class RLMatrixHub : Hub
         }
     }
 
-    public async Task UploadTransitions(List<TransitionPortableDTO> transitions)
+    public ValueTask UploadTransitionsAsync(List<TransitionPortableDTO> transitions)
     {
         try
         {
-            await _service.UploadTransitionsAsync(transitions);
+            return service.UploadTransitionsAsync(transitions);
         }
         catch (Exception ex)
         {
@@ -72,11 +64,11 @@ public class RLMatrixHub : Hub
         }
     }
 
-    public async Task OptimizeModel()
+    public ValueTask OptimizeModelAsync()
     {
         try
         {
-            await _service.OptimizeModelAsync();
+            return service.OptimizeModelAsync();
         }
         catch (Exception ex)
         {
@@ -86,11 +78,11 @@ public class RLMatrixHub : Hub
         }
     }
 
-    public async Task Save()
+    public ValueTask SaveAsync()
     {
         try
         {
-            await _service.SaveAsync();
+            return service.SaveAsync(service.SavePath);
         }
         catch (Exception ex)
         {
@@ -100,11 +92,11 @@ public class RLMatrixHub : Hub
         }
     }
 
-    public async Task Load()
+    public ValueTask LoadAsync()
     {
         try
         {
-            await _service.LoadAsync();
+            return service.LoadAsync(service.SavePath);
         }
         catch (Exception ex)
         {

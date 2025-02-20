@@ -1,53 +1,43 @@
-﻿using System;
-using static TorchSharp.torch;
-using static TorchSharp.torch.nn;
+﻿namespace RLMatrix;
 
-namespace TorchSharp.Modules
+public class NoisyLinear : TensorModule
 {
-    public class NoisyLinear : torch.nn.Module<Tensor, Tensor>
+    private readonly Linear _linear;
+    private readonly Tensor _epsilonWeight;
+    private readonly Tensor? _epsilonBias;
+    private readonly float _initStandardDeviation;
+
+    public NoisyLinear(long inFeatures, long outFeatures, bool bias = true, Device? device = null, ScalarType? dType = null, float initStandardDeviation = 0.0001f)
+        : base(nameof(NoisyLinear))
     {
-        private Linear _linear;
-        private Tensor _weight_epsilon;
-        private Tensor _bias_epsilon;
-        private float _std_init;
-        private Device _device;
+        _initStandardDeviation = initStandardDeviation;
+         device ??= torch.cuda.is_available() ? torch.CUDA : torch.CPU;
+        _linear = torch.nn.Linear(inFeatures, outFeatures, bias, device, dType);
 
-        public NoisyLinear(long in_features, long out_features, bool bias = true, Device? device = null, ScalarType? dtype = null, float std_init = 0.0001f)
-            : base(nameof(NoisyLinear))
+        var factorizedNoiseShape = new[] { outFeatures, 1 };
+        _epsilonWeight = torch.randn(factorizedNoiseShape, device: device, dtype: dType) * _initStandardDeviation;
+        
+        if (bias)
         {
-            _std_init = std_init;
-            _device = device ?? (cuda.is_available() ? CUDA : CPU);
-            _linear = nn.Linear(in_features, out_features, bias, _device, dtype);
-
-            var factorizedNoiseShape = new long[] { out_features, 1 };
-            _weight_epsilon = torch.randn(factorizedNoiseShape, device: _device, dtype: dtype) * _std_init;
-            if (bias)
-            {
-                _bias_epsilon = torch.randn(out_features, device: _device, dtype: dtype) * _std_init;
-            }
+            _epsilonBias = torch.randn(outFeatures, device: device, dtype: dType) * _initStandardDeviation;
         }
+    }
 
-        public override Tensor forward(Tensor input)
+    public override Tensor forward(Tensor input)
+    {
+        if (training)
         {
-            if (this.training)
-            {
-                var noisy_weight = _linear.weight + _weight_epsilon.expand(_linear.weight.shape);
-                var noisy_bias = _linear.bias + _bias_epsilon;
-                return nn.functional.linear(input, noisy_weight, noisy_bias);
-            }
-            else
-            {
-                return _linear.forward(input);
-            }
+            var noisyWeight = _linear.weight + _epsilonWeight.expand(_linear.weight.shape);
+            var noisyBias = _linear.bias! + _epsilonBias!;
+            return torch.nn.functional.linear(input, noisyWeight, noisyBias);
         }
+        
+        return _linear.forward(input);
+    }
 
-        public void ResetNoise()
-        {
-            _weight_epsilon.normal_(0, _std_init);
-            if (_bias_epsilon is not null)
-            {
-                _bias_epsilon.normal_(0, _std_init);
-            }
-        }
+    public void ResetNoise()
+    {
+        _epsilonWeight.normal_(0, _initStandardDeviation);
+        _epsilonBias?.normal_(0, _initStandardDeviation);
     }
 }

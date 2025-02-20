@@ -29,9 +29,9 @@ public class CartPole2d : IEnvironment<float[,]>
 
         var myStateCopy = new float[2, 2];
 
-        for (int i = 0; i < myState.GetLength(0); i++)
+        for (var i = 0; i < myState.GetLength(0); i++)
         {
-            for (int j = 0; j < myState.GetLength(1); j++)
+            for (var j = 0; j < myState.GetLength(1); j++)
             {
                 myStateCopy[i, j] = myState[i, j];
             }
@@ -66,13 +66,13 @@ public class CartPole2d : IEnvironment<float[,]>
 
         var (observation, reward, _done, information) = myEnv.Step(actionId);
 
-        SixLabors.ImageSharp.Image img = myEnv.Render(); //returns the image that was rendered.
+        var img = myEnv.Render(); //returns the image that was rendered.
                                                          // form.Invoke(new Action(() => ChangeImage(img)));
 
 
         // Thread.Sleep(1); //this is to prevent it from finishing instantly !
 
-        float[] observationArray = observation.ToFloatArray();
+        var observationArray = observation.ToFloatArray();
         myState[0, 0] = observationArray[0];
         myState[0, 1] = observationArray[1];
         myState[1, 0] = observationArray[2];

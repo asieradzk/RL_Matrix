@@ -1,106 +1,84 @@
-﻿using OneOf;
-using RLMatrix;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static TorchSharp.torch;
+﻿namespace RLMatrix;
 
-namespace RLMatrix
+/// <summary>
+///     Default implementation of IDQNNetProvider, makes network with 3 hidden layers
+/// </summary>
+public sealed class DQNNetProvider : IDQNNetProvider
 {
+    private enum NetworkType
+    {
+        Vanilla,
+        Dueling,
+        Categorical,
+        CategoricalDueling
+    }
+
+    private readonly int _neuronsPerLayer;
+    private readonly int _depth;
+    private readonly NetworkType _networkType;
+    
     /// <summary>
-    /// Default implementation of IDQNNetProvider, makes network with 3 hidden layers
+    ///     Constructs a simple DQN NN provider.
     /// </summary>
-    /// <typeparam name="T">Type of observation space 1D or 2D, for 2D a simple conv network is created</typeparam>
-    public sealed class DQNNetProvider<T> : IDQNNetProvider<T>
+    /// <param name="neuronsPerLayer">Number of neurons in hidden layers.</param>
+    /// <param name="depth">Depth of hidden layers.</param>
+    /// <param name="useDueling">Whether to use dueling DQN.</param>
+    /// <param name="categorical">Whether to use Categorical DQN.</param>
+    public DQNNetProvider(int neuronsPerLayer = 256, int depth = 2, bool useDueling = false, bool categorical = false)
     {
-        int neuronsPerLayer;
-        int depth;
-        NetworkType myNetworkTYpe;
+        _neuronsPerLayer = neuronsPerLayer;
+        _depth = depth;
 
-        /// <summary>
-        /// Default constructor for simple DQN NN.
-        /// </summary>
-        /// <param name="neuronsPerLayer">Number of neurons in hidden layers, default 256 x 3</param>
-        public DQNNetProvider(int neuronsPerLayer = 256, int depth = 2, bool useDueling = false, bool categorical = false)
+        _networkType = (categorical, useDueling) switch
         {
-            this.neuronsPerLayer = neuronsPerLayer;
-            this.depth = depth;
-            switch (categorical, useDueling)
+            (true, true) => NetworkType.CategoricalDueling,
+            (true, false) => NetworkType.Categorical,
+            (false, true) => NetworkType.Dueling,
+            (false, false) => NetworkType.Vanilla
+        };
+    }
+
+    public DQNNET CreateCriticNet<TState>(EnvironmentSizeDTO env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51)
+        where TState : notnull
+    {
+        if (typeof(TState) == typeof(float[]))
+        {
+            if (env.StateDimensions is not { Dimensions: var dimensions, Dimensions.Length: 1 })
+                throw new Exception("Unexpected observation dimension for 1D state.");
+            
+            var actionSize = env.DiscreteActionDimensions;
+            return _networkType switch
             {
-                case (true, true):
-                    myNetworkTYpe = NetworkType.categoricalDueling;
-                    break;
-                case (true, false):
-                    myNetworkTYpe = NetworkType.categorical;
-                    break;
-                case (false, true):
-                    myNetworkTYpe = NetworkType.dueling;
-                    break;
-                case (false, false):
-                    myNetworkTYpe = NetworkType.vanilla;
-                    break;
-            }
+                NetworkType.Vanilla => new DQN1D("1DDQN", dimensions[0], _neuronsPerLayer, actionSize, _depth, noisyLayers, noiseScale),
+                NetworkType.Dueling => new DuelingDQN("1DDuelingDQN", dimensions[0], _neuronsPerLayer, actionSize, _depth, noisyLayers, noiseScale),
+                NetworkType.Categorical => new CategoricalDQN1D("1DCategoricalDQN", dimensions[0], _neuronsPerLayer, actionSize, _depth, numAtoms, noisyLayers, noiseScale),
+                NetworkType.CategoricalDueling => new CategoricalDuelingDQN1D("1DCategoricalDuelingDQN", dimensions[0], _neuronsPerLayer, actionSize, _depth, numAtoms, noisyLayers, noiseScale),
+                _ => throw new ArgumentOutOfRangeException(nameof(_networkType), _networkType, null)
+            };
         }
 
-        public DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51)
+        if (typeof(TState) == typeof(float[,]))
         {
-            switch (typeof(T))
+            if (env.StateDimensions is not { Dimensions: var dimensions, Dimensions.Length: 2 })
+                throw new Exception("Unexpected observation dimension for 2D state.");
+
+            var (h, w) = (dimensions[0], dimensions[1]);
+            var actionSize2 = env.DiscreteActionDimensions;
+            return _networkType switch
             {
-                case Type t when t == typeof(float[]):
-                    var obsSize = env.stateSize.Match<int>(
-                        intSize => intSize,
-                        tupleSize => throw new Exception("Unexpected 2D observation dimension for 1D state"));
-                    var actionSize = env.actionSize;
-                    return myNetworkTYpe switch
-                    {
-                        NetworkType.vanilla => new DQN1D("1DDQN", obsSize, neuronsPerLayer, actionSize, depth, noisyLayers, noiseScale),
-                        NetworkType.dueling => new DuelingDQN("1DDuelingDQN", obsSize, neuronsPerLayer, actionSize, depth, noisyLayers, noiseScale),
-                        NetworkType.categorical => new CategoricalDQN1D("1DCategoricalDQN", obsSize, neuronsPerLayer, actionSize, depth, numAtoms, noisyLayers, noiseScale),
-                        NetworkType.categoricalDueling => new CategoricalDuelingDQN1D("1DCategoricalDuelingDQN", obsSize, neuronsPerLayer, actionSize, depth, numAtoms, noisyLayers, noiseScale),
-                        _ => throw new ArgumentOutOfRangeException(nameof(myNetworkTYpe), myNetworkTYpe, null)
-                    };
-                case Type t when t == typeof(float[,]):
-                    var obsSize2D = env.stateSize.Match<(int, int)>(
-                        intSize => throw new Exception("Unexpected 1D observation dimension for 2D state"),
-                        tupleSize => tupleSize);
-                    var actionSize2 = env.actionSize;
-                    return myNetworkTYpe switch
-                    {
-                        NetworkType.vanilla => new DQN2D("2DDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth: depth, noisyLayers, noiseScale),
-                        NetworkType.dueling => new DuelingDQN2D("2DDuelingDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth: depth, noisyLayers, noiseScale),
-                        NetworkType.categorical => new CategoricalDQN2D("2DCategoricalDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth: depth, numAtoms, noisyLayers, noiseScale),
-                        NetworkType.categoricalDueling => new CategoricalDuelingDQN2D("2DCategoricalDuelingDQN", obsSize2D.Item1, obsSize2D.Item2, actionSize2, neuronsPerLayer, depth: depth, numAtoms, noisyLayers, noiseScale),
-                        _ => throw new ArgumentOutOfRangeException(nameof(myNetworkTYpe), myNetworkTYpe, null)
-                    };
-                default:
-                    throw new Exception("Unexpected type");
-            }
+                NetworkType.Vanilla => new DQN2D("2DDQN", h, w, actionSize2, _neuronsPerLayer, depth: _depth, noisyLayers, noiseScale),
+                NetworkType.Dueling => new DuelingDQN2D("2DDuelingDQN", h, w, actionSize2, _neuronsPerLayer, depth: _depth, noisyLayers, noiseScale),
+                NetworkType.Categorical => new CategoricalDQN2D("2DCategoricalDQN", h, w, actionSize2, _neuronsPerLayer, depth: _depth, numAtoms, noisyLayers, noiseScale),
+                NetworkType.CategoricalDueling => new CategoricalDuelingDQN2D("2DCategoricalDuelingDQN", h, w, actionSize2, _neuronsPerLayer, depth: _depth, numAtoms, noisyLayers, noiseScale),
+                _ => throw new ArgumentOutOfRangeException(nameof(_networkType), _networkType, null)
+            };
         }
-
-        internal enum NetworkType
-        {
-            vanilla,
-            dueling,
-            categorical,
-            categoricalDueling
-        }
+        
+        throw new Exception("Unexpected type");
     }
+}
 
-    public class EnvSizeDTO<T>
-    {
-#if NET8_0_OR_GREATER
-        public required OneOf<int, (int, int)> stateSize;
-        public required int[] actionSize;
-#else
-       public OneOf<int, (int, int)> stateSize;
-       public int[] actionSize;
-#endif
-    }
-
-    public interface IDQNNetProvider<T>
-    {
-        DQNNET CreateCriticNet(EnvSizeDTO<T> env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51);
-    }
+public interface IDQNNetProvider
+{
+    DQNNET CreateCriticNet<TState>(EnvironmentSizeDTO env, bool noisyLayers = false, float noiseScale = 0f, int numAtoms = 51) where TState : notnull;
 }

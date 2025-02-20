@@ -1,175 +1,166 @@
-﻿using System;
-using System.Collections.Generic;
-using TorchSharp.Modules;
-using TorchSharp;
-using static TorchSharp.torch;
-using static TorchSharp.torch.nn;
+﻿namespace RLMatrix;
 
-namespace RLMatrix
+public abstract class DQNNET(string name) : TensorModule(name)
 {
-    public abstract class DQNNET : Module<Tensor, Tensor>
+    public abstract override Tensor forward(Tensor x);
+}
+
+public sealed class DQN1D : DQNNET
+{
+    private readonly ModuleList<TensorModule> _modules = new();
+    private readonly ModuleList<TensorModule> _heads = new();
+
+    public DQN1D(string name, int obsSize, int width, int[] actionSizes, int depth = 4, bool noisyLayers = false, float noiseScale = 0.0001f) 
+        : base(name)
     {
-        public DQNNET(string name) : base(name)
+        if (obsSize < 1)
         {
+            throw new ArgumentException("Number of observations can't be less than 1");
         }
 
-        public override abstract Tensor forward(Tensor x);
+        _modules.Add(noisyLayers ? new NoisyLinear(obsSize, width, initStandardDeviation: noiseScale) : torch.nn.Linear(obsSize, width));
+
+        for (var i = 1; i < depth; i++)
+        {
+            _modules.Add(noisyLayers ? new NoisyLinear(width, width, initStandardDeviation: noiseScale) : torch.nn.Linear(width, width));
+        }
+
+        foreach (var actionSize in actionSizes)
+        {
+            _heads.Add(noisyLayers ? new NoisyLinear(width, actionSize, initStandardDeviation: noiseScale) : torch.nn.Linear(width, actionSize));
+        }
+
+        RegisterComponents();
     }
 
-    public sealed class DQN1D : DQNNET
+    public override Tensor forward(Tensor x)
     {
-        private readonly ModuleList<Module<Tensor, Tensor>> modules = new();
-        private readonly ModuleList<Module<Tensor, Tensor>> heads = new();
-
-        public DQN1D(string name, int obsSize, int width, int[] actionSizes, int depth = 4, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
+        if (x.dim() == 1)
         {
-            if (obsSize < 1)
-            {
-                throw new ArgumentException("Number of observations can't be less than 1");
-            }
-
-            modules.Add(noisyLayers ? new NoisyLinear(obsSize, width, std_init: noiseScale) : Linear(obsSize, width));
-
-            for (int i = 1; i < depth; i++)
-            {
-                modules.Add(noisyLayers ? new NoisyLinear(width, width, std_init: noiseScale) : Linear(width, width));
-            }
-
-            foreach (var actionSize in actionSizes)
-            {
-                heads.Add(noisyLayers ? new NoisyLinear(width, actionSize, std_init: noiseScale) : Linear(width, actionSize));
-            }
-
-            RegisterComponents();
+            x = x.unsqueeze(0);
         }
 
-        public override Tensor forward(Tensor x)
+        foreach (var module in _modules)
         {
-            if (x.dim() == 1)
-            {
-                x = x.unsqueeze(0);
-            }
-
-            foreach (var module in modules)
-            {
-                x = functional.relu(module.forward(x));
-            }
-
-            var outputs = new List<Tensor>();
-            foreach (var head in heads)
-            {
-                outputs.Add(head.forward(x));
-            }
-
-            return stack(outputs, dim: 1);
+            x = torch.nn.functional.relu(module.forward(x));
         }
 
-        protected override void Dispose(bool disposing)
+        var outputs = new List<Tensor>();
+        foreach (var head in _heads)
         {
-            if (disposing)
-            {
-                foreach (var module in modules)
-                {
-                    module.Dispose();
-                }
-                foreach (var head in heads)
-                {
-                    head.Dispose();
-                }
-            }
-
-            base.Dispose(disposing);
+            outputs.Add(head.forward(x));
         }
+
+        return torch.stack(outputs, dim: 1);
     }
 
-    public sealed class DQN2D : DQNNET
+    protected override void Dispose(bool disposing)
     {
-        private readonly Module<Tensor, Tensor> conv1, flatten;
-        private readonly ModuleList<Module<Tensor, Tensor>> fcModules = new();
-        private readonly ModuleList<Module<Tensor, Tensor>> heads = new();
-        private readonly int width;
-        private long linear_input_size;
-
-        private long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
+        if (disposing)
         {
-            return ((inputSize - kernelSize + 2 * padding) / stride) + 1;
+            foreach (var module in _modules)
+            {
+                module.Dispose();
+            }
+            
+            foreach (var head in _heads)
+            {
+                head.Dispose();
+            }
         }
 
-        public DQN2D(string name, long h, long w, int[] actionSizes, int width, int depth = 3, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
+        base.Dispose(disposing);
+    }
+}
+
+public sealed class DQN2D : DQNNET
+{
+    private readonly TensorModule _conv1;
+    private readonly TensorModule _flatten;
+    private readonly ModuleList<TensorModule> _fcModules = new();
+    private readonly ModuleList<TensorModule> _heads = new();
+
+    public DQN2D(string name, long h, long w, int[] actionSizes, int width, int depth = 3, bool noisyLayers = false, float noiseScale = 0.0001f) : base(name)
+    {
+        if (depth < 1) 
+            throw new ArgumentOutOfRangeException(nameof(depth), "Depth must be 1 or greater.");
+
+        var smallestDim = Math.Min(h, w);
+        var padding = smallestDim / 2;
+
+        _conv1 = torch.nn.Conv2d(1, width, kernel_size: (smallestDim, smallestDim), stride: (1, 1), padding: (padding, padding));
+
+        var outputHeight = CalculateConvOutputSize(h, smallestDim, padding: padding);
+        var outputWidth = CalculateConvOutputSize(w, smallestDim, padding: padding);
+
+        var linearInputSize = outputHeight * outputWidth * width;
+
+        _flatten = torch.nn.Flatten();
+
+        _fcModules.Add(noisyLayers ? new NoisyLinear(linearInputSize, width, initStandardDeviation: noiseScale) : torch.nn.Linear(linearInputSize, width));
+
+        for (var i = 1; i < depth; i++)
         {
-            if (depth < 1) throw new ArgumentOutOfRangeException("Depth must be 1 or greater.");
-
-            this.width = width;
-
-            var smallestDim = Math.Min(h, w);
-            var padding = smallestDim / 2;
-
-            conv1 = Conv2d(1, width, kernelSize: (smallestDim, smallestDim), stride: (1, 1), padding: (padding, padding));
-
-            long output_height = CalculateConvOutputSize(h, smallestDim, padding: padding);
-            long output_width = CalculateConvOutputSize(w, smallestDim, padding: padding);
-
-            linear_input_size = output_height * output_width * width;
-
-            flatten = Flatten();
-
-            fcModules.Add(noisyLayers ? new NoisyLinear(linear_input_size, width, std_init: noiseScale) : Linear(linear_input_size, width));
-
-            for (int i = 1; i < depth; i++)
-            {
-                fcModules.Add(noisyLayers ? new NoisyLinear(width, width, std_init: noiseScale) : Linear(width, width));
-            }
-
-            foreach (var actionSize in actionSizes)
-            {
-                heads.Add(noisyLayers ? new NoisyLinear(width, actionSize, std_init: noiseScale) : Linear(width, actionSize));
-            }
-
-            RegisterComponents();
-        }
-        public override Tensor forward(Tensor x)
-        {
-            if (x.dim() == 2)
-            {
-                x = x.unsqueeze(0).unsqueeze(0);
-            }
-            else if (x.dim() == 3)
-            {
-                x = x.unsqueeze(1);
-            }
-            x = functional.relu(conv1.forward(x));
-            x = flatten.forward(x);
-            foreach (var module in fcModules)
-            {
-                x = functional.relu(module.forward(x));
-            }
-
-            var outputs = new List<Tensor>();
-            foreach (var head in heads)
-            {
-                outputs.Add(head.forward(x));
-            }
-
-            return stack(outputs, dim: 1);
+            _fcModules.Add(noisyLayers ? new NoisyLinear(width, width, initStandardDeviation: noiseScale) : torch.nn.Linear(width, width));
         }
 
-        protected override void Dispose(bool disposing)
+        foreach (var actionSize in actionSizes)
         {
-            if (disposing)
-            {
-                conv1.Dispose();
-                flatten.Dispose();
-                foreach (var module in fcModules)
-                {
-                    module.Dispose();
-                }
-                foreach (var head in heads)
-                {
-                    head.Dispose();
-                }
-            }
-
-            base.Dispose(disposing);
+            _heads.Add(noisyLayers ? new NoisyLinear(width, actionSize, initStandardDeviation: noiseScale) : torch.nn.Linear(width, actionSize));
         }
+
+        RegisterComponents();
+    }
+    
+    public override Tensor forward(Tensor x)
+    {
+        if (x.dim() == 2)
+        {
+            x = x.unsqueeze(0).unsqueeze(0);
+        }
+        else if (x.dim() == 3)
+        {
+            x = x.unsqueeze(1);
+        }
+        x = torch.nn.functional.relu(_conv1.forward(x));
+        x = _flatten.forward(x);
+        foreach (var module in _fcModules)
+        {
+            x = torch.nn.functional.relu(module.forward(x));
+        }
+
+        var outputs = new List<Tensor>();
+        foreach (var head in _heads)
+        {
+            outputs.Add(head.forward(x));
+        }
+
+        return torch.stack(outputs, dim: 1);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _conv1.Dispose();
+            _flatten.Dispose();
+            
+            foreach (var module in _fcModules)
+            {
+                module.Dispose();
+            }
+            
+            foreach (var head in _heads)
+            {
+                head.Dispose();
+            }
+        }
+
+        base.Dispose(disposing);
+    }
+    
+    private static long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
+    {
+        return (inputSize - kernelSize + 2 * padding) / stride + 1;
     }
 }

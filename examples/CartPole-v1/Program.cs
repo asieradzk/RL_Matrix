@@ -23,7 +23,7 @@ var optsppo = new PPOAgentOptions(
 var envppo = new List<IEnvironment<float[]>> { new CartPole(), new CartPole() };
 var myAgentppo = new PPOAgent<float[]>(optsppo, envppo);
 
-for (int i = 0; i < 10000; i++)
+for (var i = 0; i < 10000; i++)
 {
    // myAgentppo.Step();
 }
@@ -40,7 +40,7 @@ var myAgent = new DQNAgent<float[,]>(opts, env);
 
 
 
-for (int i = 0; i < 10000; i++)
+for (var i = 0; i < 10000; i++)
 {
     myAgent.Step();
 

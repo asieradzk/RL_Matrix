@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using Gym.Environments.Envs.Classic;
+﻿using Gym.Environments.Envs.Classic;
 using Gym.Rendering.WinForm;
 using OneOf;
 using RLMatrix;
@@ -57,9 +56,9 @@ public class CartPole2dAsync : IEnvironmentAsync<float[,]>
 
             var actionId = actionsIds[0];
             var (observation, reward, done, information) = myEnv.Step(actionId);
-            SixLabors.ImageSharp.Image img = myEnv.Render();
+            var img = myEnv.Render();
 
-            float[] observationArray = observation.ToFloatArray();
+            var observationArray = observation.ToFloatArray();
             myState[0, 0] = observationArray[0];
             myState[0, 1] = observationArray[1];
             myState[1, 0] = observationArray[2];

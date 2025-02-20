@@ -1,128 +1,135 @@
-﻿using Newtonsoft.Json;
-using RLMatrix.Agents.Common;
-using RLMatrix.Agents.DQN.Domain;
-using RLMatrix.Memories;
-using TorchSharp.Modules;
-using static TorchSharp.torch;
-using static TorchSharp.torch.nn;
-using static TorchSharp.torch.optim.lr_scheduler;
-using static TorchSharp.torchvision;
+﻿using RLMatrix.Common;
 
-namespace RLMatrix
+namespace RLMatrix;
+
+public class ComposableQDiscreteAgent<TState> : IDiscreteAgent<TState>
+    where TState : notnull
 {
-    public interface IDiscreteAgent<T>
+    // TODO: OptimizerHelper goes unused even in the original impl
+    // private readonly OptimizerHelper _optimizerHelper;
+    private readonly Func<TState[], ComposableQDiscreteAgent<TState>, bool, RLActions[]> _selectActionsFunc;
+
+    public ComposableQDiscreteAgent(TensorModule policyNet, TensorModule targetNet, IOptimizer<TState> optimizer, 
+        IMemory<TState> memory, int[] actionDimensions, Action resetNoisyLayers, DQNAgentOptions options, Device device, Tensor? support,
+        /* OptimizerHelper optimizerHelper, */ Func<TState[], ComposableQDiscreteAgent<TState>, bool, RLActions[]> selectActionsFunc)
     {
-        void Step(bool isTraining);
+        // _optimizerHelper = optimizerHelper;
+        _selectActionsFunc = selectActionsFunc;
+        
+        PolicyNet = policyNet;
+        TargetNet = targetNet;
+        Optimizer = optimizer;
+        Memory = memory;
+        DiscreteActionDimensions = actionDimensions;
+        ResetNoisyLayers = resetNoisyLayers;
+        Options = options;
+        Device = device;
+        Support = support;
     }
 
-    public class ComposableQDiscreteAgent<T> : IDiscreteAgentCore<T>, IHasMemory<T>, ISelectActions<T>, IHasOptimizer<T>, ISavable
+    public TensorModule PolicyNet { get; }
+    
+    public TensorModule TargetNet { get; }
+    
+    public IOptimizer<TState> Optimizer { get; }
+    
+    public IMemory<TState> Memory { get; }
+    
+    public int[] DiscreteActionDimensions { get; }
+    
+    public Action ResetNoisyLayers { get; }
+    
+    public DQNAgentOptions Options { get; }
+    
+    public Device Device { get; }
+
+    public Tensor? Support { get; }
+
+    public ulong EpisodeCount { get; private set; }
+
+    public Random Random { get; } = new();
+
+    public async ValueTask AddTransitionsAsync(IEnumerable<Transition<TState>> transitions)
     {
-#if NET8_0_OR_GREATER
-        public required Module<Tensor, Tensor> policyNet { get; set; }
-        public required Module<Tensor, Tensor> targetNet { get; set; }
-        public required OptimizerHelper optimizer { private get; init; }
-        public required IOptimize<T> Optimizer { get; init; }
-        public required IMemory<T> Memory { get; set; }
-        public required int[] ActionSizes { get; init; }
-        public required Action ResetNoisyLayers { get; init; }
-        public required DQNAgentOptions Options { get; init; }
-        public required Device Device { get; init; }
-        public required Func<T[], ComposableQDiscreteAgent<T>, bool, int[][]> SelectActionsFunc { private get; init; }
-#else
-        public Module<Tensor, Tensor> policyNet { get; set; }
-        public Module<Tensor, Tensor> targetNet { get; set; }
-        public OptimizerHelper optimizer { private get; set; }
-        public IOptimize<T> Optimizer { get; set; }
-        public IMemory<T> Memory { get; set; }
-        public int[] ActionSizes { get; set; }
-        public Action ResetNoisyLayers { get; set; }
-        public DQNAgentOptions Options { get; set; }
-        public Device Device { get; set; }
-        public Func<T[], ComposableQDiscreteAgent<T>, bool, int[][]> SelectActionsFunc { private get; set; }
-#endif
+        var transitionsInMemory = Utilities<TState>.ConvertToMemoryTransitions(transitions);
 
-        public Random Random = new Random();
-        public Tensor? support { get; set; }
-        public ulong episodeCount = 0;
-
-        public void AddTransition(IEnumerable<TransitionPortable<T>> transitions)
-        {
-            var transitionsInMemory = transitions.ToTransitionInMemory();
-
-
-            Memory.Push(transitionsInMemory);
-            episodeCount++;
-        }
-
-        public void OptimizeModel()
-        {
-            Optimizer.Optimize(Memory);
-        }
-
-        public int[][] SelectActions(T[] states, bool isTraining)
-        {
-            return SelectActionsFunc(states, this, isTraining);
-        }
-
-        public void Save(string path)
-        {
-            var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
-
-            string policyNetPath = GetNextAvailableModelPath(modelPath, "modelPolicy");
-            policyNet.save(policyNetPath);
-
-            string targetNetPath = GetNextAvailableModelPath(modelPath, "modelTarget");
-            targetNet.save(targetNetPath);
-        }
-
-        private string GetNextAvailableModelPath(string modelPath, string modelName)
-        {
-            var files = Directory.GetFiles(modelPath);
-
-            int maxNumber = files
-                .Where(file => file.Contains(modelName))
-                .Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault())
-                .Where(number => int.TryParse(number, out _))
-                .DefaultIfEmpty("0")
-                .Max(number => int.Parse(number));
-
-            string nextModelPath = $"{modelPath}{modelName}_{maxNumber + 1}";
-
-            return nextModelPath;
-        }
-
-        public void Load(string path, LRScheduler scheduler = null)
-        {
-            var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
-
-            string policyNetPath = GetLatestModelPath(modelPath, "modelPolicy");
-            string targetNetPath = GetLatestModelPath(modelPath, "modelTarget");
-            policyNet.load(policyNetPath, true);
-
-            targetNet.load(targetNetPath, true);
-
-            Optimizer.UpdateOptimizers(scheduler);
-        }
-
-        private string GetLatestModelPath(string modelPath, string modelName)
-        {
-            var files = Directory.GetFiles(modelPath);
-
-            int maxNumber = files
-                .Where(file => file.Contains(modelName))
-                .Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault())
-                .Where(number => int.TryParse(number, out _))
-                .DefaultIfEmpty("0")
-                .Max(number => int.Parse(number));
-
-            string latestModelPath = $"{modelPath}{modelName}_{maxNumber}";
-
-            return latestModelPath;
-        }
+        await Memory.PushAsync(transitionsInMemory);
+        EpisodeCount++;
     }
 
-    public interface IDiscreteQAgentFactory<T>
+    public ValueTask OptimizeModelAsync()
     {
-        ComposableQDiscreteAgent<T> ComposeAgent(DQNAgentOptions options);
+        return Optimizer.OptimizeAsync(Memory);
     }
+
+    public ValueTask<RLActions[]> SelectActionsAsync(TState[] states, bool isTraining)
+    {
+        return new(_selectActionsFunc(states, this, isTraining).ToArray());
+    }
+
+    public ValueTask SaveAsync(string path)
+    {
+        var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
+
+        var policyNetPath = GetNextAvailableModelPath(modelPath, "modelPolicy");
+        PolicyNet.save(policyNetPath);
+
+        var targetNetPath = GetNextAvailableModelPath(modelPath, "modelTarget");
+        TargetNet.save(targetNetPath);
+        return new();
+    }
+
+    public ValueTask LoadAsync(string path, LRScheduler? scheduler = null)
+    {
+        var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
+
+        var policyNetPath = GetLatestModelPath(modelPath, "modelPolicy");
+        var targetNetPath = GetLatestModelPath(modelPath, "modelTarget");
+        
+        PolicyNet.load(policyNetPath);
+        TargetNet.load(targetNetPath);
+
+        // TODO: what to do when scheduler is null?
+        return Optimizer.UpdateOptimizersAsync(scheduler!);
+    }
+    
+    private static string GetNextAvailableModelPath(string modelPath, string modelName)
+    {
+        var files = Directory.GetFiles(modelPath);
+
+        var maxNumber = files
+            .Where(file => file.Contains(modelName))
+            .Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault())
+            .Where(number => int.TryParse(number, out _))
+            .DefaultIfEmpty("0")
+            .Max(number => int.Parse(number!));
+
+        var nextModelPath = $"{modelPath}{modelName}_{maxNumber + 1}";
+
+        return nextModelPath;
+    }
+
+    private static string GetLatestModelPath(string modelPath, string modelName)
+    {
+        var files = Directory.GetFiles(modelPath);
+
+        var maxNumber = files
+            .Where(file => file.Contains(modelName))
+            .Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault())
+            .Where(number => int.TryParse(number, out _))
+            .DefaultIfEmpty("0")
+            .Max(number => int.Parse(number!));
+
+        var latestModelPath = $"{modelPath}{modelName}_{maxNumber}";
+
+        return latestModelPath;
+    }
+
+    ValueTask ISavable.LoadAsync(string path) => LoadAsync(path);
+}
+
+public interface IDiscreteQAgentFactory<TState>
+    where TState : notnull
+{
+    ComposableQDiscreteAgent<TState> ComposeAgent(DQNAgentOptions options);
 }

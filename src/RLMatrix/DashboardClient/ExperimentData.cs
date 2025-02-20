@@ -1,56 +1,63 @@
-﻿using System;
-using System.Xml.Linq;
+﻿using System.Text;
 
-namespace RLMatrix.Common.Dashboard
+namespace RLMatrix;
+
+public sealed record ExperimentData(
+	Guid ExperimentId,
+	DateTimeOffset Timestamp,
+	// General metrics
+	float? Reward = null,
+	float? CumulativeReward = null,
+	int? EpisodeLength = null,
+	// Actor-Critic specific metrics
+	float? ActorLoss = null,
+	float? ActorLearningRate = null,
+	float? CriticLoss = null,
+	float? CriticLearningRate = null,
+	// Policy metrics
+	float? KLDivergence = null,
+	float? Entropy = null,
+	// DQN/C51 specific metrics
+	float? Epsilon = null,
+	float? Loss = null,
+	float? LearningRate = null)
 {
-	public record ExperimentData
+	public static bool PrintReward { get; set; } = true;
+	public static bool PrintCumulativeReward { get; set; } = true;
+	public static bool PrintActorLoss { get; set; } = false;
+	public static bool PrintCriticLoss { get; set; } = false;
+	public static bool PrintEntropy { get; set; } = true;
+	public static bool PrintLoss { get; set; } = true;
+	public static bool PrintLearningRate { get; set; } = true;
+
+	private bool PrintMembers(StringBuilder builder)
 	{
-		public Guid ExperimentId { get; set; }
-		public DateTime Timestamp { get; set; }
+		var len = builder.Length;
+		if (PrintEntropy && Entropy.HasValue)
+			builder.Append($"Ent={Entropy:N4}, ");
 
-		// General metrics
-		public double? Reward { get; set; }
-		public double? CumulativeReward { get; set; }
-		public int? EpisodeLength { get; set; }
+		if (PrintReward && Reward.HasValue)
+			builder.Append($"Reward={Reward:N3}, ");
 
-		// Actor-Critic specific metrics
-		public double? ActorLoss { get; set; }
-		public double? ActorLearningRate { get; set; }
-		public double? CriticLoss { get; set; }
-		public double? CriticLearningRate { get; set; }
+		if (PrintActorLoss && ActorLoss.HasValue)
+			builder.Append($"ActLoss={ActorLoss:N3}, ");
 
-		// Policy metrics
-		public double? KLDivergence { get; set; }
-		public double? Entropy { get; set; }
+		if (PrintCriticLoss && CriticLoss.HasValue)
+			builder.Append($"CrLoss={CriticLoss:N3}, ");
 
-		// DQN/C51 specific metrics
-		public double? Epsilon { get; set; }
-		public double? Loss { get; set; }
-		public double? LearningRate { get; set; }
+		if (PrintLoss && Loss.HasValue)
+			builder.Append($"Loss={Loss:N3}, ");
 
-		public static bool PrintReward = true;
-		public static bool PrintCumulativeReward = true;
-		public static bool PrintActorLoss = false;
-		public static bool PrintCriticLoss = false;
-		public static bool PrintEntropy = true;
-		public static bool PrintLoss = true;
-		public static bool PrintLearningRate = true;
-		public override string ToString()
-		{
-			string s = "";
-			if (PrintEntropy && Entropy != null)
-				s += " Ent=" + Entropy.Value.ToString("N4");
-			if (PrintReward && Reward != null)
-				s += " Reward=" + Reward.Value.ToString("N3");
-			if (PrintActorLoss && ActorLoss != null)
-				s += " ActLoss=" + ActorLoss.Value.ToString("N3");
-			if (PrintCriticLoss && CriticLoss != null)
-				s += " CrLoss=" + CriticLoss.Value.ToString("N3");
-			if (PrintLoss && Loss != null)
-				s += " Loss=" + Loss.Value.ToString("N3");
-			if (PrintLearningRate && LearningRate != null)
-				s += " LR=" + LearningRate.Value.ToString("N3");
-			return s;
-		}
+		if (PrintLearningRate && LearningRate.HasValue)
+			builder.Append($"LR={LearningRate:N3}");
+
+#if NET8_0_OR_GREATER
+		while (builder.Length > len && builder[^1] is ' ' or ',')
+#else
+		while (builder.Length > len && builder[builder.Length - 1] is ' ' or ',')
+#endif
+			builder.Remove(builder.Length - 1, 1);
+
+		return true;
 	}
 }

@@ -27,35 +27,16 @@
 		<None Include="..\..\README.md" Pack="true" PackagePath="" />
 	</ItemGroup>
 
-
-
-	<!--publish-->
-
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.13" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.13" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.13" />
+    </ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.6" />
-		<PackageReference Include="RLMatrix" Version="0.4.3.8" />
-		<PackageReference Include="RLMatrix.Remote" Version="0.4.3.8" />
+		<ProjectReference Include="..\RLMatrix.Remote\RLMatrix.Remote.csproj" />
+		<ProjectReference Include="..\RLMatrix\RLMatrix.csproj" />
 	</ItemGroup>
-
-
-
-	<!--dev-->
-	
-  <!--<ItemGroup>
-    <ProjectReference Include="..\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj" />
-    <ProjectReference Include="..\RLMatrix\RLMatrix.csproj" />
-  </ItemGroup>
-
-	
-	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.6" />
-	</ItemGroup>-->
-
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />

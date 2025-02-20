@@ -1,151 +1,142 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.IO;
-using RLMatrix.Memories;
-using RLMatrix.Agents.Common;
-using RLMatrix.Dashboard;
+﻿namespace RLMatrix;
 
-namespace RLMatrix
+/// <summary>
+/// The ReplayMemory class represents the memory of the agent in reinforcement learning.
+/// It is used to store and retrieve past experiences (MemoryTransitions).
+/// </summary>
+public class ReplayMemory<TState> : IMemory<TState>, IStorableMemory
+    where TState : notnull
 {
+    private int _capacity;
+    private readonly List<MemoryTransition<TState>> _memory;
+    private readonly Random _random = new();
+    
     /// <summary>
-    /// The ReplayMemory class represents the memory of the agent in reinforcement learning.
-    /// It is used to store and retrieve past experiences (TransitionInMemorys).
+    ///     Initializes a new instance of the ReplayMemory class.
     /// </summary>
-    public class ReplayMemory<TState> : IMemory<TState>, IStorableMemory
+    /// <param name="capacity">The maximum number of TransitionInMemorys the memory can hold.</param>
+    public ReplayMemory(int capacity)
     {
-        private int capacity;
-        private List<TransitionInMemory<TState>> memory;
-        private readonly Random random = new Random();
+        _capacity = capacity;
+        _memory = new List<MemoryTransition<TState>>(capacity);
+    }
 
-        /// <summary>
-        /// Gets the number of TransitionInMemorys currently stored in the memory.
-        /// </summary>
-        public int Length => memory.Count;
-        public int NumEpisodes { get
+    /// <summary>
+    ///     Gets the number of TransitionInMemorys currently stored in the memory.
+    /// </summary>
+    public int Length => _memory.Count;
+    
+    public int EpisodeCount => _memory.Count(x => x.NextState == null); // return num of transitions with no next state
+
+    /// <summary>
+    ///     Adds a new TransitionInMemory to the memory. 
+    ///     If the memory capacity is reached, the oldest TransitionInMemory is removed.
+    /// </summary>
+    /// <param name="transition">The TransitionInMemory to be added.</param>
+    public ValueTask PushAsync(MemoryTransition<TState> transition)
+    {
+        if (_memory.Count >= _capacity)
+        {
+            _memory.RemoveAt(0);
+        }
+        
+        _memory.Add(transition);
+        return new();
+    }
+
+    /// <summary>
+    ///     Adds multiple <see cref="MemoryTransition{TState}"/>s to the memory.
+    ///     If the memory capacity is exceeded, the capacity is automatically increased.
+    /// </summary>
+    /// <param name="transitions">The <see cref="MemoryTransition{TState}"/>s to be added.</param>
+    public async ValueTask PushAsync(IList<MemoryTransition<TState>> transitions)
+    {
+        var count = transitions.Count;
+        if (_memory.Count + count > _capacity)
+        {
+            // Increase the capacity to accommodate the new transitions
+            _capacity = _memory.Count + count;
+        }
+        
+        await ProcessAndUploadEpisodesAsync(transitions);
+        _memory.AddRange(transitions);
+    }
+    
+    // SOLID violation your mother tried to warn you about.
+    public async ValueTask ProcessAndUploadEpisodesAsync(IList<MemoryTransition<TState>> transitions)
+    {
+        var firstTransitions = transitions.Where(t => t.PreviousTransition == null).ToList();
+
+        foreach (var firstTransition in firstTransitions)
+        {
+            var episodeReward = 0f;
+            var episodeLength = 0;
+            var currentTransition = firstTransition;
+
+            while (currentTransition != null)
             {
-                //return num of transitions with no next state
-                return memory.Count(x => x.nextState == null);
-            }
-        }
-
-
-        /// <summary>
-        /// Initializes a new instance of the ReplayMemory class.
-        /// </summary>
-        /// <param name="capacity">The maximum number of TransitionInMemorys the memory can hold.</param>
-        public ReplayMemory(int capacity)
-        {
-            this.capacity = capacity;
-            memory = new List<TransitionInMemory<TState>>(capacity);
-        }
-
-        /// <summary>
-        /// Adds a new TransitionInMemory to the memory. 
-        /// If the memory capacity is reached, the oldest TransitionInMemory is removed.
-        /// </summary>
-        /// <param name="transition">The TransitionInMemory to be added.</param>
-        public void Push(TransitionInMemory<TState> transition)
-        {
-            if (memory.Count >= capacity)
-            {
-                memory.RemoveAt(0);
-            }
-            memory.Add(transition);
-        }
-
-        /// <summary>
-        /// Adds multiple TransitionInMemorys to the memory.
-        /// If the memory capacity is exceeded, the capacity is automatically increased.
-        /// </summary>
-        /// <param name="transitions">The TransitionInMemorys to be added.</param>
-        public void Push(IList<TransitionInMemory<TState>> transitions)
-        {
-            int count = transitions.Count;
-            if (memory.Count + count > capacity)
-            {
-                // Increase the capacity to accommodate the new transitions
-                this.capacity = memory.Count + count;
-            }
-            ProcessAndUploadEpisodes(transitions);
-            memory.AddRange(transitions);
-        }
-        //SOLID violation your mother tried to warn you about.
-        public void ProcessAndUploadEpisodes(IList<TransitionInMemory<TState>> transitions)
-        {
-            var firstTransitions = transitions.Where(t => t.previousTransition == null).ToList();
-
-            foreach (var firstTransition in firstTransitions)
-            {
-                double episodeReward = 0;
-                int episodeLength = 0;
-                var currentTransition = firstTransition;
-
-                while (currentTransition != null)
-                {
-                    episodeReward += currentTransition.reward;
-                    episodeLength++;
-                    currentTransition = currentTransition.nextTransition;
-                }
-
-                DashboardProvider.Instance.UpdateEpisodeData(episodeReward, episodeReward, episodeLength);
-            }
-        }
-
-        /// <summary>
-        /// Samples the entire memory.
-        /// </summary>
-        /// <returns>An IList of all TransitionInMemorys in the memory.</returns>
-        public IList<TransitionInMemory<TState>> SampleEntireMemory()
-        {
-            return memory;
-        }
-
-        /// <summary>
-        /// Samples a specified number of TransitionInMemorys randomly from the memory.
-        /// </summary>
-        /// <param name="batchSize">The number of TransitionInMemorys to sample.</param>
-        /// <returns>An IList of randomly sampled TransitionInMemorys.</returns>
-        public IList<TransitionInMemory<TState>> Sample(int batchSize)
-        {
-            if (batchSize > memory.Count)
-            {
-                throw new InvalidOperationException("Batch size cannot be greater than current memory size.");
+                episodeReward += currentTransition.Reward;
+                episodeLength++;
+                currentTransition = currentTransition.NextTransition;
             }
 
-            return memory.OrderBy(x => random.Next()).Take(batchSize).ToList();
+            var dashboard = await DashboardProvider.Instance.GetDashboardAsync();
+            dashboard.UpdateEpisodeData(episodeReward, episodeReward, episodeLength);
         }
+    }
 
-        /// <summary>
-        /// Clears all TransitionInMemorys from the memory.
-        /// </summary>
-        public void ClearMemory()
+    /// <summary>
+    ///     Samples the entire memory.
+    /// </summary>
+    /// <returns>An IList of all <see cref="MemoryTransition{TState}"/>s in the memory.</returns>
+    public IList<MemoryTransition<TState>> SampleEntireMemory()
+    {
+        return _memory;
+    }
+
+    /// <summary>
+    ///     Samples a specified number of <see cref="MemoryTransition{TState}"/>s randomly from the memory.
+    /// </summary>
+    /// <param name="batchSize">The number of <see cref="MemoryTransition{TState}"/>s to sample.</param>
+    /// <returns>An IList of randomly sampled <see cref="MemoryTransition{TState}"/>s.</returns>
+    public IList<MemoryTransition<TState>> Sample(int batchSize)
+    {
+        if (batchSize > _memory.Count)
         {
-            memory.Clear();
+            throw new InvalidOperationException("Batch size cannot be greater than current memory size.");
         }
 
-        /// <summary>
-        /// Serializes the ReplayMemory and saves it to a file.
-        /// </summary>
-        /// <param name="pathToFile">The path where to save the serialized memory.</param>
-        public void Save(string pathToFile)
-        {
-            using var fs = new FileStream(pathToFile, FileMode.Create);
-            throw new NotImplementedException();
-        }
+        return _memory.OrderBy(_ => _random.Next()).Take(batchSize).ToList();
+    }
 
-        /// <summary>
-        /// Loads ReplayMemory from a file and deserializes it.
-        /// </summary>
-        /// <param name="pathToFile">The path from where to load the serialized memory.</param>
-        public void Load(string pathToFile)
-        {
-            if (!File.Exists(pathToFile))
-                throw new FileNotFoundException($"File {pathToFile} does not exist.");
+    /// <summary>
+    ///     Clears all TransitionInMemorys from the memory.
+    /// </summary>
+    public void ClearMemory()
+    {
+        _memory.Clear();
+    }
 
-            using var fs = new FileStream(pathToFile, FileMode.Open);
-            throw new NotImplementedException();
-        }
+    /// <summary>
+    ///     Serializes the ReplayMemory and saves it to a file.
+    /// </summary>
+    /// <param name="path">The path where to save the serialized memory.</param>
+    public void Save(string path)
+    {
+        using var fs = new FileStream(path, FileMode.Create);
+        throw new NotImplementedException();
+    }
+
+    /// <summary>
+    ///     Loads ReplayMemory from a file and deserializes it.
+    /// </summary>
+    /// <param name="path">The path from where to load the serialized memory.</param>
+    public void Load(string path)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"File {path} does not exist.");
+
+        using var fs = new FileStream(path, FileMode.Open);
+        throw new NotImplementedException();
     }
 }

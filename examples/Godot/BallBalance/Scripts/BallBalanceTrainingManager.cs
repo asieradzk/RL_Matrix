@@ -1,12 +1,9 @@
 using Godot;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using RLMatrix;
 using RLMatrix.Agents.Common;
-using RLMatrix.Common.Remote;
 using System.Threading.Tasks;
-using RLMatrix.Agents.SignalR;
 
 public partial class BallBalanceTrainingManager : Node
 {
@@ -62,14 +59,14 @@ public partial class BallBalanceTrainingManager : Node
 
     private List<T> GetAllChildrenOfType<T>(Node parentNode) where T : class
     {
-        List<T> resultList = new List<T>();
+        var resultList = new List<T>();
         AddChildrenOfType(parentNode, resultList);
         return resultList;
     }
 
     private void AddChildrenOfType<T>(Node node, List<T> resultList) where T : class
     {
-        foreach (Node child in node.GetChildren())
+        foreach (var child in node.GetChildren())
         {
             if (child is T typedChild)
             {
@@ -141,7 +138,7 @@ public partial class BallBalanceTrainingManager : Node
             var cacheScale = Engine.TimeScale;
             Engine.TimeScale = 0f;
             // Actual agent-env step
-            myAgent.StepSync(true);
+            myAgent.StepSync();
             Engine.TimeScale = cacheScale;
         }
         else

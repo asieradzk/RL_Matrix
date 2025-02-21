@@ -4,7 +4,7 @@ using RLMatrix.Common;
 namespace RLMatrix;
 
 // TODO: This base class reduces code duplication by a lot via abstraction. Unsure if the continuous and discrete variants are needed or just a "nice to have".
-public class LocalRolloutAgent<TState, TProxy, TEnvironment> : IRolloutAgent
+public abstract class LocalRolloutAgent<TState, TProxy, TEnvironment> : IRolloutAgent
     where TState : notnull
     where TProxy : IProxy<TState>
     where TEnvironment : IEnvironment<TState>

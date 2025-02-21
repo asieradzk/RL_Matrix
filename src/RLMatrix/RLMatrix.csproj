@@ -48,6 +48,10 @@
 		<PackageReference Include="IEnumerableUnpacker" Version="1.0.3" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.13" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="8.0.13" />
+		<PackageReference Include="PolySharp" Version="1.15.0">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="System.Reactive" Version="6.0.1" />
 		<PackageReference Include="TorchSharp-cuda-windows" Version="0.105.0" />
 		<PackageReference Include="TorchVision" Version="0.105.0" />

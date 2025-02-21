@@ -9,7 +9,7 @@ namespace RLMatrix;
 public class LocalContinuousRolloutAgent<TState> : LocalRolloutAgent<TState, IContinuousProxy<TState>, IContinuousEnvironment<TState>>
     where TState : notnull
 {
-    protected LocalContinuousRolloutAgent(ICollection<IContinuousEnvironment<TState>> environments, PPOAgentOptions options) 
+    public LocalContinuousRolloutAgent(ICollection<IContinuousEnvironment<TState>> environments, PPOAgentOptions options) 
         : base(environments, CreateProxy(environments.First(), options))
     { }
     

@@ -1,6 +1,6 @@
 ﻿namespace RLMatrix;
 
-public interface IComputeQValues
+public interface IQValuesComputer
 {
     Tensor ComputeQValues(Tensor states, TensorModule policyNet);
 }

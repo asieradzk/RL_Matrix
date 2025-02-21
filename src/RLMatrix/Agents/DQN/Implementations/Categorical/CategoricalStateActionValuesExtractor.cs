@@ -1,10 +1,10 @@
 ﻿namespace RLMatrix;
 
-public class CategoricalExtractStateActionValues : IExtractStateActionValues
+public class CategoricalStateActionValuesExtractor : IStateActionValuesExtractor
 {
     private readonly int _numAtoms;
 
-    public CategoricalExtractStateActionValues(int numAtoms)
+    public CategoricalStateActionValuesExtractor(int numAtoms)
     {
         _numAtoms = numAtoms;
     }

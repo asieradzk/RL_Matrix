@@ -1,6 +1,6 @@
 ﻿namespace RLMatrix;
 
-public class CategoricalComputeQValues : IComputeQValues
+public class CategoricalComputeQValues : IQValuesComputer
 {
     private readonly int[] _actionSizes;
     private readonly int _numAtoms;

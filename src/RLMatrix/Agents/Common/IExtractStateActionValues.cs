@@ -1,6 +1,6 @@
 ﻿namespace RLMatrix;
 
-public interface IExtractStateActionValues
+public interface IStateActionValuesExtractor
 {
     Tensor ExtractStateActionValues(Tensor qValues, Tensor actions);
 }

@@ -8,9 +8,9 @@ public class QOptimizer<TState> : IOptimizer<TState>
 	private readonly TensorModule _policyNet;
 	private readonly TensorModule _targetNet;
 	private OptimizerHelper _optimizerHelper;
-	private readonly IComputeQValues _qValuesCalculator;
-	private readonly IExtractStateActionValues _stateActionValueExtractor;
-	private readonly IComputeNextStateValues _nextStateValuesCalculator;
+	private readonly IQValuesComputer _qValuesCalculator;
+	private readonly IStateActionValuesExtractor _stateActionValueExtractor;
+	private readonly INextStateValuesComputer _nextStateValuesCalculator;
 	private readonly IExpectedStateActionValuesComputer<TState> _expectedStateActionValuesComputerCalculator;
 	private readonly ILossComputer _lossComputerCalculator;
 	private readonly DQNAgentOptions _options;
@@ -21,8 +21,8 @@ public class QOptimizer<TState> : IOptimizer<TState>
 	private int _updateCounter;
 
 	public QOptimizer(TensorModule policyNet, TensorModule targetNet, OptimizerHelper optimizerHelper, 
-		IComputeQValues qValuesCalculator, IExtractStateActionValues stateActionValueExtractor, 
-		IComputeNextStateValues nextStateValuesCalculator, IExpectedStateActionValuesComputer<TState> expectedStateActionValuesComputerCalculator,
+		IQValuesComputer qValuesCalculator, IStateActionValuesExtractor stateActionValueExtractor, 
+		INextStateValuesComputer nextStateValuesCalculator, IExpectedStateActionValuesComputer<TState> expectedStateActionValuesComputerCalculator,
 		ILossComputer lossComputerCalculator, DQNAgentOptions options, Device device, int[] discreteActionDimensions, 
 		LRScheduler? scheduler = null, IGAIL<TState>? gail = null)
 	{

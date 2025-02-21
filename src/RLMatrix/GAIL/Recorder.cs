@@ -51,5 +51,4 @@ public class Recorder<TState>
         throw new NotImplementedException();
         //  myMemory.Load(pathToFile);
     }
-
 }

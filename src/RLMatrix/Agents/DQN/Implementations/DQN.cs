@@ -3,7 +3,7 @@ using RLMatrix.Common;
 
 namespace RLMatrix;
 
-public class BaseComputeQValues : IComputeQValues
+public class BaseQValuesComputer : IQValuesComputer
 {
     public Tensor ComputeQValues(Tensor states, TensorModule policyNet)
     {
@@ -12,7 +12,7 @@ public class BaseComputeQValues : IComputeQValues
     }
 }
 
-public class BaseExtractStateActionValues : IExtractStateActionValues
+public class BaseStateActionValuesExtractor : IStateActionValuesExtractor
 {
     public Tensor ExtractStateActionValues(Tensor qValues, Tensor actions)
     {
@@ -21,8 +21,9 @@ public class BaseExtractStateActionValues : IExtractStateActionValues
         return res;
     }
 }
+
 //TODO: This takes somewhat long to execute?
-public class BaseComputeNextStateValues : IComputeNextStateValues
+public class BaseComputeNextStateValues : INextStateValuesComputer
 {
     public Tensor ComputeNextStateValues(Tensor nonFinalNextStates, TensorModule targetNet, TensorModule policyNet, DQNAgentOptions opts, int[] discreteActionDimensions, Device device)
     {

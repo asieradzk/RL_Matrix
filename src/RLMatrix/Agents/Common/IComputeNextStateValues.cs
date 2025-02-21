@@ -2,7 +2,7 @@
 
 namespace RLMatrix;
 
-public interface IComputeNextStateValues
+public interface INextStateValuesComputer
 {
     Tensor ComputeNextStateValues(Tensor nonFinalNextStates, TensorModule targetNet, TensorModule policyNet, DQNAgentOptions opts, int[] discreteActionDimensions, Device device);
 }

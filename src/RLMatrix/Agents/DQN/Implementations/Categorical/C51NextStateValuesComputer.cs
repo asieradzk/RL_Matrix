@@ -2,11 +2,11 @@
 
 namespace RLMatrix;
 
-public class C51ComputeNextStateValues : IComputeNextStateValues
+public class C51NextStateValuesComputer : INextStateValuesComputer
 {
     private readonly int _numAtoms;
 
-    public C51ComputeNextStateValues(int numAtoms)
+    public C51NextStateValuesComputer(int numAtoms)
     {
         _numAtoms = numAtoms;
     }

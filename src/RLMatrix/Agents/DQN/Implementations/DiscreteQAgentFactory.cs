@@ -17,16 +17,16 @@ public static class DiscreteQAgentFactory<TState>
         lrScheduler ??= new CyclicLR(optimizer, options.LearningRate * 0.5f, options.LearningRate * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
 
         //We need to discriminate between tensor functions for categorical and non-categorical DQN
-        IComputeQValues qValuesCalculator = options.UseCategoricalDQN
+        IQValuesComputer qValuesCalculator = options.UseCategoricalDQN
             ? new CategoricalComputeQValues(actionDimensions, options.NumberOfAtoms)
-            : new BaseComputeQValues();
+            : new BaseQValuesComputer();
 
-        IExtractStateActionValues qValuesExtractor = options.UseCategoricalDQN
-            ? new CategoricalExtractStateActionValues(options.NumberOfAtoms)
-            : new BaseExtractStateActionValues();
+        IStateActionValuesExtractor qValuesExtractor = options.UseCategoricalDQN
+            ? new CategoricalStateActionValuesExtractor(options.NumberOfAtoms)
+            : new BaseStateActionValuesExtractor();
 
-        IComputeNextStateValues nextStateValueCalculator = options.UseCategoricalDQN
-            ? new C51ComputeNextStateValues(options.NumberOfAtoms)
+        INextStateValuesComputer nextStateValueCalculator = options.UseCategoricalDQN
+            ? new C51NextStateValuesComputer(options.NumberOfAtoms)
             : new BaseComputeNextStateValues();
 
         IExpectedStateActionValuesComputer<TState> expectedStateActionValuesComputerCalculator = options.UseCategoricalDQN

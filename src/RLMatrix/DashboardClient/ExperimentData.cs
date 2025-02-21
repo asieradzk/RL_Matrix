@@ -50,12 +50,8 @@ public sealed record ExperimentData(
 
 		if (PrintLearningRate && LearningRate.HasValue)
 			builder.Append($"LR={LearningRate:N3}");
-
-#if NET8_0_OR_GREATER
+		
 		while (builder.Length > len && builder[^1] is ' ' or ',')
-#else
-		while (builder.Length > len && builder[builder.Length - 1] is ' ' or ',')
-#endif
 			builder.Remove(builder.Length - 1, 1);
 
 		return true;

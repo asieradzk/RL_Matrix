@@ -8,6 +8,7 @@ public abstract class PPOActorNet(string name) : TensorModule(name)
     
     public abstract Tensor forward(PackedSequence x);
 
+#if !NET8_0_OR_GREATER
     public static long[] GetIndices(long length)
     {
         if (length < 0)
@@ -21,6 +22,7 @@ public abstract class PPOActorNet(string name) : TensorModule(name)
         
         return indices;
     }
+#endif
 
     public Tensor get_log_prob<TTensorState>(TTensorState state, Tensor actions, int discreteActions, int contActions)
     {

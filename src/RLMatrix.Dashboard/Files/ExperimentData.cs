@@ -24,5 +24,4 @@ public record ExperimentData
     public double? Epsilon { get; set; }
     public double? Loss { get; set; }
     public double? LearningRate { get; set; }
-
 }

@@ -48,12 +48,9 @@ public static class Utilities<TState>
             var transition = transitionMap[t.Id];
             var nextTransition = transitionMap[t.NextTransitionId.Value];
 
-            // TODO: revert these
-            // transitionMap[t.Id] = transition with { NextState = nextTransition.State, NextTransition = nextTransition };
             transitionMap[t.Id] = new MemoryTransition<TState>(
                 transition.State, transition.Actions, transition.Reward, nextTransition.State, nextTransition, transition.PreviousTransition);
             
-            // transitionMap[t.NextTransitionId.Value] = nextTransition with { PreviousTransition = transition };
             transitionMap[t.NextTransitionId.Value] = new MemoryTransition<TState>(
                 nextTransition.State, nextTransition.Actions, nextTransition.Reward, nextTransition.NextState, nextTransition.NextTransition, transition);
         }

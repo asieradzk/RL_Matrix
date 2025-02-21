@@ -489,7 +489,6 @@ public class PPOOptimizer<TState> : IOptimizer<TState>
             if (currentLength >= targetLength)
                 return transition;
 
-            //var paddedTransition = transition with { Reward = 0f, NextTransition = null, PreviousTransition = transition };
             var paddedTransition = new MemoryTransition<TState>(transition.State, transition.Actions, 0f, transition.NextState, null, transition);
             transition.NextTransition = paddedTransition;
             paddedSequence.Add(paddedTransition);

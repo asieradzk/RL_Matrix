@@ -54,14 +54,14 @@ public class BaseComputeNextStateValues : IComputeNextStateValues
 }
 
 /// <summary>
-/// Provides an optimized implementation for computing n-step returns using SIMD and parallelization.
+///     Provides an optimized implementation for computing n-step returns using SIMD and parallelization.
 /// </summary>
 /// <typeparam name="TState">The type of state in the transitions.</typeparam>
 public class BaseLookAheadStepsComputer<TState> : ILookAheadStepsComputer<TState>
     where TState : notnull
 {
     /// <summary>
-    /// Computes n-step returns for a batch of transitions using SIMD operations and parallel processing.
+    ///     Computes n-step returns (look-ahead steps) for a batch of transitions using SIMD operations and parallel processing.
     /// </summary>
     /// <param name="transitions">The list of transitions to process.</param>
     /// <param name="opts">The DQN agent options containing parameters like n-step return and discount factor.</param>

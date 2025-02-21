@@ -1,7 +1,7 @@
 ﻿namespace RLMatrix.Common;
 
 /// <summary>
-/// Represents a transition between two steps in an <see cref="Episode{TState}"/>.
+///     Represents a transition between two steps in an <see cref="Episode{TState}"/>.
 /// </summary>
 /// <param name="Id">The ID of this transition.</param>
 /// <param name="State">The current state.</param>

@@ -109,6 +109,7 @@ public class QOptimizer<TState> : IOptimizer<TState>
 		torch.nn.utils.clip_grad_value_(_policyNet.parameters(), 100);
 		_optimizerHelper.step();
 		_updateCounter++;
+		
 		if (_updateCounter >= _options.SoftUpdateInterval)
 		{
 			SoftUpdateTargetNetwork();
@@ -117,7 +118,7 @@ public class QOptimizer<TState> : IOptimizer<TState>
 	}
 
 	/// <summary>
-	/// Performs an optimized soft update of the target network parameters using vectorized operations.
+	///		Performs an optimized soft update of the target network parameters using vectorized operations.
 	/// </summary>
 	private void SoftUpdateTargetNetwork()
 	{

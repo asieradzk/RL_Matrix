@@ -1,8 +1,8 @@
 ﻿namespace RLMatrix;
 
 /// <summary>
-/// The ReplayMemory class represents the memory of the agent in reinforcement learning.
-/// It is used to store and retrieve past experiences (MemoryTransitions).
+///     The ReplayMemory class represents the memory of the agent in reinforcement learning.
+///     It is used to store and retrieve past experiences (MemoryTransitions).
 /// </summary>
 public class ReplayMemory<TState> : IMemory<TState>, IStorableMemory
     where TState : notnull

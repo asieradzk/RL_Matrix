@@ -3,7 +3,7 @@
 namespace RLMatrix;
 
 /// <summary>
-/// Represents a local discrete Q-learning agent.
+///     Represents a local discrete Q-learning agent.
 /// </summary>
 /// <typeparam name="TState">The type of the state.</typeparam>
 public class LocalDiscreteQAgent<TState> : IDiscreteProxy<TState>

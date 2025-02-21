@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 namespace RLMatrix;
 
 /// <summary>
-/// Implements a SignalR-based dashboard client for real-time experiment data reporting.
+///     Implements a SignalR-based dashboard client for real-time experiment data reporting.
 /// </summary>
 public class SignalRDashboardClient : IDashboardClient
 {

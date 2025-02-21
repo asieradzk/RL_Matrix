@@ -27,7 +27,7 @@ public static class Utilities<TState>
     //TODO: Not optimised for multi episode batches
     //TODO: This can be multi-threaded optimised
     /// <summary>
-    /// Converts a collection of portable transitions to a list of memory transitions, preserving episode boundaries.
+    ///		Converts a collection of portable transitions to a list of memory transitions, preserving episode boundaries.
     /// </summary>
     /// <typeparam name="TState">The type of the state in the transitions.</typeparam>
     /// <param name="originalTransitions">The collection of transitions to convert.</param>

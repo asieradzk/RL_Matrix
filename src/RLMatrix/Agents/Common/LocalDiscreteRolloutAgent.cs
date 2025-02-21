@@ -2,13 +2,10 @@
 
 namespace RLMatrix;
 
-public class LocalDiscreteRolloutAgent<TState> : LocalRolloutAgent<TState, IDiscreteProxy<TState>, IDiscreteEnvironment<TState>>
+public class LocalDiscreteRolloutAgent<TState>(ICollection<IDiscreteEnvironment<TState>> environments, IAgentOptions options)
+    : LocalRolloutAgent<TState, IDiscreteProxy<TState>, IDiscreteEnvironment<TState>>(environments, CreateProxy(environments.First(), options))
     where TState : notnull
 {
-    public LocalDiscreteRolloutAgent(ICollection<IDiscreteEnvironment<TState>> environments, IAgentOptions options) 
-        : base(environments, CreateProxy(environments.First(), options))
-    { }
-
     private static IDiscreteProxy<TState> CreateProxy(IDiscreteEnvironment<TState> environment, IAgentOptions options)
     {
         return options switch

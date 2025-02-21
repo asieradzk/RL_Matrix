@@ -21,7 +21,7 @@ namespace RLMatrix
 
         public TState? NextState { get; } = nextState;
         
-        public MemoryTransition<TState>? NextTransition { get; set; } = nextTransition;
+        public MemoryTransition<TState>? NextTransition { get; internal set; } = nextTransition;
 
         public MemoryTransition<TState>? PreviousTransition { get; } = previousTransition;
 

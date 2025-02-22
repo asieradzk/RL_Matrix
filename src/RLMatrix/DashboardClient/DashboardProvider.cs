@@ -8,16 +8,16 @@ public class DashboardProvider : IAsyncDisposable
 	private readonly string _hubUrl;
 	private readonly int? _consoleLoggingUpdateInterval;
 
-	public DashboardProvider(string hubUrl = "https://localhost:7126/experimentdatahub", bool enableConsoleLogging = false, int? consoleLoggingUpdateInterval = null)
+	public DashboardProvider(string hubUrl = "https://localhost:7126/experimentdatahub", int? consoleLoggingUpdateInterval = null)
 	{
 		_hubUrl = hubUrl;
 		_consoleLoggingUpdateInterval = consoleLoggingUpdateInterval;
-		_enableConsoleLogging = consoleLoggingUpdateInterval > 0 || enableConsoleLogging;
+		_enableConsoleLogging = consoleLoggingUpdateInterval > 0;
 
 		Instance = this;
 	}
 
-	public static DashboardProvider Instance { get; private set; } = null!;
+	public static DashboardProvider Instance { get; private set; } = new(consoleLoggingUpdateInterval: 1);
 
 	public async ValueTask<IDashboardClient> GetDashboardAsync()
 	{

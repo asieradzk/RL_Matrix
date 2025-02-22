@@ -11,7 +11,7 @@ namespace RLMatrix
     {
         [Unpack("batchStates")] internal readonly TState _state = state;
         [Unpack("batchDiscreteActions")] internal readonly int[] _discreteActions = actions.DiscreteActions;
-        [Unpack("batchContinuousActions")] internal readonly float[] _continuousActions = actions.ContinuousActions;
+        [Unpack("batchContinuousActions")] internal readonly float[] _continuousActions = actions.IsContinuous ? actions.ContinuousActions : [];
 
         public TState State { get; } = state;
 

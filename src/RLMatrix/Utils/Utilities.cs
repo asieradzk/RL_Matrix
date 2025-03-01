@@ -74,11 +74,11 @@ public static class Utilities<TState>
         return memoryTransitions;
     }
     
-    //TODO: this is DQN specific so maybe should be moved to Q namespace/class
+    // TODO: this is DQN specific so maybe should be moved to Q namespace/class
 	internal static void CreateTensorsFromTransitions(Device device, IList<MemoryTransition<TState>> transitions, out Tensor nonFinalMask, out Tensor stateBatch, out Tensor nonFinalNextStates, out Tensor actionBatch, out Tensor rewardBatch)
 	{
 		var length = transitions.Count;
-		var fixedActionSize = transitions[0]._discreteActions.Length;
+		var fixedActionSize = transitions[0].Actions.DiscreteActions.Length;
 
 		// Pre-allocate arrays based on the known batch size
 		var nonFinalMaskArray = new bool[length];
@@ -89,16 +89,16 @@ public static class Utilities<TState>
 
 		for (var i = 0; i < length; i++)
 		{
-			var transition = transitions.ElementAt(i);
+			var transition = transitions[i];
 			nonFinalMaskArray[i] = transition.NextState != null;
 			batchRewards[i] = transition.Reward;
 
 			for (var j = 0; j < fixedActionSize; j++)
 			{
-				flatMultiActions[i, j] = transition._discreteActions[j];
+				flatMultiActions[i, j] = transition.Actions.DiscreteActions[j];
 			}
 
-			batchStates[i] = transition._state;
+			batchStates[i] = transition.State;
 			batchNextStates[i] = transition.NextState;
 		}
 
@@ -120,11 +120,12 @@ public static class Utilities<TState>
 					nonFinalNextStatesArray[index++] = batchNextStates[i]!;
 				}
 			}
+			
 			nonFinalNextStates = StateBatchToTensor(nonFinalNextStatesArray, device);
 		}
 		else
 		{
-			nonFinalNextStates = torch.zeros(new[] { 1, stateBatch.shape[1] }, device: device);
+			nonFinalNextStates = torch.zeros([1, stateBatch.shape[1]], device: device);
 		}
 	}
 	

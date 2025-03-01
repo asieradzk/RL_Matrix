@@ -12,7 +12,7 @@ public class PPONetProviderBase<TState> : IPPONetProvider
     private readonly bool _useRNN;
 
     /// <summary>
-    ///     Default constructor for simple PPO NNs - crtic and actor.
+    ///     Default constructor for simple PPO NNs - critic and actor.
     /// </summary>
     /// <param name="neuronsPerLayer">Number of neurons in hidden layers.</param>
     /// <param name="depth">Depth of hidden layers.</param>

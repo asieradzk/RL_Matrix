@@ -144,5 +144,4 @@ public class QOptimizer<TState> : IOptimizer<TState>
 			}
 		}
 	}
-
 }

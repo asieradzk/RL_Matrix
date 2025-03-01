@@ -78,7 +78,7 @@ public class PPOOptimizer<TState> : IOptimizer<TState>
             var transitions = replayBuffer.SampleEntireMemory();
             CreateTensorsFromTransitions(Device, transitions, out var stateBatch, out var actionBatch);
 
-            using (var policyOld = ActorNet.get_log_prob(stateBatch, actionBatch, DiscreteActionDimensions.Count(), ContinuousActionDimensions.Count()).detach())
+            using (var policyOld = ActorNet.get_log_prob(stateBatch, actionBatch, DiscreteActionDimensions.Length, ContinuousActionDimensions.Length).detach())
             using (var valueOld = CriticNet.forward(stateBatch).detach())
             {
                 var (discountedRewards, advantages) = GetDiscountedRewardsAndAdvantages(transitions, valueOld);
@@ -234,7 +234,7 @@ public class PPOOptimizer<TState> : IOptimizer<TState>
             CreateTensorsFromTransitions(Device, transitions, out var stateBatch, out var actionBatch);
             var packedTransition = CreatePackedSequence(transitions, Device);
 
-            var policyOld = ActorNet.get_log_prob(packedTransition, actionBatch, DiscreteActionDimensions.Count(), ContinuousActionDimensions.Count()).detach();
+            var policyOld = ActorNet.get_log_prob(packedTransition, actionBatch, DiscreteActionDimensions.Length, ContinuousActionDimensions.Length).detach();
             var valueOld = CriticNet.forward(packedTransition).detach().squeeze(1);
 
             (var discountedRewards, var advantages) = GetDiscountedRewardsAndAdvantages(transitions, valueOld);
@@ -248,7 +248,7 @@ public class PPOOptimizer<TState> : IOptimizer<TState>
             {
                 using (torch.NewDisposeScope())
                 {
-                    var (policy, entropy) = ActorNet.get_log_prob_entropy(packedTransition, actionBatch, DiscreteActionDimensions.Count(), ContinuousActionDimensions.Count());
+                    var (policy, entropy) = ActorNet.get_log_prob_entropy(packedTransition, actionBatch, DiscreteActionDimensions.Length, ContinuousActionDimensions.Length);
                     var ratios = torch.exp(policy - policyOld);
                     var surr1 = ratios * advantages;
                     var surr2 = torch.clamp(ratios, 1.0 - Options.EpsilonClippingFactor, 1.0 + Options.EpsilonClippingFactor) * advantages;
@@ -297,7 +297,7 @@ public class PPOOptimizer<TState> : IOptimizer<TState>
             var stateBatch = torch.stack(stateBatches.ToArray(), dim: 0);
             var actionBatch = torch.cat(actionBatches.ToArray(), dim: 0);
 
-            var oldPolicy = ActorNet.get_log_prob(stateBatch, actionBatch, DiscreteActionDimensions.Count(), ContinuousActionDimensions.Count()).detach();
+            var oldPolicy = ActorNet.get_log_prob(stateBatch, actionBatch, DiscreteActionDimensions.Length, ContinuousActionDimensions.Length).detach();
                 
             var oldValue = CriticNet.forward(stateBatch).detach().squeeze(1);
 
@@ -319,7 +319,7 @@ public class PPOOptimizer<TState> : IOptimizer<TState>
             {
                 using (torch.NewDisposeScope())
                 {
-                    var (policy, entropy) = ActorNet.get_log_prob_entropy(stateBatch, actionBatch, DiscreteActionDimensions.Count(), ContinuousActionDimensions.Count());
+                    var (policy, entropy) = ActorNet.get_log_prob_entropy(stateBatch, actionBatch, DiscreteActionDimensions.Length, ContinuousActionDimensions.Length);
                     //policy = torch.masked_select(policy, mask.to_type(ScalarType.Bool));
                     policy = MaskedSelectBatch(policy, mask.to_type(ScalarType.Bool));
                     entropy = torch.masked_select(entropy, mask.to_type(ScalarType.Bool));

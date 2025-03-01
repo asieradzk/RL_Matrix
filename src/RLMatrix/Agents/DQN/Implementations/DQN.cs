@@ -47,9 +47,10 @@ public class BaseComputeNextStateValues : INextStateValuesComputer
             }
             else
             {
-                nextStateValues = torch.zeros(new long[] { opts.BatchSize, discreteActionDimensions.Length}, device: device);
+                nextStateValues = torch.zeros(new long[] { opts.BatchSize, discreteActionDimensions.Length }, device: device);
             }
         }
+        
         return nextStateValues;
     }
 }

@@ -14,9 +14,7 @@ public sealed class DQN1D : DQNNET
         : base(name)
     {
         if (obsSize < 1)
-        {
             throw new ArgumentException("Number of observations can't be less than 1");
-        }
 
         _modules.Add(noisyLayers ? new NoisyLinear(obsSize, width, initStandardDeviation: noiseScale) : torch.nn.Linear(obsSize, width));
 
@@ -122,6 +120,7 @@ public sealed class DQN2D : DQNNET
         {
             x = x.unsqueeze(1);
         }
+        
         x = torch.nn.functional.relu(_conv1.forward(x));
         x = _flatten.forward(x);
         foreach (var module in _fcModules)

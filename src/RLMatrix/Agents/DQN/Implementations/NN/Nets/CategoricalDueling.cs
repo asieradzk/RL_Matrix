@@ -13,9 +13,7 @@ public sealed class CategoricalDuelingDQN1D : DQNNET
         noiseScale *= 0.2f;
 
         if (obsSize < 1)
-        {
             throw new ArgumentException("Number of observations can't be less than 1");
-        }
         
         _numAtoms = numAtoms;
         _actionSizes = actionSizes;
@@ -108,9 +106,9 @@ public sealed class CategoricalDuelingDQN2D : DQNNET
     private readonly int _numAtoms;
     private readonly int[] _actionSizes;
 
-    private long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
+    private long CalculateConvOutputSize(long inputSize, long kernel_size, long stride = 1, long padding = 0)
     {
-        return ((inputSize - kernelSize + 2 * padding) / stride) + 1;
+        return ((inputSize - kernel_size + 2 * padding) / stride) + 1;
     }
 
     public CategoricalDuelingDQN2D(string name, long h, long w, int[] actionSizes, int width, int depth, int numAtoms, bool noisyLayers = false, float noiseScale = 0.01f) : base(name)
@@ -190,7 +188,7 @@ public sealed class CategoricalDuelingDQN2D : DQNNET
         var qDistributionsList = new List<Tensor>();
         foreach (var advantage in advantageList)
         {
-            var qDistributions = value + (advantage - advantage.mean(dimensions: new long[] { 1 }, keepdim: true)); // Dueling architecture
+            var qDistributions = value + (advantage - advantage.mean(dimensions: [1], keepdim: true)); // Dueling architecture
             qDistributions = torch.nn.functional.softmax(qDistributions, dim: -1); // Apply softmax to normalize the distributions
             qDistributionsList.Add(qDistributions); // Now [batch_size, numActions, _numAtoms]
         }

@@ -54,7 +54,7 @@ public sealed class DuelingDQN : DQNNET
         var qValuesList = new List<Tensor>();
         foreach (var advantage in advantageList)
         {
-            var qValues = value + (advantage - advantage.mean(dimensions: new long[] { 2 }, keepdim: true));
+            var qValues = value + (advantage - advantage.mean(dimensions: [2], keepdim: true));
             qValuesList.Add(qValues.squeeze(1));
         }
 
@@ -152,7 +152,7 @@ public sealed class DuelingDQN2D : DQNNET
         var qValuesList = new List<Tensor>();
         foreach (var advantage in advantageList)
         {
-            var qValues = value + (advantage - advantage.mean(dimensions: new long[] { 2 }, keepdim: true));
+            var qValues = value + (advantage - advantage.mean(dimensions: [2], keepdim: true));
             qValuesList.Add(qValues.squeeze(1));
         }
 
@@ -180,8 +180,8 @@ public sealed class DuelingDQN2D : DQNNET
         base.Dispose(disposing);
     }
 
-    private static long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
+    private static long CalculateConvOutputSize(long inputSize, long kernel_size, long stride = 1, long padding = 0)
     {
-        return (inputSize - kernelSize + 2 * padding) / stride + 1;
+        return (inputSize - kernel_size + 2 * padding) / stride + 1;
     }
 }

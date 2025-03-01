@@ -203,8 +203,8 @@ public class PPOActorNet2D : PPOActorNet
         base.Dispose(disposing);
     }
     
-    private static long CalculateConvOutputSize(long inputSize, long kernelSize, long stride = 1, long padding = 0)
+    private static long CalculateConvOutputSize(long inputSize, long kernel_size, long stride = 1, long padding = 0)
     {
-        return (inputSize - kernelSize + 2 * padding) / stride + 1;
+        return (inputSize - kernel_size + 2 * padding) / stride + 1;
     }
 }

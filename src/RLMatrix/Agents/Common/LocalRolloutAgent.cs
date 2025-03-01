@@ -45,8 +45,6 @@ public abstract class LocalRolloutAgent<TState, TProxy, TEnvironment> : IRollout
         
         var rewardTaskResults = await Task.WhenAll(rewardTasks);
 
-        await Task.WhenAll(rewardTasks);
-
         // TODO: "next state"s are never consumed. Unfunished feature or a bug?
         //var nextStateTasks = _environments.Select(env => GetStateAsync(env.Key, env.Value).AsTask());
         //var nextStateResults = await Task.WhenAll(nextStateTasks);

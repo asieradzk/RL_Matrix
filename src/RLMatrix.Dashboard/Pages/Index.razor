@@ -1,5 +1,4 @@
 ﻿@page "/"
-@using RLMatrix.Common.Dashboard
 @using RLMatrix.Dashboard.Files.Components
 @using System.Reactive.Linq
 @inject IDashboardService DashboardService
@@ -115,19 +114,20 @@
 </style>
 
 @code {
-    private List<(Guid Id, DateTime StartTime)> _experiments = new List<(Guid, DateTime)>();
-    private Dictionary<Guid, IDisposable> _subscriptions = new Dictionary<Guid, IDisposable>();
+    private readonly List<(Guid Id, DateTime StartTime)> _experiments = new();
+    private readonly Dictionary<Guid, IDisposable> _subscriptions = new();
     private Guid _selectedExperiment = Guid.Empty;
-    private SingleExperimentComponent _currentExperimentComponent;
+    private SingleExperimentComponent? _currentExperimentComponent;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync()
     {
-        _experiments = DashboardService.GetAllExperiments().ToList();
+        _experiments.AddRange(DashboardService.GetAllExperiments());
+        return Task.CompletedTask;
     }
 
     private async Task OnExperimentSelected(ChangeEventArgs e)
     {
-        if (Guid.TryParse(e.Value.ToString(), out Guid selectedId))
+        if (Guid.TryParse(e.Value?.ToString(), out var selectedId))
         {
             await DisposeCurrentExperiment();
             _selectedExperiment = selectedId;
@@ -154,26 +154,33 @@
         }
 
         var subscription = DashboardService.GetExperimentDataStream(experimentId)
-            .ObserveOn(SynchronizationContext.Current)
-            .Subscribe(async batch =>
+            .ObserveOn(SynchronizationContext.Current!)
+            .Subscribe(async void (batch) =>
             {
-                if (_selectedExperiment == experimentId && _currentExperimentComponent != null)
+                try
                 {
-                    await InvokeAsync(async () =>
+                    if (_selectedExperiment == experimentId && _currentExperimentComponent != null)
                     {
-                        try
+                        await InvokeAsync(async () =>
                         {
-                            await _currentExperimentComponent.UpdateCharts(batch);
-                        }
-                        catch (ObjectDisposedException)
-                        {
-                            _subscriptions[experimentId].Dispose();
-                            _subscriptions.Remove(experimentId);
-                        }
-                        catch (TaskCanceledException)
-                        {
-                        }
-                    });
+                            try
+                            {
+                                await _currentExperimentComponent.UpdateCharts(batch);
+                            }
+                            catch (ObjectDisposedException)
+                            {
+                                _subscriptions[experimentId].Dispose();
+                                _subscriptions.Remove(experimentId);
+                            }
+                            catch (TaskCanceledException)
+                            {
+                            }
+                        });
+                    }
+                }
+                catch
+                {
+                    // TODO handle exception and log - async void is naughty stuff
                 }
             });
 

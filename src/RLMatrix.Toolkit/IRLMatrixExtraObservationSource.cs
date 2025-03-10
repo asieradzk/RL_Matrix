@@ -1,11 +1,7 @@
-﻿using System.Text;
+﻿namespace RLMatrix.Toolkit;
 
-namespace RLMatrix.Toolkit
+public interface IRLMatrixExtraObservationSource
 {
-    public interface IRLMatrixExtraObservationSource
-    {
-        float[] GetObservations();
-        int GetObservationSize();
-    }
-
+    float[] GetObservations();
+    int GetObservationSize();
 }

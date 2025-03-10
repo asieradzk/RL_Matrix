@@ -31,16 +31,13 @@
 		<None Include="..\..\README.md" Pack="true" PackagePath="" />
 	</ItemGroup>
 	
-	<!--publish-->
 	<ItemGroup>
-		<PackageReference Include="RLMatrix.Common.Remote" Version="0.4.3.8" />
+	  <ProjectReference Include="..\RLMatrix\RLMatrix.csproj" />
 	</ItemGroup>
 	
-	<!--dev-->
-	<!--<ItemGroup>
-	  <ProjectReference Include="..\RLMatrix.Common.Remote\RLMatrix.Common.Remote.csproj" />
-	</ItemGroup>-->
-
-
+	<ItemGroup>
+	  <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.13" />
+	  <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.13" />
+	</ItemGroup>
 
 </Project>

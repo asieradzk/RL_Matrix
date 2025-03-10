@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Ignore .idea folder
+.idea/
+
+# Ignore DotSettings files
+*.DotSettings

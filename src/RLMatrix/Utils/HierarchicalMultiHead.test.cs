@@ -1,11 +1,9 @@
-﻿using static TorchSharp.torch.nn;
-using static TorchSharp.torch;
-using TorchSharp.Modules;
+﻿namespace RLMatrix;
 
-public sealed class HierarchicalMultiHead : Module<Tensor, IEnumerable<Tensor>>
+public sealed class HierarchicalMultiHead : TensorEnumerableModule
 {
-    private readonly ModuleList<Module<Tensor, Tensor>> heads = new();
-    private readonly ModuleList<ModuleList<Module<Tensor, Tensor>>> hiddenLayers = new();
+    private readonly ModuleList<TensorModule> heads = new();
+    private readonly ModuleList<ModuleList<TensorModule>> hiddenLayers = new();
     private readonly int depth;
 
     public HierarchicalMultiHead(string name, int inputSize, int width, int[] actionSizes, int depth = 1) : base(name)
@@ -14,21 +12,21 @@ public sealed class HierarchicalMultiHead : Module<Tensor, IEnumerable<Tensor>>
 
         foreach (var actionSize in actionSizes)
         {
-            heads.Add(Linear(width, actionSize));
+            heads.Add(torch.nn.Linear(width, actionSize));
         }
 
-        for (int i = 0; i < actionSizes.Length; i++)
+        for (var i = 0; i < actionSizes.Length; i++)
         {
-            var hiddenLayersList = new ModuleList<Module<Tensor, Tensor>>();
-            int hiddenLayerInputSize = inputSize;
+            var hiddenLayersList = new ModuleList<TensorModule>();
+            var hiddenLayerInputSize = inputSize;
 
-            for (int j = 0; j < depth; j++)
+            for (var j = 0; j < depth; j++)
             {
                 if (j == 0)
                 {
                     hiddenLayerInputSize += i * actionSizes[i];
                 }
-                hiddenLayersList.Add(Linear(hiddenLayerInputSize, width));
+                hiddenLayersList.Add(torch.nn.Linear(hiddenLayerInputSize, width));
                 hiddenLayerInputSize = width;
             }
 
@@ -42,20 +40,20 @@ public sealed class HierarchicalMultiHead : Module<Tensor, IEnumerable<Tensor>>
     {
         var outputs = new List<Tensor>();
 
-        for (int i = 0; i < heads.Count; i++)
+        for (var i = 0; i < heads.Count; i++)
         {
             var head = heads[i];
             var hiddenLayersList = hiddenLayers[i];
             var hiddenInput = x;
 
-            for (int j = 0; j < depth; j++)
+            for (var j = 0; j < depth; j++)
             {
                 if (j == 0)
                 {
-                    hiddenInput = cat(new[] { hiddenInput }.Concat(outputs.Take(i)).ToList(), dim: 1);
+                    hiddenInput = torch.cat(new[] { hiddenInput }.Concat(outputs.Take(i)).ToList(), dim: 1);
                 }
                 var hiddenLayer = hiddenLayersList[j];
-                hiddenInput = functional.relu(hiddenLayer.forward(hiddenInput));
+                hiddenInput = torch.nn.functional.relu(hiddenLayer.forward(hiddenInput));
             }
 
             outputs.Add(head.forward(hiddenInput));

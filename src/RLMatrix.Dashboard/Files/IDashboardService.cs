@@ -1,4 +1,4 @@
-﻿using RLMatrix.Common.Dashboard;
+﻿namespace RLMatrix.Dashboard;
 
 public interface IDashboardService
 {

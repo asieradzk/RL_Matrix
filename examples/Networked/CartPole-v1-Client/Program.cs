@@ -1,6 +1,5 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using RLMatrix;
-using RLMatrix.Agents.Common;
 using RLMatrix.Agents.SignalR;
 
 Console.WriteLine("Hello, World!");
@@ -55,7 +54,7 @@ var env2 = new List<IContinuousEnvironmentAsync<float[]>> { new TrivialContinuou
 
 var agent = new RemoteContinuousRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env);
 var agent2 = new RemoteContinuousRolloutAgent<float[]>("http://127.0.0.1:5006/rlmatrixhub", optsppo, env2);
-for (int i = 0; i < 20000; i++)
+for (var i = 0; i < 20000; i++)
 {
     await agent.Step();
     await agent2.Step();

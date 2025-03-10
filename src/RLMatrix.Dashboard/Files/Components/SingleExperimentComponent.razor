@@ -1,6 +1,4 @@
 ﻿@page "/experiment/{ExperimentId:guid}"
-@using RLMatrix.Common.Dashboard
-@using RLMatrix.Dashboard.Services
 @inject IDashboardService DashboardService
 @inject IJSRuntime JSRuntime
 @inject IExportService ExportService
@@ -106,9 +104,9 @@
         "CriticLoss", "CriticLearningRate", "KLDivergence", "Entropy",
         "Epsilon", "Loss", "LearningRate"
     };
-    private HashSet<string> _activeCharts = new HashSet<string>();
+    private HashSet<string> _activeCharts = new();
     private int _currentEpisode = 0;
-    private List<ExperimentData> _experimentData = new List<ExperimentData>();
+    private List<ExperimentData> _experimentData = new();
     private bool isExporting = false;
     private bool _chartsInitialized = false;
 

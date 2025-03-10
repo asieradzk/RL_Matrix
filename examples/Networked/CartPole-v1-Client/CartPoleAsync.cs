@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using Gym.Environments.Envs.Classic;
+﻿using Gym.Environments.Envs.Classic;
 using Gym.Rendering.WinForm;
 using OneOf;
 using RLMatrix;
@@ -61,7 +59,7 @@ public class CartPoleAsync : IEnvironmentAsync<float[]>
 
             var actionId = actionsIds[0];
             var (observation, reward, done, information) = myEnv.Step(actionId);
-            SixLabors.ImageSharp.Image img = myEnv.Render();
+            var img = myEnv.Render();
             myState = observation.ToFloatArray();
             isDone = done;
 

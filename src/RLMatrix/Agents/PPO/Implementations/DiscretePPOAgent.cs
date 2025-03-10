@@ -1,172 +1,168 @@
-﻿using RLMatrix.Agents.Common;
-using RLMatrix.Memories;
-using TorchSharp;
-using static TorchSharp.torch;
-using static TorchSharp.torch.optim;
-using static TorchSharp.torch.optim.lr_scheduler;
-using System;
-using System.IO;
-using System.Linq;
-using System.Collections.Generic;
+﻿using RLMatrix.Common;
 
-namespace RLMatrix.Agents.PPO.Implementations
+namespace RLMatrix;
+
+public class DiscretePPOAgent<TState> : IDiscretePPOAgent<TState>
+	where TState : notnull
 {
-	public class DiscretePPOAgent<T> : IDiscretePPOAgent<T>
+	public DiscretePPOAgent(PPOActorNet actorNet, PPOCriticNet criticNet, IOptimizer<TState> optimizer, IMemory<TState> memory, int[] discreteActionDimensions, PPOAgentOptions options, Device device)
 	{
-#if NET8_0_OR_GREATER
-        public required PPOActorNet actorNet { get; set; }
-        public required PPOCriticNet criticNet { get; set; }
-        public required IOptimize<T> Optimizer { get; init; }
-        public required IMemory<T> Memory { get; set; }
-        public required int[] ActionSizes { get; init; }
-        public required PPOAgentOptions Options { get; init; }
-        public required Device Device { get; init; }
-#else
-		public PPOActorNet actorNet { get; set; }
-		public PPOCriticNet criticNet { get; set; }
-		public IOptimize<T> Optimizer { get; set; }
-		public IMemory<T> Memory { get; set; }
-		public int[] ActionSizes { get; set; }
-		public PPOAgentOptions Options { get; set; }
-		public Device Device { get; set; }
-#endif
+		ActorNet = actorNet;
+		CriticNet = criticNet;
+		Optimizer = optimizer;
+		Memory = memory;
+		DiscreteActionDimensions = discreteActionDimensions;
+		Options = options;
+		Device = device;
+	}
 
-		public void AddTransition(IEnumerable<TransitionPortable<T>> transitions)
-		{
-			Memory.Push(transitions.ToTransitionInMemory());
-		}
+	public PPOActorNet ActorNet { get; }
+	
+	public PPOCriticNet CriticNet { get; }
+	
+	public IOptimizer<TState> Optimizer { get; }
+	
+	public IMemory<TState> Memory { get; }
+	
+	public int[] DiscreteActionDimensions { get; }
+	
+	public PPOAgentOptions Options { get; }
+	
+	public Device Device { get; }
 
-		public void OptimizeModel()
-		{
-			Optimizer.Optimize(Memory);
-		}
+	public ValueTask AddTransitionsAsync(IEnumerable<Transition<TState>> transitions)
+	{
+		return Memory.PushAsync(Utilities<TState>.ConvertToMemoryTransitions(transitions));
+	}
 
-		public int[][] SelectActions(T[] states, bool isTraining)
+	public ValueTask OptimizeModelAsync()
+	{
+		return Optimizer.OptimizeAsync(Memory);
+	}
+
+	public virtual ValueTask<RLActions[]> SelectActionsAsync(TState[] states, bool isTraining)
+	{
+		using (torch.no_grad())
 		{
-			using (var scope = torch.no_grad())
+			var stateTensor = Utilities<TState>.StateBatchToTensor(states, Device);
+			var result = ActorNet.forward(stateTensor);
+			var actions = new RLActions[states.Length];
+			
+			for (var i = 0; i < states.Length; i++)
 			{
-				Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, Device);
-				var result = actorNet.forward(stateTensor);
-				int[][] actions = new int[states.Length][];
-
-				if (isTraining)
+				var currentActions = new int[DiscreteActionDimensions.Length];
+				for (var j = 0; j < DiscreteActionDimensions.Length; j++)
 				{
-					for (int i = 0; i < states.Length; i++)
-					{
-						actions[i] = new int[ActionSizes.Length];
-						for (int j = 0; j < ActionSizes.Length; j++)
-						{
-							var actionProbs = result[i, j];
-							var actionSample = torch.multinomial(actionProbs, 1, true);
-							actions[i][j] = (int)actionSample.item<long>();
-						}
-					}
-				}
-				else
-				{
-					for (int i = 0; i < states.Length; i++)
-					{
-						actions[i] = new int[ActionSizes.Length];
-						for (int j = 0; j < ActionSizes.Length; j++)
-						{
-							var actionProbs = result[i, j];
-							var actionIndex = actionProbs.argmax();
-							actions[i][j] = (int)actionIndex.item<long>();
-						}
-					}
-				}
-
-				return actions;
-			}
-		}
-
-		int[][] SelectActions2(T[] states, bool isTraining)
-		{
-			int[][] actions = new int[states.Length][];
-			float[][] continuousActions = new float[states.Length][];
-
-			for (int i = 0; i < states.Length; i++)
-			{
-				using (var scope = torch.no_grad())
-				{
-					Tensor stateTensor = Utilities<T>.StateToTensor(states[i], Device);
-					var result = actorNet.forward(stateTensor);
+					var actionProbabilities = result[i, j];
 
 					if (isTraining)
 					{
-						actions[i] = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(result, ActionSizes);
-						continuousActions[i] = PPOActionSelection<T>.SampleContinuousActions(result, ActionSizes, new (float, float)[0]);
+						var actionSample = torch.multinomial(actionProbabilities, 1, true);
+						currentActions[j] = (int)actionSample.item<long>();
 					}
 					else
 					{
-						actions[i] = PPOActionSelection<T>.SelectGreedyDiscreteActions(result, ActionSizes);
-						continuousActions[i] = PPOActionSelection<T>.SelectMeanContinuousActions(result, ActionSizes, new (float, float)[0]);
+						var actionSample = torch.multinomial(actionProbabilities, 1, true);
+						currentActions[j] = (int)actionSample.item<long>();
 					}
 				}
+					
+				actions[i] = RLActions.Discrete(currentActions);
 			}
 
-			return actions;
-		}
-
-		public virtual (int[] actions, Tensor? memoryState, Tensor? memoryState2)[] SelectActionsRecurrent((T state, Tensor? memoryState, Tensor? memoryState2)[] states, bool isTraining)
-		{
-			throw new Exception("Using recurrent action selection with non recurrent agent, use int[][] SelectActions(T[] states, bool isTraining) signature instead");
-		}
-
-		public void Save(string path)
-		{
-			var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
-
-			string actorNetPath = GetNextAvailableModelPath(modelPath, "modelActor");
-			actorNet.save(actorNetPath);
-
-			string criticNetPath = GetNextAvailableModelPath(modelPath, "modelCritic");
-			criticNet.save(criticNetPath);
-		}
-
-		private string GetNextAvailableModelPath(string modelPath, string modelName)
-		{
-			var files = Directory.GetFiles(modelPath);
-
-			int maxNumber = files
-					.Where(file => file.Contains(modelName))
-					.Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault())
-					.Where(number => int.TryParse(number, out _))
-					.DefaultIfEmpty("0")
-					.Max(number => int.Parse(number));
-
-			string nextModelPath = $"{modelPath}{modelName}_{maxNumber + 1}";
-
-			return nextModelPath;
-		}
-
-		public void Load(string path, LRScheduler scheduler = null)
-		{
-			var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
-
-			string actorNetPath = GetLatestModelPath(modelPath, "modelActor");
-			actorNet.load(actorNetPath, strict: true);
-
-			string criticNetPath = GetLatestModelPath(modelPath, "modelCritic");
-			criticNet.load(criticNetPath, strict: true);
-
-			Optimizer.UpdateOptimizers(scheduler);
-		}
-
-		private string GetLatestModelPath(string modelPath, string modelName)
-		{
-			var files = Directory.GetFiles(modelPath);
-
-			int maxNumber = files
-					.Where(file => file.Contains(modelName))
-					.Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault())
-					.Where(number => int.TryParse(number, out _))
-					.DefaultIfEmpty("0")
-					.Max(number => int.Parse(number));
-
-			string latestModelPath = $"{modelPath}{modelName}_{maxNumber}";
-
-			return latestModelPath;
+			return new(actions);
 		}
 	}
+
+	// TODO: alternative non-batch? returning continuous actions in discrete context?
+	public ValueTask<RLActions[]> SelectActions2(TState[] states, bool isTraining)
+	{
+		var actions = new RLActions[states.Length];
+
+		for (var i = 0; i < states.Length; i++)
+		{
+			using (torch.no_grad())
+			{
+				var stateTensor = Utilities<TState>.StateToTensor(states[i], Device);
+				var result = ActorNet.forward(stateTensor);
+
+				if (isTraining)
+				{
+					actions[i] = RLActions.Continuous(PPOActionSelection.SelectDiscreteActionsFromProbabilities(result, DiscreteActionDimensions),
+						PPOActionSelection.SampleContinuousActions(result, DiscreteActionDimensions, []));
+				}
+				else
+				{
+					actions[i] = RLActions.Continuous(PPOActionSelection.SelectGreedyDiscreteActions(result, DiscreteActionDimensions),
+						PPOActionSelection.SelectMeanContinuousActions(result, DiscreteActionDimensions, []));
+				}
+			}
+		}
+
+		return new(actions);
+	}
+
+	public virtual ValueTask<ActionsState[]> SelectActionsRecurrentAsync(RLMemoryState<TState>[] states, bool isTraining)
+	{
+		throw new NotSupportedException($"Using recurrent action selection with non recurrent agent, use {nameof(SelectActionsAsync)} instead");
+	}
+
+	public ValueTask SaveAsync(string path)
+	{
+		var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
+
+		var actorNetPath = GetNextAvailableModelPath(modelPath, "modelActor");
+		ActorNet.save(actorNetPath);
+
+		var criticNetPath = GetNextAvailableModelPath(modelPath, "modelCritic");
+		CriticNet.save(criticNetPath);
+		return new();
+	}
+	
+	public async ValueTask LoadAsync(string path, LRScheduler? scheduler = null)
+	{
+		var modelPath = path.EndsWith(Path.DirectorySeparatorChar.ToString()) ? path : path + Path.DirectorySeparatorChar;
+
+		var actorNetPath = GetLatestModelPath(modelPath, "modelActor");
+		ActorNet.load(actorNetPath, strict: true);
+
+		var criticNetPath = GetLatestModelPath(modelPath, "modelCritic");
+		CriticNet.load(criticNetPath, strict: true);
+
+		// TODO: what to do when scheduler is null?
+		await Optimizer.UpdateOptimizersAsync(scheduler!);
+	}
+
+	private string GetNextAvailableModelPath(string modelPath, string modelName)
+	{
+		var files = Directory.GetFiles(modelPath);
+
+		var maxNumber = files
+			.Where(file => file.Contains(modelName))
+			.Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault() ?? string.Empty)
+			.Where(number => int.TryParse(number, out _))
+			.DefaultIfEmpty("0")
+			.Max(int.Parse);
+
+		var nextModelPath = $"{modelPath}{modelName}_{maxNumber + 1}";
+		return nextModelPath;
+	}
+
+	private string GetLatestModelPath(string modelPath, string modelName)
+	{
+		var files = Directory.GetFiles(modelPath);
+
+		var maxNumber = files
+			.Where(file => file.Contains(modelName))
+			.Select(file => Path.GetFileNameWithoutExtension(file).Split('_').LastOrDefault() ?? string.Empty)
+			.Where(number => int.TryParse(number, out _))
+			.DefaultIfEmpty("0")
+			.Max(int.Parse);
+
+		var latestModelPath = $"{modelPath}{modelName}_{maxNumber}";
+
+		return latestModelPath;
+	}
+
+	ValueTask ISavable.LoadAsync(string path) => LoadAsync(path);
 }

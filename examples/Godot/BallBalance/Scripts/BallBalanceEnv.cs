@@ -43,9 +43,9 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
 
     private void InitializeObservations()
     {
-        for (int i = 0; i < poolingRate; i++)
+        for (var i = 0; i < poolingRate; i++)
         {
-            float reward = CalculateReward();
+            var reward = CalculateReward();
             poolingHelper.CollectObservation(reward);
         }
     }
@@ -90,10 +90,10 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
 
         ApplyActions(continuousActions);
 
-        float stepReward = CalculateReward();
+        var stepReward = CalculateReward();
         poolingHelper.CollectObservation(stepReward);
 
-        float totalReward = poolingHelper.GetAndResetAccumulatedReward();
+        var totalReward = poolingHelper.GetAndResetAccumulatedReward();
         isDone = IsHardDone() || IsSoftDone();
 
         poolingHelper.SetAction(continuousActions);
@@ -114,7 +114,7 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
         {
             ApplyActions(poolingHelper.GetLastAction());
         }
-        float reward = CalculateReward();
+        var reward = CalculateReward();
         poolingHelper.CollectObservation(reward);
     }
 
@@ -136,7 +136,7 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
     float modifier = 0.2f;
     private void ApplyActions(float[] actions)
     {
-        Vector3 angularVelocity = new Vector3(
+        var angularVelocity = new Vector3(
             actions[0] * modifier* MaxAngularVelocity,
             0,
             actions[1] * modifier* MaxAngularVelocity
@@ -148,7 +148,7 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
 
     private float CalculateReward()
     {
-        Vector3 ballOffset = BallOffsetObservation();
+        var ballOffset = BallOffsetObservation();
         if (ballOffset.Y < -2f || Mathf.Abs(ballOffset.X) > HeadRadius || Mathf.Abs(ballOffset.Z) > HeadRadius)
         {
             return -1f;
@@ -158,7 +158,7 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
 
     private bool IsDone()
     {
-        Vector3 ballOffset = BallOffsetObservation();
+        var ballOffset = BallOffsetObservation();
         return ballOffset.Y < -2f || Mathf.Abs(ballOffset.X) > HeadRadius || Mathf.Abs(ballOffset.Z) > HeadRadius;
     }
 
@@ -173,8 +173,8 @@ public partial class BallBalanceEnv : Node3D, IContinuousEnvironmentAsync<float[
         Ball.LinearVelocity = Vector3.Zero;
         Ball.AngularVelocity = Vector3.Zero;
     
-        float spawnRadius = HeadRadius * 0.15f;
-        Vector3 randomOffset = new Vector3(
+        var spawnRadius = HeadRadius * 0.15f;
+        var randomOffset = new Vector3(
             (float)GD.RandRange(-spawnRadius, spawnRadius),
             HeadRadius * 0.3f,
             (float)GD.RandRange(-spawnRadius, spawnRadius)

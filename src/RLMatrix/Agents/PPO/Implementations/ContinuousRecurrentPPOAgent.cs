@@ -1,43 +1,52 @@
-﻿using RLMatrix.Agents.Common;
-using TorchSharp;
-using static TorchSharp.torch;
+﻿using RLMatrix.Common;
 
-namespace RLMatrix.Agents.PPO.Implementations
+namespace RLMatrix;
+
+public class ContinuousRecurrentPPOAgent<TState> : ContinuousPPOAgent<TState>
+    where TState : notnull
 {
-    public class ContinuousRecurrentPPOAgent<T> : ContinuousPPOAgent<T>
+    public ContinuousRecurrentPPOAgent(PPOActorNet actorNet, PPOCriticNet criticNet, IOptimizer<TState> optimizer, IMemory<TState> memory, 
+        int[] discreteActionDimensions, ContinuousActionDimensions[] continuousActionDimensions, PPOAgentOptions options, Device device) 
+        : base(actorNet, criticNet, optimizer, memory, discreteActionDimensions, continuousActionDimensions, options, device)
+    { }
+
+    public override ValueTask<ActionsState[]> SelectActionsRecurrentAsync(RLMemoryState<TState>[] states, bool isTraining)
     {
-        public override ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[] SelectActionsRecurrent((T state, Tensor? memoryState, Tensor? memoryState2)[] states, bool isTraining)
+        var result = new ActionsState[states.Length];
+
+        for (var i = 0; i < states.Length; i++)
         {
-            var result = new ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[states.Length];
-
-            for (int i = 0; i < states.Length; i++)
+            using (torch.no_grad())
             {
-                using (var scope = torch.no_grad())
-                {
-                    Tensor stateTensor = Utilities<T>.StateToTensor(states[i].state, Device);
-                    var forwardResult = actorNet.forward(stateTensor, states[i].memoryState, states[i].memoryState2);
+                var stateTensor = Utilities<TState>.StateToTensor(states[i].State, Device);
+                var (res, memoryState, memoryState2) = ActorNet.forward(stateTensor, states[i].MemoryState, states[i].MemoryState2);
 
-                    if (isTraining)
-                    {
-                        int[] discreteActions = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(forwardResult.Item1, DiscreteDimensions);
-                        float[] continuousActions = PPOActionSelection<T>.SampleContinuousActions(forwardResult.Item1, DiscreteDimensions, ContinuousActionBounds);
-                        result[i] = ((discreteActions, continuousActions), forwardResult.Item2, forwardResult.Item3);
-                    }
-                    else
-                    {
-                        int[] discreteActions = PPOActionSelection<T>.SelectGreedyDiscreteActions(forwardResult.Item1, DiscreteDimensions);
-                        float[] continuousActions = PPOActionSelection<T>.SelectMeanContinuousActions(forwardResult.Item1, DiscreteDimensions, ContinuousActionBounds);
-                        result[i] = ((discreteActions, continuousActions), forwardResult.Item2, forwardResult.Item3);
-                    }
+                if (isTraining)
+                {
+                    result[i] = new ActionsState(
+                        RLActions.Continuous(
+                            PPOActionSelection.SelectDiscreteActionsFromProbabilities(res, DiscreteActionDimensions),
+                            PPOActionSelection.SampleContinuousActions(res, DiscreteActionDimensions, ContinuousActionDimensions)),
+                        memoryState,
+                        memoryState2);
+                }
+                else
+                {
+                    result[i] = new ActionsState(
+                        RLActions.Continuous(
+                            PPOActionSelection.SelectGreedyDiscreteActions(res, DiscreteActionDimensions),
+                            PPOActionSelection.SelectMeanContinuousActions(res, DiscreteActionDimensions, ContinuousActionDimensions)),
+                        memoryState,
+                        memoryState2);
                 }
             }
+        }
 
-            return result;
-        }
-        public new (int[] discreteActions, float[][] continuousActions) SelectActions(T[] states, bool isTraining)
-        {
-            Console.WriteLine("Using non recurrent action selection with recurrent agent, use ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[] signature instead");
-            throw new Exception("Using non recurrent action selection with recurrent agent, use ((int[] discreteActions, float[] continuousActions) actions, Tensor? memoryState, Tensor? memoryState2)[] signature instead");
-        }
+        return new(result);
+    }
+    
+    public override ValueTask<RLActions[]> SelectActionsAsync(TState[] states, bool isTraining)
+    {
+        throw new NotSupportedException($"Using non recurrent action selection with recurrent agent, use {nameof(SelectActionsRecurrentAsync)} instead.");
     }
 }

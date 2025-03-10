@@ -1,15 +1,7 @@
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
-using Microsoft.Extensions.FileProviders;
 using RLMatrix.Dashboard;
-using RLMatrix.Dashboard.Services;
-using RLMatrix.Dashboard.Hubs;
 using System.Reactive.Subjects;
-using RLMatrix.Common.Dashboard;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 var environment = builder.Environment.EnvironmentName;

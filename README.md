@@ -47,4 +47,4 @@ Please visit our [official documentation](https://www.rlmatrix.net/beginner/gett
 
 ## 📄 License
 
-RLMatrix is licensed under the [RLMatrix Comprehensive Dual License Agreement](https://github.com/asieradzk/RL_Matrix/blob/master/LICENSE.txt)
+RLMatrix is licensed under the [RLMatrix Comprehensive Dual License Agreement](https://github.com/asieradzk/RL_Matrix/blob/master/LICENSE.md)

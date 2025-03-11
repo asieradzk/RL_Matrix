@@ -6,7 +6,7 @@ RLMatrix provides a comprehensive reinforcement learning framework for C# develo
 
 [![NuGet](https://img.shields.io/nuget/v/RLMatrix.svg?label=RLMatrix)](https://www.nuget.org/packages/RLMatrix/)
 [![TorchSharp](https://img.shields.io/badge/Made%20With-TorchSharp-8A2BE2)](https://github.com/dotnet/TorchSharp)
-[![Discord](https://img.shields.io/discord/962408165486284931?label=Discord&logo=discord&logoColor=white)](https://discord.gg/ppgr44rBHn)
+[![Discord](https://img.shields.io/discord/1273966278381670511?label=Discord&logo=discord&logoColor=white)](https://discord.gg/ppgr44rBHn)
 
 ## 💬 Get in Touch
 

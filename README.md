@@ -35,7 +35,6 @@ Please visit our [official documentation](https://www.rlmatrix.net/beginner/gett
 - **Transparent Source Code**: Clean, well-documented codebase that's easy to extend or customize
 
 ![Training Example](https://i.imgur.com/jTKghOP.gif)
-![Godot Example](https://s13.gifyu.com/images/S0a0u.gif)
 
 ## 🗺️ Roadmap
 

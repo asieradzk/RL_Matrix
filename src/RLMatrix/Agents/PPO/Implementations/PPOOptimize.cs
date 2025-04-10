@@ -162,10 +162,14 @@ namespace RLMatrix.Agents.PPO.Implementations
 
             int CalculateSequenceLength(TransitionInMemory<T> transition)
             {
-                if (transition.nextTransition == null)
-                    return 1;
-
-                return 1 + CalculateSequenceLength(transition.nextTransition);
+                int length = 0;
+                var current = transition;
+                while (current != null)
+                {
+                    length++;
+                    current = current.nextTransition;
+                }
+                return length;
             }
 
             void AddInitialSequence(TransitionInMemory<T> transition, List<TransitionInMemory<T>> paddedSequence)

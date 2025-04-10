@@ -2,6 +2,7 @@
 using RLMatrix;
 using RLMatrix.Agents.Common;
 using RLMatrix.Agents.SignalR;
+using RLMatrix.Common.Remote;
 
 Console.WriteLine("Hello, World!");
 

@@ -6,11 +6,8 @@ using Microsoft.Extensions.Logging;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRLMatrixServices(@"C:\temp");
-
 var app = builder.Build();
-
 app.UseRLMatrixEndpoints();
-
 app.Run();
 
 

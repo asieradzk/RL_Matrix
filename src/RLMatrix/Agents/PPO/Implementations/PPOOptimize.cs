@@ -168,6 +168,7 @@ namespace RLMatrix.Agents.PPO.Implementations
                 {
                     length++;
                     current = current.nextTransition;
+
                 }
                 return length;
             }

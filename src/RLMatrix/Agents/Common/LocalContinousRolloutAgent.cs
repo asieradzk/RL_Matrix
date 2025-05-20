@@ -97,23 +97,33 @@ namespace RLMatrix.Agents.Common
                 }
             }
 
-            if (transitionsToShip.Count > 0 && isTraining)
+            if (transitionsToShip.Count > 0)
             {
-                await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
+                if (isTraining)
+                {
+                    await _agent.UploadTransitionsAsync(transitionsToShip.ToList());
+                }
+                
             }
-            else
-            {
+            // Always clear transitions
 #if NET8_0_OR_GREATER
-                transitionsToShip.Clear();
+            transitionsToShip.Clear();
 #else
-                transitionsToShip = new ConcurrentBag<TransitionPortable<TState>>();
+transitionsToShip = new ConcurrentBag<TransitionPortable<TState>>();
 #endif
-            }
 
             await _agent.ResetStates(completedEpisodes);
 
             if (!isTraining)
+            {
+                // Periodic cleanup to prevent memory leaks in evaluation mode
+                if (_agent is IHasMemory<TState> memoryAgent &&
+                    memoryAgent.Memory.Length > 10000)
+                {
+                    memoryAgent.Memory.ClearMemory();
+                }
                 return;
+            }
 
             await _agent.OptimizeModelAsync();
         }

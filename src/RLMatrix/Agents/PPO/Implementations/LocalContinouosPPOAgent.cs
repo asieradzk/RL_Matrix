@@ -28,6 +28,7 @@ namespace RLMatrix.Agents.PPO.Implementations
         public ValueTask LoadAsync(string path)
         {
             _agent.Load(path);
+            memoriesStore?.Clear();
             return ValueTask.CompletedTask;
         }
 
@@ -60,6 +61,7 @@ namespace RLMatrix.Agents.PPO.Implementations
         public Task LoadAsync(string path)
         {
             _agent.Load(path);
+            memoriesStore?.Clear();
             return Task.CompletedTask;
         }
 

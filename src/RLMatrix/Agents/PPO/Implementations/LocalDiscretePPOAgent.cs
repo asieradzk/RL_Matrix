@@ -31,6 +31,7 @@ namespace RLMatrix.Agents.PPO.Implementations
 #endif
         {
             _agent.Load(path);
+            memoriesStore?.Clear();
 #if NET8_0_OR_GREATER
             return ValueTask.CompletedTask;
 #else

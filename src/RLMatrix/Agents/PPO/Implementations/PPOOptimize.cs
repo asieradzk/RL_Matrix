@@ -541,14 +541,22 @@ namespace RLMatrix.Agents.PPO.Implementations
 
         public void UpdateOptimizers(LRScheduler scheduler)
         {
-            //TODO: SEIROUS violation of DRY. Default Optimizer implementation should be moved to some kind of provider
+            // Create NEW optimizers
             actorOptimizer = torch.optim.Adam(actorNet.parameters(), myOptions.LR, amsgrad: true);
-            scheduler ??= new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
-            actorLrScheduler = scheduler;
-
             criticOptimizer = torch.optim.Adam(criticNet.parameters(), myOptions.LR, amsgrad: true);
-            scheduler ??= new optim.lr_scheduler.impl.CyclicLR(criticOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
-            criticLrScheduler = scheduler;
+
+            // TODO: This should accept OneOf<LRScheduler, (LRScheduler actor, LRScheduler critic)> 
+            // when C# gets proper discriminated unions. For now, only null is supported.
+            if (scheduler != null)
+            {
+                throw new NotImplementedException(
+                    "Custom schedulers not yet supported. This method should accept separate actor/critic schedulers " +
+                    "but C# lacks proper discriminated unions. Pass null to use default schedulers.");
+            }
+
+            // Create separate default schedulers
+            actorLrScheduler = new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
+            criticLrScheduler = new optim.lr_scheduler.impl.CyclicLR(criticOptimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
         }
     }
 }

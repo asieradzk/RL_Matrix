@@ -10,7 +10,7 @@
         <option value="">Select an experiment</option>
         @foreach (var experiment in _experiments)
         {
-            <option value="@experiment.Id">Experiment @experiment.StartTime.ToString("g")</option>
+            <option value="@experiment.Id">Experiment @experiment.StartTime.ToLocalTime().ToString("g")</option>
         }
     </select>
     <div class="logo-container">
@@ -56,10 +56,10 @@
         transition: background-color 0.2s, border-color 0.2s;
     }
 
-        .sponsor-button:hover {
-            background-color: #30363d;
-            border-color: #8b949e;
-        }
+    .sponsor-button:hover {
+        background-color: #30363d;
+        border-color: #8b949e;
+    }
 
     .heart-icon {
         margin-right: 6px;
@@ -98,17 +98,17 @@
         gap: 1rem;
     }
 
-        .social-links a {
-            display: flex;
-            align-items: center;
-        }
+    .social-links a {
+        display: flex;
+        align-items: center;
+    }
 
     .invert-icon {
         filter: invert(1);
     }
 
     .main-content {
-        padding: 2rem;
+        padding: 1rem;
         background-color: #1e1e1e;
         color: #d4d4d4;
     }
@@ -122,7 +122,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _experiments = DashboardService.GetAllExperiments().ToList();
+        _experiments = DashboardService.GetAllExperiments().OrderByDescending(item => item.StartTime).ToList();
     }
 
     private async Task OnExperimentSelected(ChangeEventArgs e)
@@ -131,7 +131,7 @@
         {
             await DisposeCurrentExperiment();
             _selectedExperiment = selectedId;
-            StateHasChanged();
+           StateHasChanged();
             await Task.Delay(1);
             SubscribeToExperiment(_selectedExperiment);
         }

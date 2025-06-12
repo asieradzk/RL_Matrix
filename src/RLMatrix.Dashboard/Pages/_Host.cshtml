@@ -20,7 +20,7 @@
             title: title,
             xaxis: { title: xAxisTitle },
             yaxis: { title: yAxisTitle },
-            margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
+            margin: { l: 50, r: 50, b: 50, t: 50, pad: 0 },
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
             font: { color: '#ffffff' }
@@ -34,12 +34,14 @@
         var currentData = window.chartData[elementId];
         currentData.x = currentData.x.concat(newData.x);
         currentData.y = currentData.y.concat(newData.y);
-
         // Thin out data if it exceeds a certain length
         if (currentData.x.length > 1000) {
             var skip = Math.floor(currentData.x.length / 1000);
-            currentData.x = currentData.x.filter((_, index) => index % skip === 0);
-            currentData.y = currentData.y.filter((_, index) => index % skip === 0);
+            if(skip > 1)
+            {
+                currentData.x = currentData.x.filter((_, index) => index % skip === 0);
+                currentData.y = currentData.y.filter((_, index) => index % skip === 0);
+            }
         }
 
         var updatedTrace = {
@@ -52,6 +54,12 @@
         var layout = window.chartLayouts[elementId];
 
         Plotly.react(elementId, [updatedTrace], layout);
+    }
+
+    window.resizeAll = function () {
+        document.querySelectorAll('.js-plotly-plot').forEach(el => {
+            Plotly.Plots.resize(el);
+        });
     }
 
     window.disposeChart = function (elementId) {

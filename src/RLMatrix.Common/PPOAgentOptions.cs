@@ -9,6 +9,17 @@ namespace RLMatrix
     /// </summary>
     public class PPOAgentOptions : IAgentOptions    
     {
+
+        public float AdamBeta1 { get; set; } = 0.99f;
+        //<summary>
+        ////same as Beta1 https://openreview.net/pdf?id=m9Jfdz4ymO
+        ///</summary>
+        public float AdamBeta2 { get; set; } = 0.99f; 
+        public float AdamEpsilon { get; set; } = 1e-8f;
+        public float L2RegularizationWeight { get; set; } = 0.001f;
+        public bool UseAdamAmsgrad { get; set; } = true;
+
+
         /// <summary>
         /// The number of episodes that will be in each training batch. When number of episodes is smaller than batch size no optimization will occur and agent accumulates expierneces until this number is greater or equal. The replay buffer is deleted after each optimization step.
         /// </summary>
@@ -95,7 +106,12 @@ namespace RLMatrix
             int ppoEpochs = 2,
             float clipGradNorm = 0.5f,
             float entropyCoefficient = 0.1f,
-            bool useRNN = false)
+            bool useRNN = false,
+            float adamBeta1 = 0.99f,
+            float adamBeta2 = 0.99f,  // Keep these equal unless you know what youre doing
+            float adamEpsilon = 1e-8f,
+            float l2RegularizationWeight = 0.001f,
+            bool useAdamAmsgrad = true)
         {
             BatchSize = batchSize;
             MemorySize = memorySize;
@@ -111,6 +127,11 @@ namespace RLMatrix
             ClipGradNorm = clipGradNorm;
             EntropyCoefficient = entropyCoefficient;
             UseRNN = useRNN;
+            AdamBeta1 = adamBeta1;
+            AdamBeta2 = adamBeta2;
+            AdamEpsilon = adamEpsilon;
+            L2RegularizationWeight = l2RegularizationWeight;
+            UseAdamAmsgrad = useAdamAmsgrad;
         }
     }
 }

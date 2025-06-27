@@ -542,8 +542,21 @@ namespace RLMatrix.Agents.PPO.Implementations
         public void UpdateOptimizers(LRScheduler scheduler)
         {
             // Create NEW optimizers
-            actorOptimizer = torch.optim.Adam(actorNet.parameters(), myOptions.LR, amsgrad: true);
-            criticOptimizer = torch.optim.Adam(criticNet.parameters(), myOptions.LR, amsgrad: true);
+            actorOptimizer = torch.optim.Adam(
+                actorNet.parameters(),
+                myOptions.LR,
+                beta1: myOptions.AdamBeta1, beta2: myOptions.AdamBeta2,
+                eps: myOptions.AdamEpsilon,
+                weight_decay: myOptions.L2RegularizationWeight,
+                amsgrad: myOptions.UseAdamAmsgrad);
+
+            criticOptimizer = torch.optim.Adam(
+                criticNet.parameters(),
+                myOptions.LR,
+                beta1: myOptions.AdamBeta1, beta2: myOptions.AdamBeta2,
+                eps: myOptions.AdamEpsilon,
+                weight_decay: myOptions.L2RegularizationWeight,
+                amsgrad: myOptions.UseAdamAmsgrad);
 
             // TODO: This should accept OneOf<LRScheduler, (LRScheduler actor, LRScheduler critic)> 
             // when C# gets proper discriminated unions. For now, only null is supported.

@@ -14,12 +14,24 @@ namespace RLMatrix.Agents.PPO.Implementations
             var envSizeDTO = new DiscreteEnvSizeDTO { actionSize = ActionSizes, stateSize = StateSizes };
             var actorNet = netProvider.CreateActorNet(envSizeDTO).to(device);
             var criticNet = netProvider.CreateCriticNet(envSizeDTO).to(device);
-            var actorOptimizer = optim.Adam(actorNet.parameters(), lr: options.LR, amsgrad: true);
-            var criticOptimizer = optim.Adam(criticNet.parameters(), lr: options.LR, amsgrad: true);
+            var actorOptimizer = optim.Adam(
+                actorNet.parameters(),
+                lr: options.LR,
+                beta1: options.AdamBeta1, beta2 : options.AdamBeta2,
+                eps: options.AdamEpsilon,
+                weight_decay: options.L2RegularizationWeight,
+                amsgrad: options.UseAdamAmsgrad);
+            var criticOptimizer = optim.Adam(
+                criticNet.parameters(),
+                lr: options.LR,
+                beta1: options.AdamBeta1, beta2: options.AdamBeta2,
+                eps: options.AdamEpsilon,
+                weight_decay: options.L2RegularizationWeight,
+                amsgrad: options.UseAdamAmsgrad);
 
             //var actorLrScheduler = new optim.lr_scheduler.impl.StepLR(actorOptimizer, step_size: 1000, gamma: 0.9f);
             //var criticlLrScheduler = new optim.lr_scheduler.impl.StepLR(actorOptimizer, step_size: 1000, gamma: 0.9f);
-             var actorLrScheduler = new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
+            var actorLrScheduler = new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
             var criticlLrScheduler = new optim.lr_scheduler.impl.CyclicLR(criticOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
             var PPOOptimize = new PPOOptimize<T>(actorNet, criticNet, actorOptimizer, criticOptimizer, options, device, ActionSizes, new (float, float)[0], actorLrScheduler, criticlLrScheduler, gail);
             if (options.UseRNN)
@@ -60,8 +72,20 @@ namespace RLMatrix.Agents.PPO.Implementations
             var envSizeDTO = new ContinuousEnvSizeDTO { actionSize = DiscreteDimensions, continuousActionBounds = ContinuousActionBounds, stateSize = StateSizes };
             var actorNet = netProvider.CreateActorNet(envSizeDTO).to(device);
             var criticNet = netProvider.CreateCriticNet(envSizeDTO).to(device);
-            var actorOptimizer = optim.Adam(actorNet.parameters(), lr: options.LR, amsgrad: true);
-            var criticOptimizer = optim.Adam(criticNet.parameters(), lr: options.LR, amsgrad: true);
+            var actorOptimizer = optim.Adam(
+                actorNet.parameters(),
+                lr: options.LR,
+                beta1: options.AdamBeta1, beta2: options.AdamBeta2,
+                eps: options.AdamEpsilon,
+                weight_decay: options.L2RegularizationWeight,
+                amsgrad: options.UseAdamAmsgrad);
+            var criticOptimizer = optim.Adam(
+                criticNet.parameters(),
+                lr: options.LR,
+                beta1: options.AdamBeta1, beta2: options.AdamBeta2,
+                eps: options.AdamEpsilon,
+                weight_decay: options.L2RegularizationWeight,
+                amsgrad: options.UseAdamAmsgrad);
 
             var actorLrScheduler = new optim.lr_scheduler.impl.CyclicLR(actorOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);
             var criticlLrScheduler = new optim.lr_scheduler.impl.CyclicLR(criticOptimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 10, step_size_down: 10, cycle_momentum: false);

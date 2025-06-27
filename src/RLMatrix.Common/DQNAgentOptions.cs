@@ -7,6 +7,16 @@ namespace RLMatrix
     /// </summary>
     public class DQNAgentOptions : RLMatrix.Agents.Common.IAgentOptions
     {
+        public float AdamBeta1 { get; set; } = 0.99f;
+        //<summary>
+        ////same as Beta1 https://openreview.net/pdf?id=m9Jfdz4ymO
+        ///</summary>
+        public float AdamBeta2 { get; set; } = 0.99f;
+        public float AdamEpsilon { get; set; } = 1e-8f;
+        public float L2RegularizationWeight { get; set; } = 0.001f;
+        public bool UseAdamAmsgrad { get; set; } = true;
+
+
         /// <summary>
         /// The number of experiences sampled from the memory buffer during each update step.
         /// Larger values may lead to more stable learning, but with increased computational cost and memory use.
@@ -174,6 +184,7 @@ namespace RLMatrix
         public DQNAgentOptions(
             int batchSize = 64,
             int memorySize = 10000,
+
             float gamma = 0.99f,
             float epsStart = 1.0f,
             float epsEnd = 0.005f,
@@ -196,7 +207,12 @@ namespace RLMatrix
             bool prioritizedExperienceReplay = false,
             bool batchedActionProcessing = false,
             bool boltzmannExploration = false,
-            float noisyLayersScale = 0.00015f)
+            float noisyLayersScale = 0.00015f,
+            float adamBeta1 = 0.99f,
+            float adamBeta2 = 0.99f,  // Keep these equal unless you know what youre doing
+            float adamEpsilon = 1e-8f,
+            float l2RegularizationWeight = 0.001f,
+            bool useAdamAmsgrad = true)
         {
             BatchSize = batchSize;
             MemorySize = memorySize;
@@ -223,6 +239,11 @@ namespace RLMatrix
             NoisyLayersScale = noisyLayersScale;
             BatchedInputProcessing = batchedActionProcessing;
             BoltzmannExploration = boltzmannExploration;
+            AdamBeta1 = adamBeta1;
+            AdamBeta2 = adamBeta2;
+            AdamEpsilon = adamEpsilon;
+            L2RegularizationWeight = l2RegularizationWeight;
+            UseAdamAmsgrad = useAdamAmsgrad;
         }
     }
 }

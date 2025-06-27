@@ -21,7 +21,14 @@ namespace RLMatrix
             var device = torch.device(torch.cuda.is_available() ? "cuda" : "cpu");
             var policyNet = netProvider.CreateCriticNet(new EnvSizeDTO<T> { actionSize = ActionSizes, stateSize = StateSizes }, options.NoisyLayers, options.NoisyLayersScale, options.NumAtoms).to(device);
             var targetNet = netProvider.CreateCriticNet(new EnvSizeDTO<T> { actionSize = ActionSizes, stateSize = StateSizes }, options.NoisyLayers, options.NoisyLayersScale, options.NumAtoms).to(device);
-            var optimizer = optim.Adam(policyNet.parameters(), options.LR);
+            var optimizer = optim.Adam(
+                policyNet.parameters(),
+                options.LR,
+                beta1: options.AdamBeta1, beta2: options.AdamBeta2,
+                eps: options.AdamEpsilon,   
+                weight_decay: options.L2RegularizationWeight,
+                amsgrad: options.UseAdamAmsgrad);
+
             lrScheduler ??= new optim.lr_scheduler.impl.CyclicLR(optimizer, options.LR * 0.5f, options.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
 
 

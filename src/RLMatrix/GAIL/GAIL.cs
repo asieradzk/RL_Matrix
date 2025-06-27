@@ -70,8 +70,15 @@ public class GAIL<T>
             default:
                 throw new Exception("Unexpected type");
         }
-
-        this.myOptimizer = optim.Adam(myNet.parameters(), myOptions.LR);
+        // tdd Add to GAILOptions
+        this.myOptimizer = optim.Adam(
+    myNet.parameters(),
+    myOptions.LR,
+    beta1: 0.99f, beta2: 0.99f,  
+    eps: 1e-8f,
+    weight_decay: 0.001f,   
+    amsgrad: true
+);
 
     }
 

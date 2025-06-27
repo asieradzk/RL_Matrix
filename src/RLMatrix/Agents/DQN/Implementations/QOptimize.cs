@@ -58,8 +58,15 @@ namespace RLMatrix.Agents.DQN.Domain
 
 		public void UpdateOptimizers(LRScheduler scheduler)
 		{
-			Optimizer = torch.optim.Adam(PolicyNet.parameters(), lr: myOptions.LR, amsgrad: true);
-			scheduler ??= new optim.lr_scheduler.impl.CyclicLR(Optimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
+            Optimizer = torch.optim.Adam(
+				PolicyNet.parameters(),
+				lr: myOptions.LR,
+				beta1: myOptions.AdamBeta1, beta2: myOptions.AdamBeta2,
+				eps: myOptions.AdamEpsilon,
+				weight_decay: myOptions.L2RegularizationWeight,
+				amsgrad: myOptions.UseAdamAmsgrad);
+
+            scheduler ??= new optim.lr_scheduler.impl.CyclicLR(Optimizer, myOptions.LR * 0.5f, myOptions.LR * 2f, step_size_up: 500, step_size_down: 2000, cycle_momentum: false);
 			LRScheduler = scheduler;
 
 		}

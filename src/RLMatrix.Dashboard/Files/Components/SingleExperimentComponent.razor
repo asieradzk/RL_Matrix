@@ -9,7 +9,7 @@
 
 <div class="experiment-container">
     <div class="experiment-title-tile">
-        <h2>Experiment @ExperimentStartTime.ToString("g")</h2>
+        <h2>Experiment @ExperimentStartTime.ToLocalTime().ToString("g")</h2>
         <button class="export-button" @onclick="ExportCsv" disabled="@isExporting">
             @if (isExporting)
             {
@@ -35,7 +35,7 @@
     .experiment-container {
         width: 100%;
         color: #ffffff;
-        padding: 0 20px;
+        padding: 0 0px;
         box-sizing: border-box;
     }
 
@@ -43,7 +43,7 @@
         background-color: #252526;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        padding: 16px;
+        /* padding: 16px; */
         margin-bottom: 20px;
         display: flex;
         justify-content: space-between;
@@ -65,26 +65,26 @@
         transition: background-color 0.3s;
     }
 
-        .export-button:hover {
-            background-color: #106ebe;
-        }
+    .export-button:hover {
+        background-color: #106ebe;
+    }
 
-        .export-button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
+    .export-button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+    }
 
     .chart-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 20px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0px;
     }
 
     .chart-tile {
         background-color: #252526;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        padding: 16px;
+        padding: 0px;
     }
 
     .chart-container {
@@ -102,9 +102,10 @@
 
     private DateTime ExperimentStartTime { get; set; }
     private string[] _chartKeys = {
-        "Reward", "CumulativeReward", "EpisodeLength", "ActorLoss", "ActorLearningRate",
-        "CriticLoss", "CriticLearningRate", "KLDivergence", "Entropy",
-        "Epsilon", "Loss", "LearningRate"
+        "Reward", "CumulativeReward", "EpisodeLength", 
+        "KLDivergence", "Entropy",
+        "Epsilon", "Loss", "LearningRate",
+        "ActorLoss", "CriticLoss", "ActorLearningRate", "CriticLearningRate", 
     };
     private HashSet<string> _activeCharts = new HashSet<string>();
     private int _currentEpisode = 0;
@@ -154,6 +155,7 @@
 
         _chartsInitialized = true;
         StateHasChanged();
+        await JSRuntime.InvokeVoidAsync("resizeAll");
     }
 
     private async Task<bool> InitializeChart(string chartKey, List<ExperimentData> uniqueData, int[] episodes)

@@ -22,7 +22,7 @@ namespace RLMatrix.Dashboard.Services
             for (int i = 0; i < sortedData.Count; i++)
             {
                 var item = sortedData[i];
-                csv.AppendLine($"{item.Timestamp},{i + 1},{item.Reward},{item.CumulativeReward},{item.EpisodeLength},{item.ActorLoss},{item.ActorLearningRate},{item.CriticLoss},{item.CriticLearningRate},{item.KLDivergence},{item.Entropy},{item.Epsilon},{item.Loss},{item.LearningRate}");
+                csv.AppendLine($"{item.Timestamp.ToLocalTime()},{i + 1},{item.Reward},{item.CumulativeReward},{item.EpisodeLength},{item.ActorLoss},{item.ActorLearningRate},{item.CriticLoss},{item.CriticLearningRate},{item.KLDivergence},{item.Entropy},{item.Epsilon},{item.Loss},{item.LearningRate}");
             }
             return Task.FromResult(Encoding.UTF8.GetBytes(csv.ToString()));
         }

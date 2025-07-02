@@ -57,6 +57,7 @@ namespace RLMatrix.Agents.PPO.Implementations
                 actionBatch = torch.cat(new Tensor[] { discreteActionBatch, continuousActionBatch }, dim: 1);
             }
         }
+
         (Tensor, Tensor) DiscountedRewardsAndAdvantages(IList<TransitionInMemory<T>> transitions, Tensor values)
         {
             var batchSize = transitions.Count();
@@ -102,7 +103,6 @@ namespace RLMatrix.Agents.PPO.Implementations
             Tensor advantagesTensor = torch.tensor(advantages).to(myDevice);
             advantagesTensor = (advantagesTensor - advantagesTensor.mean()) / (advantagesTensor.std() + 1e-10);
 
-
             return (discountedRewardsTensor, advantagesTensor);
         }
 
@@ -135,7 +135,6 @@ namespace RLMatrix.Agents.PPO.Implementations
                 paddedSequences.Add(paddedSequence);
             }
 
-
             #region mask
             mask = CreateMask(paddedSequences, sequenceLengths, device);
             return paddedSequences;
@@ -155,10 +154,8 @@ namespace RLMatrix.Agents.PPO.Implementations
 
                 var mask = torch.cat(maskList.ToArray(), dim: 0).to(device);
                 return mask;
-
             }
             #endregion
-
 
             int CalculateSequenceLength(TransitionInMemory<T> transition)
             {
@@ -168,7 +165,6 @@ namespace RLMatrix.Agents.PPO.Implementations
                 {
                     length++;
                     current = current.nextTransition;
-
                 }
                 return length;
             }
@@ -184,7 +180,6 @@ namespace RLMatrix.Agents.PPO.Implementations
 
             static TransitionInMemory<T> PadSequence(TransitionInMemory<T> transition, int targetLength, int currentLength, List<TransitionInMemory<T>> paddedSequence)
             {
-
                 if (currentLength >= targetLength)
                     return transition;
 
@@ -227,7 +222,6 @@ namespace RLMatrix.Agents.PPO.Implementations
                 Tensor actionBatch = torch.cat(actionBatches.ToArray(), dim: 0);
 
                 Tensor policyOld = actorNet.get_log_prob(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count()).detach();
-                
                 Tensor valueOld = criticNet.forward(stateBatch).detach().squeeze(1);
 
                 //Tensor maskedPolicyOld = torch.masked_select(policyOld, mask.to_type(ScalarType.Bool));
@@ -266,14 +260,12 @@ namespace RLMatrix.Agents.PPO.Implementations
                         actorLoss.backward();
                         torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);
                         actorOptimizer.step();
-                        if(i == 0)
+                        if (i == 0)
                         {
-
                             DashboardProvider.Instance.UpdateEntropy((double)maskedEntropy.mean().item<float>());
                             DashboardProvider.Instance.UpdateActorLoss((double)actorLoss.item<float>());
                             DashboardProvider.Instance.UpdateActorLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
                         }
-                        
                     }
 
                     using (var criticScope = torch.NewDisposeScope())
@@ -302,11 +294,8 @@ namespace RLMatrix.Agents.PPO.Implementations
                     }
                 }
             }
-
-           
             myReplayBuffer.ClearMemory();
         }
-
 
         //TODO: move to utils?
         private Tensor MaskedSelectBatch(Tensor tensor, Tensor mask)
@@ -375,11 +364,9 @@ namespace RLMatrix.Agents.PPO.Implementations
             return torch.nn.utils.rnn.pack_sequence(sequenceTensors, false);
         }
 
-
         //This could potentially have better performance but due to some error doesnt want to learn :) 
         void OptimizeRNNPacked(IMemory<T> replayBuffer)
         {
-            
             using (var scope = torch.NewDisposeScope())
             {
                 var transitions = replayBuffer.SampleEntireMemory();
@@ -400,7 +387,6 @@ namespace RLMatrix.Agents.PPO.Implementations
                 {
                     using (var actorScope = torch.NewDisposeScope())
                     {
-
                         (Tensor policy, Tensor entropy) = actorNet.get_log_prob_entropy(packedTransition, actionBatch, ActionSizes.Count(), continuousActionBounds.Count());
                         Tensor ratios = torch.exp(policy - policyOld);
                         Tensor surr1 = ratios * advantages;
@@ -431,8 +417,7 @@ namespace RLMatrix.Agents.PPO.Implementations
             replayBuffer.ClearMemory();
         }
 
-
-       public void Optimize(IMemory<T> replayBuffer)
+        public void Optimize(IMemory<T> replayBuffer)
         {
             if (myOptions.UseRNN && myOptions.BatchSize > 1)
             {
@@ -451,7 +436,6 @@ namespace RLMatrix.Agents.PPO.Implementations
             {
                 // (padding + masking)
                 OptimizeModelRNN(replayBuffer);
-
                 actorLrScheduler.step();
                 criticLrScheduler.step();
 
@@ -459,6 +443,9 @@ namespace RLMatrix.Agents.PPO.Implementations
                 // OptimizeRNNPacked(replayBuffer); //broken
                 return;
             }
+
+            // Check if minibatching should be used
+            bool useMinibatching = myOptions.MinibatchSize > 1;
 
             using (var scope = torch.NewDisposeScope())
             {
@@ -475,56 +462,135 @@ namespace RLMatrix.Agents.PPO.Implementations
                         advantages = advantages.unsqueeze(1);
                     }
 
-                    for (int i = 0; i < myOptions.PPOEpochs; i++)
+                    long totalSize = stateBatch.shape[0];
+
+            
+                    if (useMinibatching && myOptions.MinibatchSize < totalSize)
                     {
-                        using (var actorScope = torch.NewDisposeScope())
+                        
+                        int minibatchSize = myOptions.MinibatchSize;
+
+                        for (int epoch = 0; epoch < myOptions.PPOEpochs; epoch++)
                         {
-                            (Tensor policy, Tensor entropy) = actorNet.get_log_prob_entropy(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count());
-                            using (var ratios = torch.exp(policy - policyOld))
-                            using (var surr1 = ratios * advantages)
-                            using (var surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages)
+                            // Shuffles indices at the start of each epoch
+                            var indices = torch.randperm(totalSize, dtype: torch.int64, device: myDevice);
+
+                            // minibatches
+                            for (long start = 0; start < totalSize; start += minibatchSize)
                             {
-                                var actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
-                                //actorLoss.print();
-                                actorOptimizer.zero_grad();
-                                actorLoss.backward();
-                                torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);
-                                actorOptimizer.step();
+                                long end = Math.Min(start + minibatchSize, totalSize);
+                                var mbIndices = indices.slice(0, start, end, 1);
 
-
-                                if(i == 0)
+                                // Extract minibatch data
+                                using (var mbStates = stateBatch.index_select(0, mbIndices))
+                                using (var mbActions = actionBatch.index_select(0, mbIndices))
+                                using (var mbPolicyOld = policyOld.index_select(0, mbIndices))
+                                using (var mbValueOld = valueOld.index_select(0, mbIndices))
+                                using (var mbAdvantages = advantages.index_select(0, mbIndices))
+                                using (var mbDiscountedRewards = discountedRewards.index_select(0, mbIndices))
                                 {
-                                    Tensor klDivergence = (policyOld.exp() * (policyOld - policy)).mean();
-                                    DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
+                                    // Actor update
+                                    using (var actorScope = torch.NewDisposeScope())
+                                    {
+                                        (Tensor policy, Tensor entropy) = actorNet.get_log_prob_entropy(mbStates, mbActions, ActionSizes.Count(), continuousActionBounds.Count());
+                                        using (var ratios = torch.exp(policy - mbPolicyOld))
+                                        using (var surr1 = ratios * mbAdvantages)
+                                        using (var surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * mbAdvantages)
+                                        {
+                                            var actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
+                                            //actorLoss.print();
 
-                                   // DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
+                                            actorOptimizer.zero_grad();
+                                            actorLoss.backward();
+                                            torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);
+                                            actorOptimizer.step();
 
+                                            // Log metrics only for first minibatch of first epoch
+                                            if (epoch == 0 && start == 0)
+                                            {
+                                                Tensor klDivergence = (mbPolicyOld.exp() * (mbPolicyOld - policy)).mean();
+                                                DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
+                                                DashboardProvider.Instance.UpdateEntropy((double)entropy.mean().item<float>());
+                                                DashboardProvider.Instance.UpdateActorLoss((double)actorLoss.item<float>());
+                                                DashboardProvider.Instance.UpdateActorLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
+                                            }
+                                        }
+                                    }
 
-                                    DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
-                                    DashboardProvider.Instance.UpdateEntropy((double)entropy.mean().item<float>());
-                                    DashboardProvider.Instance.UpdateActorLoss((double)actorLoss.item<float>());
-                                    DashboardProvider.Instance.UpdateActorLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
-                                }                                
+                                    // Critic update
+                                    using (var criticScope = torch.NewDisposeScope())
+                                    {
+                                        using (var values = criticNet.forward(mbStates))
+                                        using (var valueClipped = mbValueOld + torch.clamp(values - mbValueOld, -myOptions.VClipRange, myOptions.VClipRange))
+                                        using (var valueLoss1 = torch.pow(values - mbDiscountedRewards, 2))
+                                        using (var valueLoss2 = torch.pow(valueClipped - mbDiscountedRewards, 2))
+                                        {
+                                            var criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
+
+                                            criticOptimizer.zero_grad();
+                                            criticLoss.backward();
+                                            torch.nn.utils.clip_grad_norm_(criticNet.parameters(), myOptions.ClipGradNorm);
+                                            criticOptimizer.step();
+
+                                            if (epoch == 0 && start == 0)
+                                            {
+                                                DashboardProvider.Instance.UpdateCriticLoss((double)criticLoss.item<float>());
+                                                DashboardProvider.Instance.UpdateCriticLearningRate(criticLrScheduler.get_last_lr().FirstOrDefault());
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
-
-                        using (var criticScope = torch.NewDisposeScope())
+                    }
+                    else
+                    {
+                        // Use original full-batch processing
+                        for (int i = 0; i < myOptions.PPOEpochs; i++)
                         {
-                            using (var values = criticNet.forward(stateBatch))
-                            using (var valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange))
-                            using (var valueLoss1 = torch.pow(values - discountedRewards, 2))
-                            using (var valueLoss2 = torch.pow(valueClipped - discountedRewards, 2))
+                            using (var actorScope = torch.NewDisposeScope())
                             {
-                                var criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
-                                criticOptimizer.zero_grad();
-                                criticLoss.backward();
-                                torch.nn.utils.clip_grad_norm_(criticNet.parameters(), myOptions.ClipGradNorm);
-                                criticOptimizer.step();
-
-                                if (i == 0)
+                                (Tensor policy, Tensor entropy) = actorNet.get_log_prob_entropy(stateBatch, actionBatch, ActionSizes.Count(), continuousActionBounds.Count());
+                                using (var ratios = torch.exp(policy - policyOld))
+                                using (var surr1 = ratios * advantages)
+                                using (var surr2 = torch.clamp(ratios, 1.0 - myOptions.ClipEpsilon, 1.0 + myOptions.ClipEpsilon) * advantages)
                                 {
-                                    DashboardProvider.Instance.UpdateCriticLoss((double)criticLoss.item<float>());
-                                    DashboardProvider.Instance.UpdateCriticLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
+                                    var actorLoss = -torch.min(surr1, surr2).mean() - myOptions.EntropyCoefficient * entropy.mean();
+                                    //actorLoss.print();
+                                    actorOptimizer.zero_grad();
+                                    actorLoss.backward();
+                                    torch.nn.utils.clip_grad_norm_(actorNet.parameters(), myOptions.ClipGradNorm);
+                                    actorOptimizer.step();
+
+                                    if (i == 0)
+                                    {
+                                        Tensor klDivergence = (policyOld.exp() * (policyOld - policy)).mean();
+                                        DashboardProvider.Instance.UpdateKLDivergence((double)klDivergence.item<float>());
+                                        DashboardProvider.Instance.UpdateEntropy((double)entropy.mean().item<float>());
+                                        DashboardProvider.Instance.UpdateActorLoss((double)actorLoss.item<float>());
+                                        DashboardProvider.Instance.UpdateActorLearningRate(actorLrScheduler.get_last_lr().FirstOrDefault());
+                                    }
+                                }
+                            }
+
+                            using (var criticScope = torch.NewDisposeScope())
+                            {
+                                using (var values = criticNet.forward(stateBatch))
+                                using (var valueClipped = valueOld + torch.clamp(values - valueOld, -myOptions.VClipRange, myOptions.VClipRange))
+                                using (var valueLoss1 = torch.pow(values - discountedRewards, 2))
+                                using (var valueLoss2 = torch.pow(valueClipped - discountedRewards, 2))
+                                {
+                                    var criticLoss = myOptions.CValue * torch.max(valueLoss1, valueLoss2).mean();
+                                    criticOptimizer.zero_grad();
+                                    criticLoss.backward();
+                                    torch.nn.utils.clip_grad_norm_(criticNet.parameters(), myOptions.ClipGradNorm);
+                                    criticOptimizer.step();
+
+                                    if (i == 0)
+                                    {
+                                        DashboardProvider.Instance.UpdateCriticLoss((double)criticLoss.item<float>());
+                                        DashboardProvider.Instance.UpdateCriticLearningRate(criticLrScheduler.get_last_lr().FirstOrDefault());
+                                    }
                                 }
                             }
                         }
@@ -573,7 +639,3 @@ namespace RLMatrix.Agents.PPO.Implementations
         }
     }
 }
-
-
-    
-

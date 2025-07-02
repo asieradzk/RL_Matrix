@@ -92,8 +92,16 @@ namespace RLMatrix
         /// </summary>
         public bool UseRNN;
 
+        /// <summary>
+        /// Used to split long episodes into minibatches for optimization step. Can degrate the learning but enables processing of arbitrarily long episodes without running out of vram.
+        /// Defaults to 1 which means no minibatching.
+        /// Value decides how many transitions in an optimization sub-step.
+        /// </summary>
+        public int MinibatchSize;
+
         public PPOAgentOptions(
             int batchSize = 16,
+            int minibatchSize = 1,
             int memorySize = 10000,
             float gamma = 0.99f,
             float gaeLambda = 0.95f,
@@ -114,6 +122,7 @@ namespace RLMatrix
             bool useAdamAmsgrad = true)
         {
             BatchSize = batchSize;
+            MinibatchSize = minibatchSize;
             MemorySize = memorySize;
             Gamma = gamma;
             GaeLambda = gaeLambda;

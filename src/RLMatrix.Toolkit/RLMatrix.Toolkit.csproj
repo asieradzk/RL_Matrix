@@ -5,7 +5,7 @@
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<PackageId>RLMatrix.Toolkit</PackageId>
-		<Version>0.4.3.8</Version>
+		<Version>0.5.2</Version>
 		<Authors>Adrian Sieradzki</Authors>
 		<Company>Adrian Sieradzki</Company>
 		<Description>Environment (Source) Generator and other utilities for RLMatrix</Description>

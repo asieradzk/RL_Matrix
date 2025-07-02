@@ -130,7 +130,6 @@ namespace RLMatrix.Toolkit
             return sb.ToString();
         }
 
-
         private void GenerateFields(StringBuilder sb)
         {
             sb.AppendLine("        private int _poolingRate;");
@@ -141,10 +140,10 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("        private int _maxStepsHard;");
             sb.AppendLine("        private int _maxStepsSoft;");
             sb.AppendLine("        private bool _rlMatrixEpisodeTerminated;");
+            sb.AppendLine("        private bool _rlMatrixEpisodeTruncated;");
             sb.AppendLine("        private (Action<int> method, int maxValue)[] _actionMethodsWithCaps;");
             sb.AppendLine("        private Action<float>[] _continuousActionMethods;");
         }
-
 
         private void GenerateProperties(StringBuilder sb, EnvironmentInfo info)
         {
@@ -188,6 +187,15 @@ namespace RLMatrix.Toolkit
             string returnType = info.EnvironmentType.Name;
             sb.AppendLine($"        public virtual {returnType} RLInit(int poolingRate = 1, int maxStepsHard = 1000, int maxStepsSoft = 100, List<IRLMatrixExtraObservationSource> extraObservationSources = null)");
             sb.AppendLine("        {");
+
+            // Throw if pooling rate != 1 - it's broken at the moment
+            //TODO: fix pooling (i dont know when I broke it)
+            sb.AppendLine("            if (poolingRate != 1)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                throw new NotImplementedException(\"Pooling is currently broken due to observation size inconsistencies. Use poolingRate = 1 for now.\");");
+            sb.AppendLine("            }");
+            sb.AppendLine();
+
             sb.AppendLine("            _poolingRate = poolingRate;");
             sb.AppendLine("            _maxStepsHard = maxStepsHard / poolingRate;");
             sb.AppendLine("            _maxStepsSoft = maxStepsSoft / poolingRate;");
@@ -200,9 +208,11 @@ namespace RLMatrix.Toolkit
                 sb.AppendLine();
                 sb.AppendLine("            int baseObservationSize = _GetBaseObservationSize();");
                 sb.AppendLine("            int extraObservationSize = _extraObservationSources.Sum(source => source.GetObservationSize());");
-                sb.AppendLine("            StateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
+                sb.AppendLine("            // +1 for truncation flag");
+                sb.AppendLine("            StateSize = _poolingRate * (1 + baseObservationSize + extraObservationSize);");
                 sb.AppendLine();
                 sb.AppendLine("            _rlMatrixEpisodeTerminated = true;");
+                sb.AppendLine("            _rlMatrixEpisodeTruncated = false;");
                 sb.AppendLine("            _InitializeObservations();");
                 sb.AppendLine();
 
@@ -238,9 +248,11 @@ namespace RLMatrix.Toolkit
                 sb.AppendLine();
                 sb.AppendLine("            int baseObservationSize = _GetBaseObservationSize();");
                 sb.AppendLine("            int extraObservationSize = _extraObservationSources.Sum(source => source.GetObservationSize());");
-                sb.AppendLine("            stateSize = _poolingRate * (baseObservationSize + extraObservationSize);");
+                sb.AppendLine("            // +1 for truncation flag");
+                sb.AppendLine("            stateSize = _poolingRate * (1 + baseObservationSize + extraObservationSize);");
                 sb.AppendLine();
                 sb.AppendLine("            _rlMatrixEpisodeTerminated = true;");
+                sb.AppendLine("            _rlMatrixEpisodeTruncated = false;");
                 sb.AppendLine("            _InitializeObservations();");
                 sb.AppendLine();
 
@@ -258,7 +270,6 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            return this;");
             sb.AppendLine("        }");
         }
-
 
         private void GenerateInitializeObservationsMethod(StringBuilder sb, EnvironmentInfo info)
         {
@@ -281,14 +292,16 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("                Reset();");
             sb.AppendLine("                _poolingHelper.HardReset(_GetAllObservations);");
             sb.AppendLine("                _rlMatrixEpisodeTerminated = false;");
+            sb.AppendLine("                _rlMatrixEpisodeTruncated = false;");
             sb.AppendLine("            }");
             sb.AppendLine("            else if (_rlMatrixEpisodeTerminated && _IsSoftDone())");
             sb.AppendLine("            {");
             sb.AppendLine("                _stepsSoft = 0;");
             sb.AppendLine("                _rlMatrixEpisodeTerminated = false;");
+            sb.AppendLine("                _rlMatrixEpisodeTruncated = false;");
             sb.AppendLine("            }");
             sb.AppendLine();
-            sb.AppendLine("            return Task.FromResult(_poolingHelper.GetPooledObservations());");
+            sb.AppendLine("            return Task.FromResult(_GetPooledObservationsWithTruncationFlag());");
             sb.AppendLine("        }");
         }
 
@@ -300,6 +313,7 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            _stepsHard = 0;");
             sb.AppendLine($"            {info.ResetMethod.Name}();");
             sb.AppendLine("            _rlMatrixEpisodeTerminated = false;");
+            sb.AppendLine("            _rlMatrixEpisodeTruncated = false;");
             sb.AppendLine("            _poolingHelper.HardReset(_GetAllObservations);");
             sb.AppendLine();
             sb.AppendLine($"            if ({info.DoneMethod.Name}())");
@@ -365,12 +379,14 @@ namespace RLMatrix.Toolkit
             sb.AppendLine();
             sb.AppendLine("            float totalReward = _poolingHelper.GetAndResetAccumulatedReward();");
             sb.AppendLine();
-            sb.AppendLine("            _rlMatrixEpisodeTerminated = _IsHardDone() || _IsSoftDone();");
+            sb.AppendLine("            bool hardDone = _IsHardDone();");
+            sb.AppendLine("            bool softDone = _IsSoftDone();");
+            sb.AppendLine("            _rlMatrixEpisodeTerminated = hardDone || softDone;");
+            sb.AppendLine("            _rlMatrixEpisodeTruncated = !hardDone && softDone;");
             sb.AppendLine();
             sb.AppendLine("            return Task.FromResult((totalReward, _rlMatrixEpisodeTerminated));");
             sb.AppendLine("        }");
         }
-
 
         private void GenerateIsHardDoneMethod(StringBuilder sb, EnvironmentInfo info)
         {
@@ -432,6 +448,7 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            _poolingHelper.CollectObservation(reward);");
             sb.AppendLine("        }");
         }
+
         private void GenerateGetAllObservationsMethod(StringBuilder sb, EnvironmentInfo info)
         {
             sb.AppendLine("        private float[] _GetAllObservations()");
@@ -439,6 +456,24 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            var baseObservations = _GetBaseObservations();");
             sb.AppendLine("            var extraObservations = _extraObservationSources.SelectMany(source => source.GetObservations()).ToArray();");
             sb.AppendLine("            return baseObservations.Concat(extraObservations).ToArray();");
+            sb.AppendLine("        }");
+            sb.AppendLine();
+            sb.AppendLine("        private float[] _GetPooledObservationsWithTruncationFlag()");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var pooledObservations = _poolingHelper.GetPooledObservations();");
+            sb.AppendLine("            var singleObservationSize = (_GetBaseObservationSize() + _extraObservationSources.Sum(source => source.GetObservationSize()));");
+            sb.AppendLine("            var result = new float[pooledObservations.Length + _poolingRate];");
+            sb.AppendLine();
+            sb.AppendLine("            // Add truncation flags for each pooled observation");
+            sb.AppendLine("            for (int i = 0; i < _poolingRate; i++)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                // Truncation flag (0 for not truncated, 1 for truncated)");
+            sb.AppendLine("                result[i * (singleObservationSize + 1)] = _rlMatrixEpisodeTruncated ? 1f : 0f;");
+            sb.AppendLine("                // Copy the rest of the observation");
+            sb.AppendLine("                Array.Copy(pooledObservations, i * singleObservationSize, result, i * (singleObservationSize + 1) + 1, singleObservationSize);");
+            sb.AppendLine("            }");
+            sb.AppendLine();
+            sb.AppendLine("            return result;");
             sb.AppendLine("        }");
         }
 
@@ -464,6 +499,7 @@ namespace RLMatrix.Toolkit
             sb.AppendLine("            return observations.ToArray();");
             sb.AppendLine("        }");
         }
+
         private void GenerateGetBaseObservationSizeMethod(StringBuilder sb, EnvironmentInfo info)
         {
             sb.AppendLine("        private int _GetBaseObservationSize()");

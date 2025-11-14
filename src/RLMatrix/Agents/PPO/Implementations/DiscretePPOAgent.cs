@@ -80,6 +80,36 @@ namespace RLMatrix.Agents.PPO.Implementations
 			}
 		}
 
+            public int[][] SelectActions(T[] states, bool isTraining, int[][][] masks)
+            {
+                using (var scope = torch.no_grad())
+                {
+                    Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, Device);
+                    var result = actorNet.forward(stateTensor);
+                    int[][] actions = new int[states.Length][];
+
+                    if (isTraining)
+                    {
+                        for (int i = 0; i < states.Length; i++)
+                        {
+                            var maskForState = masks != null && i < masks.Length ? masks[i] : null;
+                            actions[i] = PPOActionSelection<T>.SelectDiscreteActionsFromProbs(result[i], ActionSizes, maskForState);
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < states.Length; i++)
+                        {
+                            var maskForState = masks != null && i < masks.Length ? masks[i] : null;
+                            actions[i] = PPOActionSelection<T>.SelectGreedyDiscreteActions(result[i], ActionSizes, maskForState);
+                        }
+                    }
+
+                    return actions;
+                }
+            }
+
+
 		int[][] SelectActions2(T[] states, bool isTraining)
 		{
 			int[][] actions = new int[states.Length][];

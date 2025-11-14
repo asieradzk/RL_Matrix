@@ -11,7 +11,7 @@ namespace RLMatrix
     /// Represents a local discrete Q-learning agent.
     /// </summary>
     /// <typeparam name="T">The type of the state.</typeparam>
-    public class LocalDiscreteQAgent<T> : IDiscreteProxy<T>
+    public class LocalDiscreteQAgent<T> : IDiscreteProxy<T>, IDiscreteProxyWithMask<T>
     {
         private readonly ComposableQDiscreteAgent<T> _agent;
 
@@ -121,11 +121,42 @@ namespace RLMatrix
             }
             return ValueTask.FromResult(actionDict);
         }
+
+        public ValueTask<Dictionary<Guid, int[]>> SelectActionsBatchWithMaskAsync(List<(Guid environmentId, T state, int[][] actionMasks)> stateInfos, bool isTraining)
+        {
+            T[] states = stateInfos.Select(info => info.state).ToArray();
+            // Convert to batch-level masks: [batch][head][action]
+            int[][][] batchMasks = stateInfos.Select(info => info.actionMasks).ToArray();
+            int[][] actions = _agent.SelectActions(states, isTraining, batchMasks);
+            Dictionary<Guid, int[]> actionDict = new Dictionary<Guid, int[]>();
+            for (int i = 0; i < stateInfos.Count; i++)
+            {
+                Guid environmentId = stateInfos[i].environmentId;
+                int[] action = actions[i];
+                actionDict[environmentId] = action;
+            }
+            return ValueTask.FromResult(actionDict);
+        }
 #else
         public Task<Dictionary<Guid, int[]>> SelectActionsBatchAsync(List<(Guid environmentId, T state)> stateInfos, bool isTraining)
         {
             T[] states = stateInfos.Select(info => info.state).ToArray();
             int[][] actions = _agent.SelectActions(states, isTraining);
+            Dictionary<Guid, int[]> actionDict = new Dictionary<Guid, int[]>();
+            for (int i = 0; i < stateInfos.Count; i++)
+            {
+                Guid environmentId = stateInfos[i].environmentId;
+                int[] action = actions[i];
+                actionDict[environmentId] = action;
+            }
+            return Task.FromResult(actionDict);
+        }
+
+        public Task<Dictionary<Guid, int[]>> SelectActionsBatchWithMaskAsync(List<(Guid environmentId, T state, int[][] actionMasks)> stateInfos, bool isTraining)
+        {
+            T[] states = stateInfos.Select(info => info.state).ToArray();
+            int[][][] batchMasks = stateInfos.Select(info => info.actionMasks).ToArray();
+            int[][] actions = _agent.SelectActions(states, isTraining, batchMasks);
             Dictionary<Guid, int[]> actionDict = new Dictionary<Guid, int[]>();
             for (int i = 0; i < stateInfos.Count; i++)
             {

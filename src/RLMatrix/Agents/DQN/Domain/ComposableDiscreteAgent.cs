@@ -27,7 +27,7 @@ namespace RLMatrix
         public required Action ResetNoisyLayers { get; init; }
         public required DQNAgentOptions Options { get; init; }
         public required Device Device { get; init; }
-        public required Func<T[], ComposableQDiscreteAgent<T>, bool, int[][]> SelectActionsFunc { private get; init; }
+        public required Func<T[], ComposableQDiscreteAgent<T>, bool, int[][][]?, int[][]> SelectActionsFunc { private get; init; }
 #else
         public Module<Tensor, Tensor> policyNet { get; set; }
         public Module<Tensor, Tensor> targetNet { get; set; }
@@ -38,7 +38,7 @@ namespace RLMatrix
         public Action ResetNoisyLayers { get; set; }
         public DQNAgentOptions Options { get; set; }
         public Device Device { get; set; }
-        public Func<T[], ComposableQDiscreteAgent<T>, bool, int[][]> SelectActionsFunc { private get; set; }
+        public Func<T[], ComposableQDiscreteAgent<T>, bool, int[][][]?, int[][]> SelectActionsFunc { private get; set; }
 #endif
 
         public Random Random = new Random();
@@ -61,7 +61,12 @@ namespace RLMatrix
 
         public int[][] SelectActions(T[] states, bool isTraining)
         {
-            return SelectActionsFunc(states, this, isTraining);
+            return SelectActionsFunc(states, this, isTraining, null);
+        }
+
+        public int[][] SelectActions(T[] states, bool isTraining, int[][][] masks)
+        {
+            return SelectActionsFunc(states, this, isTraining, masks);
         }
 
         public void Save(string path)

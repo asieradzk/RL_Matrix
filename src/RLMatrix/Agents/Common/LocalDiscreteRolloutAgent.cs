@@ -1,5 +1,6 @@
 ﻿using RLMatrix.Agents.DQN.Domain;
 using RLMatrix.Agents.PPO.Implementations;
+using RLMatrix.Common;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -58,7 +59,23 @@ namespace RLMatrix.Agents.Common
             var stateResults = await Task.WhenAll(stateTaskList);
 
             List<(Guid environmentId, TState state)> payload = stateResults.ToList();
-            var actions = await _agent.SelectActionsBatchAsync(payload, isTraining);
+
+            Dictionary<Guid, int[]> actions;
+            if (_agent is IDiscreteProxyWithMask<TState> withMask)
+            {
+                var payloadWithMasks = stateResults.Select(r =>
+                {
+                    int[][] masks = null;
+                    if (_environments[r.environmentId] is IProvidesDiscreteActionMask provider)
+                        masks = provider.GetDiscreteActionMasks();
+                    return (r.environmentId, r.state, masks);
+                }).ToList();
+                actions = await withMask.SelectActionsBatchWithMaskAsync(payloadWithMasks, isTraining);
+            }
+            else
+            {
+                actions = await _agent.SelectActionsBatchAsync(payload, isTraining);
+            }
 
             List<Task<(Guid environmentId, (float, bool) reward)>> rewardTaskList = new List<Task<(Guid environmentId, (float, bool) reward)>>();
             foreach (var action in actions)
@@ -212,6 +229,17 @@ namespace RLMatrix.Agents.Common
 
         private Dictionary<Guid, int[]> GetActionsBatchSync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
         {
+            if (_agent is IDiscreteProxyWithMask<TState> withMask)
+            {
+                var payloadWithMasks = stateInfos.Select(r =>
+                {
+                    int[][] masks = null;
+                    if (_environments[r.environmentId] is IProvidesDiscreteActionMask provider)
+                        masks = provider.GetDiscreteActionMasks();
+                    return (r.environmentId, r.state, masks);
+                }).ToList();
+                return withMask.SelectActionsBatchWithMaskAsync(payloadWithMasks, isTraining).GetAwaiter().GetResult();
+            }
             return _agent.SelectActionsBatchAsync(stateInfos, isTraining).GetAwaiter().GetResult();
         }
 
@@ -225,11 +253,33 @@ namespace RLMatrix.Agents.Common
 #if NET8_0_OR_GREATER
         public ValueTask<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
         {
+            if (_agent is IDiscreteProxyWithMask<TState> withMask)
+            {
+                var payloadWithMasks = stateInfos.Select(r =>
+                {
+                    int[][] masks = null;
+                    if (_environments[r.environmentId] is IProvidesDiscreteActionMask provider)
+                        masks = provider.GetDiscreteActionMasks();
+                    return (r.environmentId, r.state, masks);
+                }).ToList();
+                return withMask.SelectActionsBatchWithMaskAsync(payloadWithMasks, isTraining);
+            }
             return _agent.SelectActionsBatchAsync(stateInfos, isTraining);
         }
 #else
     public Task<Dictionary<Guid, int[]>> GetActionsBatchAsync(List<(Guid environmentId, TState state)> stateInfos, bool isTraining)
     {
+        if (_agent is IDiscreteProxyWithMask<TState> withMask)
+        {
+            var payloadWithMasks = stateInfos.Select(r =>
+            {
+                int[][] masks = null;
+                if (_environments[r.environmentId] is IProvidesDiscreteActionMask provider)
+                    masks = provider.GetDiscreteActionMasks();
+                return (r.environmentId, r.state, masks);
+            }).ToList();
+            return withMask.SelectActionsBatchWithMaskAsync(payloadWithMasks, isTraining);
+        }
         return _agent.SelectActionsBatchAsync(stateInfos, isTraining);
     }
 #endif

@@ -83,11 +83,11 @@ namespace RLMatrix
                 Memory = GetMemoryFromOptions(options),
                 ActionSizes = ActionSizes,
                 ResetNoisyLayers = () => noisyLayers.ForEach(module => module.ResetNoise()),
-                SelectActionsFunc = (states, agent, isTraining) =>
+                SelectActionsFunc = (states, agent, isTraining, masks) =>
                 {
                     using (var disposeScope = torch.NewDisposeScope())
                     {
-                        return GetActionSelectFuncFromOptions(options)(states, agent, isTraining);
+                        return GetActionSelectFuncFromOptions(options)(states, agent, isTraining, masks);
                     }
                 },
                 support = support,
@@ -119,7 +119,7 @@ namespace RLMatrix
 
         #region actionSelection
 
-        private static Func<T[], ComposableQDiscreteAgent<T>, bool, int[][]> GetActionSelectFuncFromOptions(DQNAgentOptions opts)
+        private static Func<T[], ComposableQDiscreteAgent<T>, bool, int[][][]?, int[][]> GetActionSelectFuncFromOptions(DQNAgentOptions opts)
         {
             //We fetch correct action selection algorithm based on permutation of options
             if(opts.BatchedInputProcessing && opts.BoltzmannExploration)
@@ -152,7 +152,7 @@ namespace RLMatrix
 
 
         #region UnbatchedActionSelection
-        private static int[][] VanillaActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] VanillaActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             int[][] actions = new int[states.Length][];
             double epsThreshold = agent.Options.EPS_END + (agent.Options.EPS_START - agent.Options.EPS_END) *
@@ -160,20 +160,26 @@ namespace RLMatrix
 
             for (int i = 0; i < states.Length; i++)
             {
+                int[][] maskForState = masks != null && i < masks.Length ? masks[i] : null;
                 if (agent.Random.NextDouble() > epsThreshold || !isTraining)
                 {
-                    actions[i] = ActionsFromState(states[i], agent.policyNet, agent.ActionSizes, agent.Device);
+                    actions[i] = ActionsFromState(states[i], agent.policyNet, agent.ActionSizes, agent.Device, maskForState);
                 }
                 else
                 {
-                    actions[i] = RandomActions(agent.ActionSizes, agent.Random);
+                    // sample per-head respecting mask
+                    actions[i] = new int[agent.ActionSizes.Length];
+                    for (int j = 0; j < agent.ActionSizes.Length; j++)
+                    {
+                        actions[i][j] = SampleRandomAllowed(agent.Random, maskForState != null ? maskForState[j] : null, agent.ActionSizes[j]);
+                    }
                 }
             }
 
             return actions;
         }
 
-        private static int[][] NoisyActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] NoisyActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             int[][] result = new int[states.Length][];
 
@@ -192,25 +198,27 @@ namespace RLMatrix
                 {
                     agent.ResetNoisyLayers();
                 }
-                result[i] = ActionsFromState(states[i], agent.policyNet, agent.ActionSizes, agent.Device);
+                int[][] maskForState = masks != null && i < masks.Length ? masks[i] : null;
+                result[i] = ActionsFromState(states[i], agent.policyNet, agent.ActionSizes, agent.Device, maskForState);
             }
 
             return result;
         }
 
-        private static int[][] CategoricalActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] CategoricalActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             int[][] result = new int[states.Length][];
 
             for (int i = 0; i < states.Length; i++)
             {
-                result[i] = CategoricalActionsFromState(states[i], agent.policyNet, agent.ActionSizes, agent.Options.NumAtoms, agent.Device, agent.support);
+                int[][] maskForState = masks != null && i < masks.Length ? masks[i] : null;
+                result[i] = CategoricalActionsFromState(states[i], agent.policyNet, agent.ActionSizes, agent.Options.NumAtoms, agent.Device, agent.support, maskForState);
             }
 
             return result;
         }
 
-        private static int[][] CategoricalNoisyActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] CategoricalNoisyActionSelection(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             int[][] result = new int[states.Length][];
 
@@ -229,7 +237,8 @@ namespace RLMatrix
                 {
                     agent.ResetNoisyLayers();
                 }
-                result[i] = CategoricalActionsFromState(states[i], agent.policyNet, agent.ActionSizes, agent.Options.NumAtoms, agent.Device, agent.support);
+                int[][] maskForState = masks != null && i < masks.Length ? masks[i] : null;
+                result[i] = CategoricalActionsFromState(states[i], agent.policyNet, agent.ActionSizes, agent.Options.NumAtoms, agent.Device, agent.support, maskForState);
             }
 
             return result;
@@ -237,7 +246,7 @@ namespace RLMatrix
         #endregion
 
         #region BatchedActionSelection
-        private static int[][] VanillaActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] VanillaActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             double epsThreshold = agent.Options.EPS_END + (agent.Options.EPS_START - agent.Options.EPS_END) *
                 Math.Exp(-1.0 * agent.episodeCount / agent.Options.EPS_DECAY);
@@ -254,21 +263,32 @@ namespace RLMatrix
 
             for (int i = 0; i < states.Length; i++)
             {
-                if (agent.Random.NextDouble() > epsThreshold || !isTraining)
+                actions[i] = new int[agent.ActionSizes.Length];
+                bool greedy = agent.Random.NextDouble() > epsThreshold || !isTraining;
+                for (int j = 0; j < agent.ActionSizes.Length; j++)
                 {
-                    Tensor bestActions = qValuesAllHeads[i].argmax(dim: -1).squeeze().to(ScalarType.Int32);
-                    actions[i] = bestActions.data<int>().ToArray();
-                }
-                else
-                {
-                    actions[i] = RandomActions(agent.ActionSizes, agent.Random);
+                    var headScores = qValuesAllHeads[i, j];
+                    int[] mask = masks != null && i < masks.Length ? masks[i]?[j] : null;
+                    if (greedy)
+                    {
+                        if (mask != null)
+                        {
+                            headScores = ApplyMaskToScores(headScores, mask);
+                        }
+                        var best = headScores.argmax().to(ScalarType.Int32);
+                        actions[i][j] = best.item<int>();
+                    }
+                    else
+                    {
+                        actions[i][j] = SampleRandomAllowed(agent.Random, mask, agent.ActionSizes[j]);
+                    }
                 }
             }
 
             return actions;
         }
 
-        private static int[][] NoisyActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] NoisyActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             if (isTraining)
             {
@@ -292,14 +312,24 @@ namespace RLMatrix
 
             for (int i = 0; i < states.Length; i++)
             {
-                Tensor bestActions = qValuesAllHeads[i].argmax(dim: -1).squeeze().to(ScalarType.Int32);
-                actions[i] = bestActions.data<int>().ToArray();
+                actions[i] = new int[agent.ActionSizes.Length];
+                for (int j = 0; j < agent.ActionSizes.Length; j++)
+                {
+                    var headScores = qValuesAllHeads[i, j];
+                    int[] mask = masks != null && i < masks.Length ? masks[i]?[j] : null;
+                    if (mask != null)
+                    {
+                        headScores = ApplyMaskToScores(headScores, mask);
+                    }
+                    var best = headScores.argmax().to(ScalarType.Int32);
+                    actions[i][j] = best.item<int>();
+                }
             }
 
             return actions;
         }
 
-        private static int[][] CategoricalActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] CategoricalActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
             Tensor qValuesAllHeads;
@@ -315,14 +345,24 @@ namespace RLMatrix
 
             for (int i = 0; i < states.Length; i++)
             {
-                Tensor bestActions = expectedQValues[i].argmax(dim: -1).squeeze().to(ScalarType.Int32);
-                actions[i] = bestActions.data<int>().ToArray();
+                actions[i] = new int[agent.ActionSizes.Length];
+                for (int j = 0; j < agent.ActionSizes.Length; j++)
+                {
+                    var headScores = expectedQValues[i, j];
+                    int[] mask = masks != null && i < masks.Length ? masks[i]?[j] : null;
+                    if (mask != null)
+                    {
+                        headScores = ApplyMaskToScores(headScores, mask);
+                    }
+                    var best = headScores.argmax().to(ScalarType.Int32);
+                    actions[i][j] = best.item<int>();
+                }
             }
 
             return actions;
         }
 
-        private static int[][] CategoricalNoisyActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] CategoricalNoisyActionSelectionBatched(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             if (isTraining)
             {
@@ -348,8 +388,18 @@ namespace RLMatrix
 
             for (int i = 0; i < states.Length; i++)
             {
-                Tensor bestActions = expectedQValues[i].argmax(dim: -1).squeeze().to(ScalarType.Int32);
-                actions[i] = bestActions.data<int>().ToArray();
+                actions[i] = new int[agent.ActionSizes.Length];
+                for (int j = 0; j < agent.ActionSizes.Length; j++)
+                {
+                    var headScores = expectedQValues[i, j];
+                    int[] mask = masks != null && i < masks.Length ? masks[i]?[j] : null;
+                    if (mask != null)
+                    {
+                        headScores = ApplyMaskToScores(headScores, mask);
+                    }
+                    var best = headScores.argmax().to(ScalarType.Int32);
+                    actions[i][j] = best.item<int>();
+                }
             }
 
             return actions;
@@ -357,7 +407,7 @@ namespace RLMatrix
         #endregion
 
         #region BatchedBoltzmannActionSelection
-        private static int[][] VanillaActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] VanillaActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             double epsThreshold = agent.Options.EPS_END + (agent.Options.EPS_START - agent.Options.EPS_END) *
                 Math.Exp(-1.0 * agent.episodeCount / agent.Options.EPS_DECAY);
@@ -380,19 +430,44 @@ namespace RLMatrix
 
                 for (int j = 0; j < agent.ActionSizes.Length; j++)
                 {
+                    int[] mask = masks != null && i < masks.Length ? masks[i]?[j] : null;
                     if (agent.Random.NextDouble() > epsThreshold || !isTraining)
                     {
                         Tensor scaledQValues = qValuesAllHeads[i, j] / temperature;
                         Tensor maxQValue = scaledQValues.max();
                         Tensor actionProbs = torch.softmax(scaledQValues - maxQValue, dim: -1);
-                        actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
-                        actionProbs /= actionProbs.sum();
+                        if (mask != null)
+                        {
+                            using var _maskScope = torch.NewDisposeScope();
+                            var maskTensor = torch.tensor(mask.Select(v => v == 0 ? 0f : 1f).ToArray(), dtype: ScalarType.Float32, device: actionProbs.device);
+                            var masked = actionProbs * maskTensor;
+                            var sum = masked.sum();
+                            if (sum.item<float>() <= 0f)
+                            {
+                                int allowed = mask.Count(v => v != 0);
+                                actionProbs = (allowed > 0
+                                    ? (maskTensor / allowed)
+                                    : torch.full_like(actionProbs, 1f / actionProbs.size(0))).MoveToOuterDisposeScope();
+                            }
+                            else
+                            {
+                                actionProbs = (masked / (sum + 1e-12f)).MoveToOuterDisposeScope();
+                            }
+                            // Stability and mask preservation
+                            actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f) * maskTensor;
+                            actionProbs = actionProbs / actionProbs.sum();
+                        }
+                        else
+                        {
+                            actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
+                            actionProbs = actionProbs / actionProbs.sum();
+                        }
                         Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
                         actions[i][j] = (int)sampledAction.item<long>();
                     }
                     else
                     {
-                        actions[i][j] = agent.Random.Next(0, agent.ActionSizes[j]);
+                        actions[i][j] = SampleRandomAllowed(agent.Random, mask, agent.ActionSizes[j]);
                     }
                 }
             }
@@ -400,7 +475,7 @@ namespace RLMatrix
             return actions;
         }
 
-        private static int[][] NoisyActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] NoisyActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             if (isTraining)
             {
@@ -430,11 +505,35 @@ namespace RLMatrix
 
                 for (int j = 0; j < agent.ActionSizes.Length; j++)
                 {
+                    int[] mask = masks != null && i < masks.Length ? masks[i]?[j] : null;
                     Tensor scaledQValues = qValuesAllHeads[i, j] / temperature;
                     Tensor maxQValue = scaledQValues.max();
                     Tensor actionProbs = torch.softmax(scaledQValues - maxQValue, dim: -1);
-                    actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
-                    actionProbs /= actionProbs.sum();
+                    if (mask != null)
+                    {
+                        using var _maskScope = torch.NewDisposeScope();
+                        var maskTensor = torch.tensor(mask.Select(v => v == 0 ? 0f : 1f).ToArray(), dtype: ScalarType.Float32, device: actionProbs.device);
+                        var masked = actionProbs * maskTensor;
+                        var sum = masked.sum();
+                        if (sum.item<float>() <= 0f)
+                        {
+                            int allowed = mask.Count(v => v != 0);
+                            actionProbs = (allowed > 0
+                                ? (maskTensor / allowed)
+                                : torch.full_like(actionProbs, 1f / actionProbs.size(0))).MoveToOuterDisposeScope();
+                        }
+                        else
+                        {
+                            actionProbs = (masked / (sum + 1e-12f)).MoveToOuterDisposeScope();
+                        }
+                        actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f) * maskTensor;
+                        actionProbs = actionProbs / actionProbs.sum();
+                    }
+                    else
+                    {
+                        actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
+                        actionProbs = actionProbs / actionProbs.sum();
+                    }
                     Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
                     actions[i][j] = (int)sampledAction.item<long>();
                 }
@@ -443,7 +542,7 @@ namespace RLMatrix
             return actions;
         }
 
-        private static int[][] CategoricalActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] CategoricalActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             Tensor stateTensor = Utilities<T>.StateBatchToTensor(states, agent.Device);
             Tensor qValuesAllHeads;
@@ -465,11 +564,35 @@ namespace RLMatrix
 
                 for (int j = 0; j < agent.ActionSizes.Length; j++)
                 {
+                    int[] mask = masks != null && i < masks.Length ? masks[i]?[j] : null;
                     Tensor scaledQValues = expectedQValues[i, j] / temperature;
                     Tensor maxQValue = scaledQValues.max();
                     Tensor actionProbs = torch.softmax(scaledQValues - maxQValue, dim: -1);
-                    actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
-                    actionProbs /= actionProbs.sum();
+                    if (mask != null)
+                    {
+                        using var _maskScope = torch.NewDisposeScope();
+                        var maskTensor = torch.tensor(mask.Select(v => v == 0 ? 0f : 1f).ToArray(), dtype: ScalarType.Float32, device: actionProbs.device);
+                        var masked = actionProbs * maskTensor;
+                        var sum = masked.sum();
+                        if (sum.item<float>() <= 0f)
+                        {
+                            int allowed = mask.Count(v => v != 0);
+                            actionProbs = (allowed > 0
+                                ? (maskTensor / allowed)
+                                : torch.full_like(actionProbs, 1f / actionProbs.size(0))).MoveToOuterDisposeScope();
+                        }
+                        else
+                        {
+                            actionProbs = (masked / (sum + 1e-12f)).MoveToOuterDisposeScope();
+                        }
+                        actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f) * maskTensor;
+                        actionProbs = actionProbs / actionProbs.sum();
+                    }
+                    else
+                    {
+                        actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
+                        actionProbs = actionProbs / actionProbs.sum();
+                    }
                     Tensor sampledAction = torch.multinomial(actionProbs, num_samples: 1, replacement: true);
                     actions[i][j] = (int)sampledAction.item<long>();
                 }
@@ -478,7 +601,7 @@ namespace RLMatrix
             return actions;
         }
 
-        private static int[][] CategoricalNoisyActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining)
+        private static int[][] CategoricalNoisyActionSelectionBatchedBoltzmann(T[] states, ComposableQDiscreteAgent<T> agent, bool isTraining, int[][][] masks)
         {
             if (isTraining)
             {
@@ -523,35 +646,85 @@ namespace RLMatrix
         #endregion
 
 
-        private static int[] ActionsFromState(T state, Module<Tensor, Tensor> policyNet, int[] ActionSizes, Device device)
+        private static int[] ActionsFromState(T state, Module<Tensor, Tensor> policyNet, int[] ActionSizes, Device device, int[][] maskForState = null)
         {
             using (torch.no_grad())
             {
                 Tensor stateTensor = Utilities<T>.StateToTensor(state, device);
                 Tensor qValuesAllHeads = policyNet.forward(stateTensor).view(1, ActionSizes.Length, ActionSizes[0]);
-                Tensor bestActions = qValuesAllHeads.argmax(dim: -1).squeeze().to(ScalarType.Int32);
-                var result = bestActions.data<int>().ToArray();
-                return result;
+                int[] actions = new int[ActionSizes.Length];
+                for (int j = 0; j < ActionSizes.Length; j++)
+                {
+                    var headScores = qValuesAllHeads[0, j];
+                    int[] mask = maskForState != null ? maskForState[j] : null;
+                    if (mask != null) headScores = ApplyMaskToScores(headScores, mask);
+                    var best = headScores.argmax().to(ScalarType.Int32);
+                    actions[j] = best.item<int>();
+                }
+                return actions;
             }
         }
 
-        private static int[] CategoricalActionsFromState(T state, Module<Tensor, Tensor> policyNet, int[] ActionSizes, int numAtoms, Device device, Tensor support)
+        private static int[] CategoricalActionsFromState(T state, Module<Tensor, Tensor> policyNet, int[] ActionSizes, int numAtoms, Device device, Tensor support, int[][] maskForState = null)
         {
             using (torch.no_grad())
             {
                 Tensor stateTensor = Utilities<T>.StateToTensor(state, device);
                 Tensor qValuesAllHeads = policyNet.forward(stateTensor).view(1, ActionSizes.Length, ActionSizes[0], numAtoms);
                 Tensor expectedQValues = (qValuesAllHeads * support).sum(dim: -1);
-                Tensor bestActions = expectedQValues.argmax(dim: -1).squeeze().to(ScalarType.Int32);
-                return bestActions.data<int>().ToArray();
+                int[] actions = new int[ActionSizes.Length];
+                for (int j = 0; j < ActionSizes.Length; j++)
+                {
+                    var headScores = expectedQValues[0, j];
+                    int[] mask = maskForState != null ? maskForState[j] : null;
+                    if (mask != null) headScores = ApplyMaskToScores(headScores, mask);
+                    var best = headScores.argmax().to(ScalarType.Int32);
+                    actions[j] = best.item<int>();
+                }
+                return actions;
             }
         }
 
         private static int[] RandomActions(int[] actionSizes, Random Random)
         {
-          
             return actionSizes.Select(size => Random.Next(0, size)).ToArray();
         }
+
+        private static Tensor ApplyMaskToScores(Tensor scores, int[] mask)
+        {
+            // mask: 0 = invalid, nonzero = valid
+            var device = scores.device;
+            using var _ = torch.NewDisposeScope();
+            var maskTensor = torch.tensor(mask.Select(v => v == 0 ? 0f : 1f).ToArray(), device: device, dtype: ScalarType.Float32);
+            var negInf = torch.full_like(scores, float.NegativeInfinity);
+            var result = torch.where(maskTensor.eq(0), negInf, scores);
+            return result.MoveToOuterDisposeScope();
+        }
+
+        private static Tensor ApplyMaskToProbs(Tensor probs, int[] mask)
+        {
+            var device = probs.device;
+            using var _ = torch.NewDisposeScope();
+            var maskTensor = torch.tensor(mask.Select(v => v == 0 ? 0f : 1f).ToArray(), device: device, dtype: ScalarType.Float32);
+            var masked = probs * maskTensor;
+            var sum = masked.sum();
+            masked = masked / (sum + 1e-12f);
+            return masked.MoveToOuterDisposeScope();
+        }
+
+        private static int SampleRandomAllowed(Random rnd, int[] mask, int actionSize)
+        {
+            if (mask == null)
+            {
+                return rnd.Next(0, actionSize);
+            }
+            var allowed = new List<int>();
+            int len = Math.Min(mask.Length, actionSize);
+            for (int k = 0; k < len; k++) if (mask[k] != 0) allowed.Add(k);
+            if (allowed.Count == 0) return 0; // fallback
+            return allowed[rnd.Next(0, allowed.Count)];
+        }
+
 
         private static Tensor GetSupport(int numAtoms, float vMin, float vMax, Device device)
         {

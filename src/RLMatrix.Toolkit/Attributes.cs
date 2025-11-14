@@ -39,6 +39,15 @@ namespace RLMatrix.Toolkit
     [AttributeUsage(AttributeTargets.Method)]
     public class RLMatrixResetAttribute : Attribute { }
 
+	[AttributeUsage(AttributeTargets.Method)]
+	public class RlMatrixActionMaskProviderAttribute : Attribute
+	{
+	    public string MethodName { get; }
+	    public RlMatrixActionMaskProviderAttribute(string methodName)
+	    {
+	        MethodName = methodName;
+	    }
+	}
 
 
     //----------------------------------------------Stubs for future semantics integration----------------------------------------------

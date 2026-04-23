@@ -53,7 +53,8 @@ namespace RLMatrix.Toolkit
             var discreteActionInfos = discreteActionMethods
                 .Select(m => new ActionInfo(
                     m.Name,
-                    GetAttributeArgument<int>(m, "RLMatrixActionDiscreteAttribute", 0)))
+                    GetAttributeArgument<int>(m, "RLMatrixActionDiscreteAttribute", 0),
+                    GetAttributeArgument<string>(m, "RlMatrixActionMaskProviderAttribute", 0, null)))
                 .ToArray();
 
             var continuousActionInfos = continuousActionMethods
@@ -113,6 +114,7 @@ namespace RLMatrix.Toolkit
         private static string GenerateSource(EnvironmentModel model)
         {
             var interfaceName = model.IsContinuous ? "IContinuousEnvironmentAsync<float[]>" : "IEnvironmentAsync<float[]>";
+            var maskInterface = model.IsContinuous ? string.Empty : ", IProvidesDiscreteActionMask";
             var actionProperties = model.IsContinuous ? GenerateContinuousProperties(model) : GenerateDiscreteProperties(model);
             var stepMethod = model.IsContinuous ? GenerateContinuousStepMethod(model) : GenerateDiscreteStepMethod(model);
             var actionSizeCalc = model.IsContinuous ? "DiscreteActionSize.Length + ContinuousActionBounds.Length" : "actionSize.Length";
@@ -121,6 +123,7 @@ namespace RLMatrix.Toolkit
             var actionMethodsInit = GenerateActionMethodsInitialization(model);
             var observationCollection = GenerateObservationCollection(model);
             var ghostStepActions = GenerateGhostStepActions(model);
+            var masksMethod = model.IsContinuous ? string.Empty : GenerateGetDiscreteActionMasksMethod();
 
             return $$"""
 using System;
@@ -130,10 +133,11 @@ using System.Threading.Tasks;
 using OneOf;
 using RLMatrix;
 using RLMatrix.Toolkit;
+using RLMatrix.Common;
 
 namespace {{model.NamespaceName}}
 {
-    public partial class {{model.ClassName}} : {{interfaceName}}
+    public partial class {{model.ClassName}} : {{interfaceName}}{{maskInterface}}
     {
         private int _poolingRate;
         private RLMatrixPoolingHelper _poolingHelper;
@@ -144,6 +148,8 @@ namespace {{model.NamespaceName}}
         private int _maxStepsSoft;
         private bool _rlMatrixEpisodeTerminated;
         private bool _rlMatrixEpisodeTruncated;
+        private Func<int[]>[] _maskProviders;
+
         private (Action<int> method, int maxValue)[] _actionMethodsWithCaps;
         private Action<float>[] _continuousActionMethods;
 
@@ -281,6 +287,8 @@ namespace {{model.NamespaceName}}
 {{observationCollection}}
             return observations.ToArray();
         }
+
+{{masksMethod}}
     }
 }
 """;
@@ -328,6 +336,25 @@ namespace {{model.NamespaceName}}
             else
             {
                 sb.AppendLine("            _actionMethodsWithCaps = new (Action<int>, int)[0];");
+            }
+
+            if (model.DiscreteActions.Any())
+            {
+                sb.AppendLine();
+                sb.AppendLine("            _maskProviders = new Func<int[]>[]");
+                sb.AppendLine("            {");
+                foreach (var action in model.DiscreteActions)
+                {
+                    if (string.IsNullOrEmpty(action.MaskProvider))
+                        sb.AppendLine("                null,");
+                    else
+                        sb.AppendLine($"                () => {action.MaskProvider}(),");
+                }
+                sb.AppendLine("            };");
+            }
+            else
+            {
+                sb.AppendLine("            _maskProviders = new Func<int[]>[0];");
             }
 
             if (model.IsContinuous && model.ContinuousActions.Any())
@@ -454,6 +481,31 @@ namespace {{model.NamespaceName}}
             return sb.ToString();
         }
 
+        private static string GenerateGetDiscreteActionMasksMethod()
+        {
+            return $$"""
+        public int[][] GetDiscreteActionMasks()
+        {
+            int heads = _actionMethodsWithCaps.Length;
+            var masks = new int[heads][];
+            for (int i = 0; i < heads; i++)
+            {
+                if (_maskProviders != null && i < _maskProviders.Length && _maskProviders[i] != null)
+                {
+                    masks[i] = _maskProviders[i]();
+                }
+                else
+                {
+                    int size = _actionMethodsWithCaps[i].maxValue;
+                    masks[i] = Enumerable.Repeat(1, size).ToArray();
+                }
+            }
+            return masks;
+        }
+""";
+        }
+
+
         public class EnvironmentModel
         {
             public string ClassName { get; }
@@ -498,11 +550,13 @@ namespace {{model.NamespaceName}}
         {
             public string MethodName { get; }
             public int Size { get; }
+            public string MaskProvider { get; }
 
-            public ActionInfo(string methodName, int size)
+            public ActionInfo(string methodName, int size, string maskProvider = null)
             {
                 MethodName = methodName;
                 Size = size;
+                MaskProvider = maskProvider;
             }
         }
 

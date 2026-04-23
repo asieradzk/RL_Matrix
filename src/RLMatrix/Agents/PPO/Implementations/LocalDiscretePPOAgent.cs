@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace RLMatrix.Agents.PPO.Implementations
 {
-    public class LocalDiscretePPOAgent<T> : IDiscreteProxy<T>
+    public class LocalDiscretePPOAgent<T> : IDiscreteProxy<T>, IDiscreteProxyWithMask<T>
     {
         private readonly IDiscretePPOAgent<T> _agent;
         bool useRnn = false;
@@ -127,6 +127,87 @@ namespace RLMatrix.Agents.PPO.Implementations
                     Guid environmentId = stateInfos[i].environmentId;
                     int[] action = actions[i];
                     actionDict[environmentId] = action;
+                }
+            }
+
+#if NET8_0_OR_GREATER
+            return ValueTask.FromResult(actionDict);
+#else
+            return Task.FromResult(actionDict);
+#endif
+        }
+
+#if NET8_0_OR_GREATER
+        public ValueTask<Dictionary<Guid, int[]>> SelectActionsBatchWithMaskAsync(List<(Guid environmentId, T state, int[][] actionMasks)> stateInfos, bool isTraining)
+#else
+        public Task<Dictionary<Guid, int[]>> SelectActionsBatchWithMaskAsync(List<(Guid environmentId, T state, int[][] actionMasks)> stateInfos, bool isTraining)
+#endif
+        {
+            Dictionary<Guid, int[]> actionDict = new Dictionary<Guid, int[]>();
+
+            if (useRnn)
+            {
+                (T state, Tensor? memoryState, Tensor? memoryState2)[] statesWithMemory = stateInfos.Select(info =>
+                {
+                    if (!memoriesStore.TryGetValue(info.environmentId, out var memoryTuple))
+                    {
+                        memoryTuple = null;
+                        memoriesStore[info.environmentId] = memoryTuple;
+                    }
+                    return (info.state, memoryTuple?.Item1, memoryTuple?.Item2);
+                }).ToArray();
+
+                int[][][] batchMasks = stateInfos.Select(info => info.actionMasks).ToArray();
+
+                var recurrentAgent = _agent as DiscreteRecurrentPPOAgent<T>;
+                if (recurrentAgent != null)
+                {
+                    var actionsWithMemory = recurrentAgent.SelectActionsRecurrent(statesWithMemory, isTraining, batchMasks);
+                    for (int i = 0; i < stateInfos.Count; i++)
+                    {
+                        var envId = stateInfos[i].environmentId;
+                        actionDict[envId] = actionsWithMemory[i].actions;
+                        memoriesStore[envId] = (actionsWithMemory[i].memoryState, actionsWithMemory[i].memoryState2);
+                    }
+                }
+                else
+                {
+                    // fallback without masks if casting failed
+                    var actionsWithMemory = _agent.SelectActionsRecurrent(statesWithMemory, isTraining);
+                    for (int i = 0; i < stateInfos.Count; i++)
+                    {
+                        var envId = stateInfos[i].environmentId;
+                        actionDict[envId] = actionsWithMemory[i].actions;
+                        memoriesStore[envId] = (actionsWithMemory[i].memoryState, actionsWithMemory[i].memoryState2);
+                    }
+                }
+            }
+            else
+            {
+                T[] states = stateInfos.Select(info => info.state).ToArray();
+                int[][][] batchMasks = stateInfos.Select(info => info.actionMasks).ToArray();
+
+                var discreteAgent = _agent as DiscretePPOAgent<T>;
+                if (discreteAgent != null)
+                {
+                    int[][] actions = discreteAgent.SelectActions(states, isTraining, batchMasks);
+                    for (int i = 0; i < stateInfos.Count; i++)
+                    {
+                        Guid environmentId = stateInfos[i].environmentId;
+                        int[] action = actions[i];
+                        actionDict[environmentId] = action;
+                    }
+                }
+                else
+                {
+                    // fallback without masks if casting failed
+                    int[][] actions = _agent.SelectActions(states, isTraining);
+                    for (int i = 0; i < stateInfos.Count; i++)
+                    {
+                        Guid environmentId = stateInfos[i].environmentId;
+                        int[] action = actions[i];
+                        actionDict[environmentId] = action;
+                    }
                 }
             }
 

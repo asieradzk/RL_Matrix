@@ -12,14 +12,41 @@ namespace RLMatrix.Agents.PPO.Implementations
     {
 
         #region helpers
-        public static int[] SelectDiscreteActionsFromProbs(Tensor result, int[] actionSize)
+        public static int[] SelectDiscreteActionsFromProbs(Tensor result, int[] actionSize, int[][] maskForState = null)
         {
             // Assuming discrete action heads come first
             List<int> actions = new List<int>();
             for (int i = 0; i < actionSize.Count(); i++)
             {
                 var actionProbs = result.select(1, i);
-                var action = torch.multinomial(actionProbs, 1);
+                if (maskForState != null)
+                {
+                    var mask = maskForState[i];
+                    if (mask != null)
+                    {
+                        using var _ = torch.NewDisposeScope();
+                        var maskTensor = torch.tensor(mask.Select(v => v == 0 ? 0f : 1f).ToArray(), dtype: ScalarType.Float32, device: actionProbs.device);
+                        var masked = actionProbs * maskTensor;
+                        var sum = masked.sum();
+                        if (sum.item<float>() <= 0f)
+                        {
+                            // Fallback: if no valid actions (or masked to zero), use uniform over allowed indices; if none allowed, uniform over all
+                            int allowed = mask.Count(v => v != 0);
+                            Tensor fallback = allowed > 0
+                                ? (maskTensor / allowed).unsqueeze(0)
+                                : torch.full_like(actionProbs, 1f / actionProbs.size(1));
+                            actionProbs = fallback.MoveToOuterDisposeScope();
+                        }
+                        else
+                        {
+                            actionProbs = (masked / (sum + 1e-12f)).MoveToOuterDisposeScope();
+                        }
+                    }
+                }
+                // Numeric stability: ensure strictly positive, renormalize
+                actionProbs = torch.clamp(actionProbs, 1e-10f, 1.0f);
+                actionProbs = actionProbs / actionProbs.sum();
+                var action = torch.multinomial(actionProbs, 1, true);
                 actions.Add((int)action.item<long>());
             }
             return actions.ToArray();
@@ -51,12 +78,30 @@ namespace RLMatrix.Agents.PPO.Implementations
             return actions.ToArray();
         }
 
-        public static int[] SelectGreedyDiscreteActions(Tensor result, int[] actionSize)
+        public static int[] SelectGreedyDiscreteActions(Tensor result, int[] actionSize, int[][] maskForState = null)
         {
             List<int> actions = new List<int>();
             for (int i = 0; i < actionSize.Count(); i++)
             {
                 var actionProbs = result.select(1, i);
+                if (maskForState != null)
+                {
+                    var mask = maskForState[i];
+                    if (mask != null)
+                    {
+                        using var _ = torch.NewDisposeScope();
+                        var maskTensor = torch.tensor(mask.Select(v => v == 0 ? 0f : 1f).ToArray(), dtype: ScalarType.Float32, device: actionProbs.device);
+                        var masked = actionProbs * maskTensor;
+                        var sum = masked.sum();
+                        if (sum.item<float>() <= 0f)
+                        {
+                            int firstAllowed = Array.FindIndex(mask, v => v != 0);
+                            actions.Add(firstAllowed >= 0 ? firstAllowed : 0);
+                            continue;
+                        }
+                        actionProbs = (masked / (sum + 1e-12f)).MoveToOuterDisposeScope();
+                    }
+                }
                 var action = actionProbs.argmax();
                 actions.Add((int)action.item<long>());
             }

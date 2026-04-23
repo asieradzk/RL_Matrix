@@ -112,5 +112,5 @@ Questions? Ideas? Collaborations? Drop a line at:
 📧 contact@exmachinasoft.com
 
 ## 🤝 License:
-RLMatrix is licensed under the [RLMatrix Comprehensive Dual License Agreement](https://github.com/asieradzk/RL_Matrix/blob/master/LICENSE.txt)
+RLMatrix is licensed under the [MIT License](https://github.com/asieradzk/RL_Matrix/blob/master/LICENSE.md).
 
